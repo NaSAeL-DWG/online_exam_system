@@ -12,6 +12,23 @@ const copy = computed(
       ADMIN: ['管理工作台', '创建教师、维护账号状态并配置教学班。'],
     })[auth.user?.user_type ?? 'STUDENT'],
 )
+const guide = computed(
+  () =>
+    ({
+      STUDENT: {
+        title: '开始使用',
+        description: '考试开放后可从工作台查看可参加的考试，并按考试说明开始作答。',
+      },
+      TEACHER: {
+        title: '从哪里开始',
+        description: '从左侧进入学生审核或教学班；如需更新密码，可进入账号安全。',
+      },
+      ADMIN: {
+        title: '从哪里开始',
+        description: '从左侧进入账号管理创建教师，或进入教学班配置负责教师和学生成员。',
+      },
+    })[auth.user?.user_type ?? 'STUDENT'],
+)
 </script>
 
 <template>
@@ -39,12 +56,10 @@ const copy = computed(
         ><span class="metric-label">登录账号</span
         ><strong>{{ auth.user?.login_name }}</strong></NCard
       >
-      <NCard><span class="metric-label">系统状态</span><strong>运行正常</strong></NCard>
+      <NCard><span class="metric-label">登录状态</span><strong>已登录</strong></NCard>
     </div>
-    <NCard title="迭代 1 已开放能力"
-      ><p class="muted">
-        身份认证、学生注册审核、账号管理与教学班维护已经接入。题库与考试能力将在后续迭代开放。
-      </p></NCard
+    <NCard :title="guide.title"
+      ><p class="muted">{{ guide.description }}</p></NCard
     >
   </div>
 </template>

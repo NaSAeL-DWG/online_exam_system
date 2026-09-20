@@ -96,23 +96,29 @@ export async function request<T>(path: string, init: RequestInit = {}): Promise<
   let response: Response
   try {
     response = await rawFetch(path, init)
-  } catch {
-    throw new ApiError(0, { code: 'NETWORK_ERROR', message: '无法连接服务器，请检查网络后重试' })
+    const isAuthOperation = path === '/auth/login' || path === '/auth/refresh'
+    if (response.status === 401 && !isAuthOperation) {
+      const refreshed = await attemptRefresh()
+      if (refreshed) response = await rawFetch(path, init)
+    }
+  } catch (error) {
+    if (error instanceof ApiError) throw error
+    throw new ApiError(0, {
+      code: 'NETWORK_ERROR',
+      message: '无法连接服务器，请检查网络后重试',
+    })
   }
-  const isAuthOperation = path === '/auth/login' || path === '/auth/refresh'
-  if (response.status === 401 && !isAuthOperation) {
-    const refreshed = await attemptRefresh()
-    if (refreshed) response = await rawFetch(path, init)
-  }
-  if (!response.ok) {
-    const problem = await parseProblem(response)
+  if (!response!.ok) {
+    const problem = await parseProblem(response!)
     // 首次进入公开页面时 /me 返回 401 只代表匿名，不应抢走当前导航。
-    if (response.status === 401 && path !== '/auth/me')
+    const accessRevoked = response!.status === 403 && problem.code === 'ACCOUNT_DEACTIVATED'
+    if ((response!.status === 401 && path !== '/auth/me') || accessRevoked) {
       window.dispatchEvent(new CustomEvent('auth:expired'))
-    throw new ApiError(response.status, problem)
+    }
+    throw new ApiError(response!.status, problem)
   }
-  if (response.status === 204) return undefined as T
-  return (await response.json()) as T
+  if (response!.status === 204) return undefined as T
+  return (await response!.json()) as T
 }
 
 export function errorMessage(error: unknown): string {

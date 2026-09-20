@@ -152,7 +152,7 @@ async function addStudent(): Promise<void> {
     selected.value = (
       await request<{ class_info: TeachingClass }>(
         `/classes/${selected.value.id}/members/${selectedStudentId.value}`,
-        { method: 'PUT' },
+        { method: 'PUT', body: JSON.stringify({ role: 'STUDENT' }) },
       )
     ).class_info
     selectedStudentId.value = null
@@ -202,6 +202,12 @@ function archive(row: TeachingClass): void {
       }
     },
   })
+}
+function archiveEditingClass(): void {
+  const classInfo = items.value.find((item) => item.id === editingId.value)
+  if (!classInfo) return
+  editorVisible.value = false
+  archive(classInfo)
 }
 const availableStudents = computed(() =>
   students.value
@@ -264,10 +270,7 @@ onMounted(load)
           ><NButton
             v-if="editingId && items.find((item) => item.id === editingId)?.status === 'ACTIVE'"
             type="warning"
-            @click="
-              editorVisible = false;
-              archive(items.find((item) => item.id === editingId)!)
-            "
+            @click="archiveEditingClass"
             >归档教学班</NButton
           ><NSpace
             ><NButton @click="editorVisible = false">取消</NButton

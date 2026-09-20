@@ -41,4 +41,6 @@ test('管理员创建的教师首次登录必须修改临时密码', async ({ pa
   await page.getByLabel('密码').fill(newPassword)
   await page.getByRole('button', { name: '登录' }).click()
   await expect(page.getByRole('heading', { name: '教师工作台' })).toBeVisible()
+  await expect(page.locator('.n-message')).toHaveCount(0, { timeout: 5_000 })
+  await page.screenshot({ path: 'test-results/visual/teacher-workbench.png', fullPage: true })
 })

@@ -14,8 +14,10 @@ import {
   useMessage,
 } from 'naive-ui'
 import { errorMessage, request } from '../api/client'
+import { useAuthStore } from '../stores/auth'
 import type { StudentApplication } from '../types'
 
+const auth = useAuthStore()
 const application = ref<StudentApplication | null>(null)
 const loading = ref(true)
 const saving = ref(false)
@@ -46,6 +48,7 @@ async function resubmit(): Promise<void> {
         body: JSON.stringify(form),
       })
     ).application
+    await auth.restore()
     message.success('申请已重新提交')
   } catch (error) {
     failure.value = errorMessage(error)
