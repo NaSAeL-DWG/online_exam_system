@@ -1,0 +1,21 @@
+# 本地凭据与运行环境
+.env
+.env.*
+!.env.example
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+
+# 前端构建与浏览器测试产物
+node_modules/
+dist/
+playwright-report/
+test-results/
+
+# 本地服务数据、日志及按项目约定保留的清理文件
+.local/
+.deletedfiles/
+*.log
