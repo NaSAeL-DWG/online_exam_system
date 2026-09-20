@@ -1,7 +1,12 @@
 from collections.abc import AsyncIterator
 
 from redis.asyncio import Redis
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 
 from .config import Settings
 
@@ -11,7 +16,9 @@ class Resources:
 
     def __init__(self, settings: Settings) -> None:
         self.engine: AsyncEngine = create_async_engine(settings.database_url, pool_pre_ping=True)
-        self.session_factory = async_sessionmaker(self.engine, class_=AsyncSession, expire_on_commit=False)
+        self.session_factory = async_sessionmaker(
+            self.engine, class_=AsyncSession, expire_on_commit=False
+        )
         self.redis = Redis.from_url(settings.redis_url, decode_responses=True)
 
     async def close(self) -> None:

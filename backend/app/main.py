@@ -5,15 +5,15 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from .config import get_settings
+from .config import Settings, get_settings
 from .db import Resources
 from .routes import admin, auth, classes, staff, student
 
 
-def create_app() -> FastAPI:
+def create_app(settings_override: Settings | None = None) -> FastAPI:
     """创建配置隔离、可供集成测试启动的 FastAPI 应用。"""
 
-    settings = get_settings()
+    settings = settings_override or get_settings()
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -27,7 +27,9 @@ def create_app() -> FastAPI:
     app = FastAPI(title="在线限时考试系统 API", version="0.1.0", lifespan=lifespan)
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=[value.strip() for value in settings.cors_origins.split(",") if value.strip()],
+        allow_origins=[
+            value.strip() for value in settings.cors_origins.split(",") if value.strip()
+        ],
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -38,7 +40,9 @@ def create_app() -> FastAPI:
         fields = {".".join(str(p) for p in error["loc"]): error["msg"] for error in exc.errors()}
         return JSONResponse(
             status_code=422,
-            content={"detail": {"code": "VALIDATION_ERROR", "message": "请求参数无效", "fields": fields}},
+            content={
+                "detail": {"code": "VALIDATION_ERROR", "message": "请求参数无效", "fields": fields}
+            },
         )
 
     @app.get("/api/health")

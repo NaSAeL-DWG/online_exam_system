@@ -1,6 +1,7 @@
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Request
+from redis.exceptions import RedisError
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -113,14 +114,18 @@ async def patch_user(
     requested_status = UserStatus(payload.status) if payload.status else None
     if user.user_type == UserType.ADMIN and requested_status == UserStatus.DEACTIVATED:
         raise api_error(409, "ADMIN_DEACTIVATION_FORBIDDEN", "管理员账号不能通过后台停用")
-    before = {"login_name": user.login_name, "real_name": user.real_name, "status": user.status.value}
+    before = {
+        "login_name": user.login_name,
+        "real_name": user.real_name,
+        "status": user.status.value,
+    }
     if payload.login_name is not None and payload.login_name != user.login_name:
-        user.login_name = payload.login_name
         profile = (
             await session.get(StudentProfile, user.id)
             if user.user_type == UserType.STUDENT
             else await session.get(TeacherProfile, user.id)
         )
+        user.login_name = payload.login_name
         if isinstance(profile, StudentProfile):
             profile.student_no = payload.login_name
         elif isinstance(profile, TeacherProfile):
@@ -138,6 +143,8 @@ async def patch_user(
                 .limit(1)
             )
             if not latest or latest.status != ReviewStatus.APPROVED:
+                if user.status != UserStatus.DEACTIVATED:
+                    raise api_error(409, "REVIEW_REQUIRED", "学生尚未通过审核")
                 restored_status = UserStatus.WAITING_ACTIVATE
         user.status = restored_status
         user.auth_version += 1
@@ -163,12 +170,19 @@ async def patch_user(
         await session.rollback()
         raise api_error(409, "LOGIN_NAME_EXISTS", "登录账号已存在") from None
     if revoke:
-        await revoke_all_sessions(request.app.state.resources.redis, user.id)
+        try:
+            await revoke_all_sessions(request.app.state.resources.redis, user.id)
+        except RedisError:
+            raise api_error(
+                503, "AUTH_SERVICE_UNAVAILABLE", "账号已更新，认证服务暂时不可用"
+            ) from None
     await session.refresh(user)
     return {"user": UserPublic.model_validate(user)}
 
 
-@router.post("/users/{user_id}/reset-password", status_code=204, dependencies=[Depends(require_csrf)])
+@router.post(
+    "/users/{user_id}/reset-password", status_code=204, dependencies=[Depends(require_csrf)]
+)
 async def reset_password(
     user_id: UUID,
     payload: ResetPasswordRequest,
@@ -196,4 +210,7 @@ async def reset_password(
         )
     )
     await session.commit()
-    await revoke_all_sessions(request.app.state.resources.redis, user.id)
+    try:
+        await revoke_all_sessions(request.app.state.resources.redis, user.id)
+    except RedisError:
+        raise api_error(503, "AUTH_SERVICE_UNAVAILABLE", "密码已重置，认证服务暂时不可用") from None

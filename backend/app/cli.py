@@ -26,7 +26,9 @@ async def init_admin(args: argparse.Namespace) -> None:
     resources = Resources(settings)
     try:
         async with resources.session_factory() as session:
-            existing_admin = await session.scalar(select(User).where(User.user_type == UserType.ADMIN))
+            existing_admin = await session.scalar(
+                select(User).where(User.user_type == UserType.ADMIN)
+            )
             if existing_admin:
                 if existing_admin.login_name == values["login_name"]:
                     print(f"管理员已存在：{existing_admin.login_name}")

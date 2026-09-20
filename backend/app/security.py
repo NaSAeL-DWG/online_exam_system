@@ -35,6 +35,20 @@ def token_digest(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
 
 
+_RATE_LIMIT_SCRIPT = """
+local count = redis.call('INCR', KEYS[1])
+if count == 1 then redis.call('EXPIRE', KEYS[1], tonumber(ARGV[1])) end
+return count
+"""
+
+
+async def consume_rate_limit(redis: Redis, key: str, limit: int, window_seconds: int) -> bool:
+    """原子增加限流计数；返回本次请求是否允许继续。"""
+
+    count = await redis.eval(_RATE_LIMIT_SCRIPT, 1, key, str(window_seconds))
+    return int(count) <= limit
+
+
 @dataclass(slots=True)
 class SessionTokens:
     session_id: UUID
@@ -69,12 +83,12 @@ async def create_session(
     now = int(time.time())
     key = f"session:{session_id}"
     mapping = {
-            "user_id": str(user_id),
-            "auth_version": str(auth_version),
-            "created_at": str(now),
-            "last_active_at": str(now),
-            "absolute_expires_at": str(now + settings.session_absolute_seconds),
-            "refresh_hash": token_digest(refresh_token),
+        "user_id": str(user_id),
+        "auth_version": str(auth_version),
+        "created_at": str(now),
+        "last_active_at": str(now),
+        "absolute_expires_at": str(now + settings.session_absolute_seconds),
+        "refresh_hash": token_digest(refresh_token),
     }
     async with redis.pipeline(transaction=True) as pipe:
         pipe.hset(key, mapping=mapping)
@@ -98,7 +112,9 @@ return redis.call('HGETALL', key)
 """
 
 
-async def touch_session(redis: Redis, settings: Settings, session_id: UUID) -> dict[str, str] | None:
+async def touch_session(
+    redis: Redis, settings: Settings, session_id: UUID
+) -> dict[str, str] | None:
     """校验并延长会话空闲期限，不超过绝对期限。"""
 
     key = f"session:{session_id}"

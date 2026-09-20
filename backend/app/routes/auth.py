@@ -9,10 +9,19 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..deps import Identity, current_identity, get_session, require_csrf
 from ..errors import api_error
-from ..models import RegistrationReview, StudentProfile, User, UserStatus, UserType, utc_now
+from ..models import (
+    AuditEvent,
+    RegistrationReview,
+    StudentProfile,
+    User,
+    UserStatus,
+    UserType,
+    utc_now,
+)
 from ..schemas import ContactsRequest, LoginRequest, PasswordRequest, RegisterRequest, UserPublic
 from ..security import (
     create_session,
+    consume_rate_limit,
     hash_password,
     issue_access_token,
     revoke_all_sessions,
@@ -90,6 +99,15 @@ async def register(
         session.add(StudentProfile(user_id=user.id, student_no=payload.student_no))
         application = RegistrationReview(user_id=user.id, submitted_profile=profile_snapshot)
         session.add(application)
+        session.add(
+            AuditEvent(
+                actor_id=user.id,
+                action="REGISTRATION_SUBMITTED",
+                entity_type="registration_review",
+                entity_id=application.id,
+                after_data={"student_no": payload.student_no},
+            )
+        )
         await session.commit()
     except IntegrityError:
         await session.rollback()
@@ -109,12 +127,11 @@ async def login(
     """校验账号密码并建立 Redis 会话。"""
 
     redis = request.app.state.resources.redis
-    rate_key = f"login_rate:{request.client.host if request.client else 'unknown'}:{payload.login_name}"
+    rate_key = (
+        f"login_rate:{request.client.host if request.client else 'unknown'}:{payload.login_name}"
+    )
     try:
-        attempts = await redis.incr(rate_key)
-        if attempts == 1:
-            await redis.expire(rate_key, 60)
-        if attempts > 10:
+        if not await consume_rate_limit(redis, rate_key, 10, 60):
             raise api_error(429, "LOGIN_RATE_LIMITED", "登录尝试过于频繁")
     except RedisError:
         raise api_error(503, "AUTH_SERVICE_UNAVAILABLE", "认证服务暂时不可用，请重试") from None
@@ -128,7 +145,9 @@ async def login(
         await redis.delete(rate_key)
     except RedisError:
         raise api_error(503, "AUTH_SERVICE_UNAVAILABLE", "认证服务暂时不可用，请重试") from None
-    _set_auth_cookies(response, request, tokens.access_token, tokens.refresh_token, tokens.session_id)
+    _set_auth_cookies(
+        response, request, tokens.access_token, tokens.refresh_token, tokens.session_id
+    )
     return {"user": UserPublic.model_validate(user)}
 
 
@@ -169,11 +188,15 @@ async def refresh(
 
 
 @router.post("/logout", status_code=204, dependencies=[Depends(require_csrf)])
-async def logout(request: Request, response: Response, identity: Identity = Depends(current_identity)):
+async def logout(
+    request: Request, response: Response, identity: Identity = Depends(current_identity)
+):
     """撤销当前会话并清理认证 Cookie。"""
 
     try:
-        await revoke_session(request.app.state.resources.redis, identity.session_id, identity.user.id)
+        await revoke_session(
+            request.app.state.resources.redis, identity.session_id, identity.user.id
+        )
     except RedisError:
         raise api_error(503, "AUTH_SERVICE_UNAVAILABLE", "认证服务暂时不可用，请重试") from None
     _clear_auth_cookies(response, request)
@@ -195,6 +218,13 @@ async def change_password(
 ):
     """验证当前密码后更新密码并撤销全部旧会话。"""
 
+    redis = request.app.state.resources.redis
+    rate_key = f"password_verify:{identity.user.id}"
+    try:
+        if not await consume_rate_limit(redis, rate_key, 5, 60):
+            raise api_error(429, "PASSWORD_VERIFY_RATE_LIMITED", "密码验证尝试过于频繁")
+    except RedisError:
+        raise api_error(503, "AUTH_SERVICE_UNAVAILABLE", "认证服务暂时不可用，请重试") from None
     user = await session.get(User, identity.user.id, with_for_update=True)
     if not user or not await verify_password(user.password_hash, payload.current_password):
         raise api_error(400, "CURRENT_PASSWORD_INVALID", "当前密码错误")
@@ -202,13 +232,26 @@ async def change_password(
     user.must_change_password = False
     user.auth_version += 1
     user.updated_at = utc_now()
+    session.add(
+        AuditEvent(
+            actor_id=user.id,
+            action="PASSWORD_CHANGED",
+            entity_type="user",
+            entity_id=user.id,
+        )
+    )
     await session.commit()
-    await revoke_all_sessions(request.app.state.resources.redis, user.id)
+    try:
+        await redis.delete(rate_key)
+        await revoke_all_sessions(redis, user.id)
+    except RedisError:
+        raise api_error(503, "AUTH_SERVICE_UNAVAILABLE", "认证服务暂时不可用，请重试") from None
 
 
 @router.put("/contacts", dependencies=[Depends(require_csrf)])
 async def change_contacts(
     payload: ContactsRequest,
+    request: Request,
     identity: Identity = Depends(current_identity),
     session: AsyncSession = Depends(get_session),
 ):
@@ -216,13 +259,35 @@ async def change_contacts(
 
     if identity.user.must_change_password:
         raise api_error(403, "PASSWORD_CHANGE_REQUIRED", "请先修改临时密码")
+    redis = request.app.state.resources.redis
+    rate_key = f"password_verify:{identity.user.id}"
+    try:
+        if not await consume_rate_limit(redis, rate_key, 5, 60):
+            raise api_error(429, "PASSWORD_VERIFY_RATE_LIMITED", "密码验证尝试过于频繁")
+    except RedisError:
+        raise api_error(503, "AUTH_SERVICE_UNAVAILABLE", "认证服务暂时不可用，请重试") from None
     user = await session.get(User, identity.user.id, with_for_update=True)
     if not user or not await verify_password(user.password_hash, payload.current_password):
         raise api_error(400, "CURRENT_PASSWORD_INVALID", "当前密码错误")
+    old_contacts = {"email": user.email, "phone_number": user.phone_number}
     user.email = str(payload.email)
     user.phone_number = payload.phone_number
     user.updated_at = utc_now()
+    session.add(
+        AuditEvent(
+            actor_id=user.id,
+            action="CONTACTS_CHANGED",
+            entity_type="user",
+            entity_id=user.id,
+            before_data=old_contacts,
+            after_data={"email": user.email, "phone_number": user.phone_number},
+        )
+    )
     await session.commit()
+    try:
+        await redis.delete(rate_key)
+    except RedisError:
+        raise api_error(503, "AUTH_SERVICE_UNAVAILABLE", "认证服务暂时不可用，请重试") from None
     await session.refresh(user)
     return {"user": UserPublic.model_validate(user)}
 

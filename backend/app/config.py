@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     password_min_length: int = 10
     cors_origins: str = "http://localhost:5173"
     admin_login_name: str | None = None
-    admin_password: str | None = Field(default=None, min_length=10)
+    admin_password: str | None = Field(default=None, min_length=10, max_length=256)
     admin_real_name: str | None = None
     admin_email: str | None = None
     admin_phone_number: str | None = None

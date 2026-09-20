@@ -3,7 +3,17 @@ from enum import StrEnum
 from typing import Any
 from uuid import UUID, uuid4
 
-from sqlalchemy import BigInteger, Column, DateTime, Enum as SAEnum, ForeignKey, Index, Text, UniqueConstraint, text
+from sqlalchemy import (
+    BigInteger,
+    Column,
+    DateTime,
+    Enum as SAEnum,
+    ForeignKey,
+    Index,
+    Text,
+    UniqueConstraint,
+    text,
+)
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PGUUID
 from sqlmodel import Field, SQLModel
 
@@ -53,8 +63,12 @@ class User(SQLModel, table=True):
     phone_number: str = Field(max_length=32)
     email: str = Field(max_length=320)
     real_name: str = Field(max_length=100)
-    user_type: UserType = Field(sa_column=Column(SAEnum(UserType, name="user_type"), nullable=False))
-    status: UserStatus = Field(sa_column=Column(SAEnum(UserStatus, name="user_status"), nullable=False))
+    user_type: UserType = Field(
+        sa_column=Column(SAEnum(UserType, name="user_type"), nullable=False)
+    )
+    status: UserStatus = Field(
+        sa_column=Column(SAEnum(UserStatus, name="user_status"), nullable=False)
+    )
     email_verified_at: datetime | None = Field(default=None, sa_type=DateTime(timezone=True))
     phone_verified_at: datetime | None = Field(default=None, sa_type=DateTime(timezone=True))
     must_change_password: bool = False
@@ -66,7 +80,9 @@ class User(SQLModel, table=True):
 class StudentProfile(SQLModel, table=True):
     __tablename__ = "student_profile"
 
-    user_id: UUID = Field(sa_column=Column(PGUUID(as_uuid=True), ForeignKey("user_account.id"), primary_key=True))
+    user_id: UUID = Field(
+        sa_column=Column(PGUUID(as_uuid=True), ForeignKey("user_account.id"), primary_key=True)
+    )
     student_no: str = Field(unique=True, max_length=100)
     created_at: datetime = Field(default_factory=utc_now, sa_type=DateTime(timezone=True))
     updated_at: datetime = Field(default_factory=utc_now, sa_type=DateTime(timezone=True))
@@ -75,7 +91,9 @@ class StudentProfile(SQLModel, table=True):
 class TeacherProfile(SQLModel, table=True):
     __tablename__ = "teacher_profile"
 
-    user_id: UUID = Field(sa_column=Column(PGUUID(as_uuid=True), ForeignKey("user_account.id"), primary_key=True))
+    user_id: UUID = Field(
+        sa_column=Column(PGUUID(as_uuid=True), ForeignKey("user_account.id"), primary_key=True)
+    )
     teacher_no: str = Field(unique=True, max_length=100)
     created_at: datetime = Field(default_factory=utc_now, sa_type=DateTime(timezone=True))
     updated_at: datetime = Field(default_factory=utc_now, sa_type=DateTime(timezone=True))
@@ -126,7 +144,9 @@ class ClassMember(SQLModel, table=True):
 
     class_id: UUID = Field(foreign_key="teaching_class.id", primary_key=True)
     user_id: UUID = Field(foreign_key="user_account.id", primary_key=True)
-    role: MemberRole = Field(sa_column=Column(SAEnum(MemberRole, name="member_role"), nullable=False))
+    role: MemberRole = Field(
+        sa_column=Column(SAEnum(MemberRole, name="member_role"), nullable=False)
+    )
     joined_at: datetime = Field(default_factory=utc_now, sa_type=DateTime(timezone=True))
 
 

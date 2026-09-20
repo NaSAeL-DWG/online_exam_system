@@ -1,12 +1,20 @@
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..deps import Identity, get_session, require_csrf, roles
 from ..errors import api_error
-from ..models import AuditEvent, RegistrationReview, ReviewStatus, User, UserStatus, UserType, utc_now
+from ..models import (
+    AuditEvent,
+    RegistrationReview,
+    ReviewStatus,
+    User,
+    UserStatus,
+    UserType,
+    utc_now,
+)
 from ..schemas import ApplicationPublic, ReviewDecisionRequest, UserPublic, UserSummary
 
 router = APIRouter(prefix="/api/staff", tags=["教职工"])
@@ -45,9 +53,7 @@ async def decide_review(
     """在事务锁内通过或拒绝一条待审核申请。"""
 
     review = await session.scalar(
-        select(RegistrationReview)
-        .where(RegistrationReview.id == review_id)
-        .with_for_update()
+        select(RegistrationReview).where(RegistrationReview.id == review_id).with_for_update()
     )
     if not review:
         raise api_error(404, "REVIEW_NOT_FOUND", "审核申请不存在")

@@ -5,7 +5,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..deps import Identity, current_identity, get_session, require_csrf
 from ..errors import api_error
-from ..models import RegistrationReview, ReviewStatus, StudentProfile, User, UserType, utc_now
+from ..models import (
+    AuditEvent,
+    RegistrationReview,
+    ReviewStatus,
+    StudentProfile,
+    User,
+    UserType,
+    utc_now,
+)
 from ..schemas import ApplicationPublic, ApplicationUpdateRequest
 
 router = APIRouter(prefix="/api/student", tags=["学生申请"])
@@ -68,6 +76,15 @@ async def resubmit_application(
         },
     )
     session.add(application)
+    session.add(
+        AuditEvent(
+            actor_id=user.id,
+            action="REGISTRATION_RESUBMITTED",
+            entity_type="registration_review",
+            entity_id=application.id,
+            after_data={"student_no": payload.student_no},
+        )
+    )
     try:
         await session.commit()
     except IntegrityError:

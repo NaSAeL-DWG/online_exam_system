@@ -1,7 +1,7 @@
 from uuid import UUID
 
 from fastapi import APIRouter, Depends
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..deps import Identity, get_session, require_csrf, roles
@@ -17,7 +17,13 @@ from ..models import (
     UserType,
     utc_now,
 )
-from ..schemas import ClassCreateRequest, ClassPatchRequest, ClassPublic, MemberPutRequest, UserSummary
+from ..schemas import (
+    ClassCreateRequest,
+    ClassPatchRequest,
+    ClassPublic,
+    MemberPutRequest,
+    UserSummary,
+)
 
 router = APIRouter(prefix="/api/classes", tags=["教学班"])
 staff_identity = roles(UserType.TEACHER, UserType.ADMIN)
@@ -31,7 +37,9 @@ async def _can_manage(session: AsyncSession, identity: Identity, class_id: UUID)
     return bool(member and member.role == MemberRole.TEACHER)
 
 
-async def _class_public(session: AsyncSession, item: TeachingClass, include_students: bool) -> ClassPublic:
+async def _class_public(
+    session: AsyncSession, item: TeachingClass, include_students: bool
+) -> ClassPublic:
     rows = (
         await session.execute(
             select(ClassMember, User)
@@ -40,8 +48,16 @@ async def _class_public(session: AsyncSession, item: TeachingClass, include_stud
             .order_by(User.real_name)
         )
     ).all()
-    teachers = [UserSummary.model_validate(user) for member, user in rows if member.role == MemberRole.TEACHER]
-    students = [UserSummary.model_validate(user) for member, user in rows if member.role == MemberRole.STUDENT]
+    teachers = [
+        UserSummary.model_validate(user)
+        for member, user in rows
+        if member.role == MemberRole.TEACHER
+    ]
+    students = [
+        UserSummary.model_validate(user)
+        for member, user in rows
+        if member.role == MemberRole.STUDENT
+    ]
     return ClassPublic(
         id=item.id,
         name=item.name,
@@ -75,7 +91,10 @@ async def _replace_teachers(session: AsyncSession, class_id: UUID, teacher_ids: 
         )
     )
     session.add_all(
-        [ClassMember(class_id=class_id, user_id=teacher_id, role=MemberRole.TEACHER) for teacher_id in unique_ids]
+        [
+            ClassMember(class_id=class_id, user_id=teacher_id, role=MemberRole.TEACHER)
+            for teacher_id in unique_ids
+        ]
     )
 
 
@@ -234,7 +253,9 @@ async def put_member(
     return {"class_info": await _class_public(session, item, True)}
 
 
-@router.delete("/{class_id}/members/{user_id}", status_code=204, dependencies=[Depends(require_csrf)])
+@router.delete(
+    "/{class_id}/members/{user_id}", status_code=204, dependencies=[Depends(require_csrf)]
+)
 async def delete_member(
     class_id: UUID,
     user_id: UUID,

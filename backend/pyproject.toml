@@ -1,7 +1,7 @@
 [project]
 name = "online-exam-backend"
 version = "0.1.0"
-requires-python = ">=3.13"
+requires-python = ">=3.13,<3.14"
 dependencies = [
   "alembic==1.16.5",
   "argon2-cffi==25.1.0",
@@ -20,6 +20,7 @@ dev = [
   "httpx==0.28.1",
   "pytest==8.4.2",
   "pytest-asyncio==1.2.0",
+  "ruff==0.13.1",
 ]
 
 [tool.pytest.ini_options]
