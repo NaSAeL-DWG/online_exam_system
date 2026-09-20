@@ -1,0 +1,29 @@
+{
+  "name": "online-exam-frontend",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "vue-tsc -b && vite build",
+    "format": "prettier --write . --ignore-path .gitignore",
+    "format:check": "prettier --check . --ignore-path .gitignore",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui"
+  },
+  "dependencies": {
+    "naive-ui": "2.45.3",
+    "pinia": "4.0.3",
+    "vue": "3.5.43",
+    "vue-router": "5.3.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "@types/node": "25.0.10",
+    "@vitejs/plugin-vue": "6.0.9",
+    "prettier": "^3.9.8",
+    "typescript": "5.9.3",
+    "vite": "8.3.0",
+    "vue-tsc": "3.3.11"
+  }
+}
