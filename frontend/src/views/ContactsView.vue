@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { reactive, ref } from 'vue'
 import { NAlert, NButton, NCard, NForm, NFormItem, NInput, useMessage } from 'naive-ui'
-import { errorMessage, request } from '../api/client'
+import { errorMessage, isWriteResultUnknown } from '../api/client'
+import { authApi } from '../api/auth'
 import { useAuthStore } from '../stores/auth'
-import type { User } from '../types'
 
 const auth = useAuthStore()
 const message = useMessage()
@@ -14,18 +14,38 @@ const form = reactive({
 })
 const failure = ref('')
 const loading = ref(false)
+const uncertain = ref(false)
+
+async function reloadContacts(): Promise<void> {
+  loading.value = true
+  try {
+    const result = await authApi.me()
+    auth.user = result.user
+    form.email = result.user.email
+    form.phone_number = result.user.phone_number
+    form.current_password = ''
+    uncertain.value = false
+    failure.value = ''
+    message.success('已读取最新联系方式，请核对保存结果')
+  } catch (error) {
+    failure.value = errorMessage(error)
+  } finally {
+    loading.value = false
+  }
+}
 async function submit(): Promise<void> {
+  if (loading.value || uncertain.value) return
   loading.value = true
   failure.value = ''
   try {
-    const body = await request<{ user: User }>('/auth/contacts', {
-      method: 'PUT',
-      body: JSON.stringify(form),
-    })
-    auth.user = body.user
+    const result = await authApi.changeContacts(form)
+    auth.user = result.data.user
     form.current_password = ''
-    message.success('联系方式已更新')
+    message.success(
+      result.cleanupPending ? '联系方式已更新，安全校验记录正在清理' : '联系方式已更新',
+    )
   } catch (error) {
+    uncertain.value = isWriteResultUnknown(error)
     failure.value = errorMessage(error)
   } finally {
     loading.value = false
@@ -42,7 +62,11 @@ async function submit(): Promise<void> {
       </div>
     </header>
     <NCard
-      ><NAlert v-if="failure" type="error" class="form-alert">{{ failure }}</NAlert
+      ><NAlert v-if="failure" :type="uncertain ? 'warning' : 'error'" class="form-alert"
+        >{{ failure
+        }}<NButton v-if="uncertain" :loading="loading" @click="reloadContacts"
+          >重新读取资料</NButton
+        ></NAlert
       ><NForm :model="form" label-placement="top" @submit.prevent="submit"
         ><NFormItem label="邮箱"
           ><NInput v-model:value="form.email" :input-props="{ 'aria-label': '邮箱' }" /></NFormItem
@@ -55,7 +79,9 @@ async function submit(): Promise<void> {
             v-model:value="form.current_password"
             :input-props="{ 'aria-label': '当前密码' }"
             type="password" /></NFormItem
-        ><NButton attr-type="submit" type="primary" :loading="loading">保存联系方式</NButton></NForm
+        ><NButton attr-type="submit" type="primary" :loading="loading" :disabled="uncertain"
+          >保存联系方式</NButton
+        ></NForm
       ></NCard
     >
   </div>

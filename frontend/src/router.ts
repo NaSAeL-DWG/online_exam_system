@@ -85,8 +85,9 @@ router.beforeEach(async (to) => {
   return true
 })
 
-window.addEventListener('auth:expired', () => {
+window.addEventListener('auth:expired', (event) => {
   useAuthStore().clear()
-  void router.push({ name: 'login', query: { expired: '1' } })
+  const reason = (event as CustomEvent<string>).detail
+  void router.push({ name: 'login', query: { expired: '1', reason } })
 })
 export default router

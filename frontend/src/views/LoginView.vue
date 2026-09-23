@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
+import { reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { NAlert, NButton, NForm, NFormItem, NInput } from 'naive-ui'
 import { errorMessage } from '../api/client'
@@ -9,7 +9,18 @@ const auth = useAuthStore()
 const route = useRoute()
 const router = useRouter()
 const loading = ref(false)
-const failure = ref(route.query.expired ? '登录状态已失效，请重新登录' : auth.restoreError)
+function sessionFailure(): string {
+  if (route.query.reason === 'REFRESH_RESULT_UNKNOWN') return '登录状态更新未能确认，请重新登录。'
+  if (route.query.reason === 'ACCOUNT_DEACTIVATED') return '账号已停用，请联系管理员。'
+  return route.query.expired ? '登录状态已失效，请重新登录' : auth.restoreError
+}
+const failure = ref(sessionFailure())
+watch(
+  () => route.query,
+  () => {
+    failure.value = sessionFailure()
+  },
+)
 const form = reactive({ login_name: '', password: '' })
 
 async function submit(): Promise<void> {
@@ -35,6 +46,7 @@ async function submit(): Promise<void> {
     <p class="eyebrow accent">账号登录</p>
     <h2>欢迎回来</h2>
     <p class="muted">使用学号、工号或管理员账号登录。</p>
+    <NAlert v-if="auth.notice" type="success" class="form-alert">{{ auth.notice }}</NAlert>
     <NAlert v-if="failure" type="error" class="form-alert">{{ failure }}</NAlert>
     <NForm :model="form" size="large" @submit.prevent="submit">
       <NFormItem label="登录账号"

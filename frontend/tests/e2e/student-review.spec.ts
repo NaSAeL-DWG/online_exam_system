@@ -23,6 +23,8 @@ test('学生被拒绝后可以更正资料并重新提交审核', async ({ page 
   await page.getByLabel('密码').fill(adminPassword!)
   await page.getByRole('button', { name: '登录' }).click()
   await page.getByText('学生审核', { exact: true }).click()
+  await page.getByLabel('搜索申请').fill(studentNo)
+  await page.getByRole('button', { name: '查询申请' }).click()
 
   const row = page.getByRole('row').filter({ hasText: studentNo })
   await row.getByRole('button', { name: '拒绝' }).click()

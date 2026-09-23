@@ -11,19 +11,27 @@ import {
   NModal,
   NSelect,
   NSpace,
-  NTabPane,
-  NTabs,
+  NRadioButton,
+  NRadioGroup,
   NTag,
   useDialog,
   useMessage,
   type DataTableColumns,
 } from 'naive-ui'
-import { errorMessage, request } from '../api/client'
-import type { User, UserStatus } from '../types'
+import { errorMessage } from '../api/client'
+import { identityApi } from '../api/identity'
+import ListPager from '../components/ListPager.vue'
+import type { User, UserRole, UserStatus } from '../types'
 
 const users = ref<User[]>([])
 const loading = ref(false)
 const failure = ref('')
+const page = ref(1)
+const pageSize = 20
+const total = ref(0)
+const query = ref('')
+const role = ref<UserRole | 'all'>('all')
+let loadVersion = 0
 const createVisible = ref(false)
 const editVisible = ref(false)
 const resetVisible = ref(false)
@@ -114,19 +122,39 @@ const columns: DataTableColumns<User> = [
 ]
 
 async function load(): Promise<void> {
+  const version = ++loadVersion
   loading.value = true
   failure.value = ''
   try {
-    users.value = (await request<{ items: User[]; total: number }>('/admin/users')).items
+    const result = await identityApi.accounts(
+      { page: page.value, page_size: pageSize, q: query.value },
+      role.value === 'all' ? undefined : role.value,
+    )
+    if (version !== loadVersion) return
+    users.value = result.items
+    total.value = result.total
   } catch (error) {
+    if (version !== loadVersion) return
+    users.value = []
     failure.value = errorMessage(error)
   } finally {
-    loading.value = false
+    if (version === loadVersion) loading.value = false
   }
+}
+function changePage(value: number): void {
+  page.value = value
+  void load()
+}
+function search(): void {
+  changePage(1)
+}
+function changeRole(value: UserRole | 'all'): void {
+  role.value = value
+  search()
 }
 async function createTeacher(): Promise<void> {
   try {
-    await request('/admin/teachers', { method: 'POST', body: JSON.stringify(teacher) })
+    await identityApi.createTeacher(teacher)
     createVisible.value = false
     Object.assign(teacher, {
       teacher_no: '',
@@ -162,12 +190,9 @@ async function saveEdit(): Promise<void> {
     if (edit.status !== selected.value.status && edit.status !== 'WAITING_ACTIVATE') {
       payload.status = edit.status
     }
-    await request(`/admin/users/${selected.value.id}`, {
-      method: 'PATCH',
-      body: JSON.stringify(payload),
-    })
+    const result = await identityApi.updateAccount(selected.value.id, payload)
     editVisible.value = false
-    message.success('账号资料已更新')
+    message.success(result.cleanupPending ? '账号资料已更新，旧登录状态正在清理' : '账号资料已更新')
     await load()
   } catch (error) {
     message.error(errorMessage(error))
@@ -181,12 +206,11 @@ function openReset(row: User): void {
 async function resetPassword(): Promise<void> {
   if (!selected.value) return
   try {
-    await request<void>(`/admin/users/${selected.value.id}/reset-password`, {
-      method: 'POST',
-      body: JSON.stringify({ temporary_password: temporaryPassword.value }),
-    })
+    const result = await identityApi.resetPassword(selected.value.id, temporaryPassword.value)
     resetVisible.value = false
-    message.success('已重置密码并撤销旧会话')
+    message.success(
+      result.cleanupPending ? '密码已重置，旧登录状态正在清理' : '已重置密码并撤销旧会话',
+    )
   } catch (error) {
     message.error(errorMessage(error))
   }
@@ -224,24 +248,44 @@ onMounted(load)
       </div>
       <NButton type="primary" @click="createVisible = true">新建教师</NButton>
     </header>
-    <NAlert v-if="failure" type="error">{{ failure }}</NAlert
-    ><NCard :bordered="false"
-      ><NTabs type="line"
-        ><NTabPane name="all" tab="全部账号"
-          ><NDataTable
-            :columns="columns"
-            :data="users"
-            :loading="loading"
-            :row-key="(row: User) => row.id" /></NTabPane
-        ><NTabPane name="teachers" tab="教师"
-          ><NDataTable
-            :columns="columns"
-            :data="users.filter((user) => user.user_type === 'TEACHER')" /></NTabPane
-        ><NTabPane name="students" tab="学生"
-          ><NDataTable
-            :columns="columns"
-            :data="users.filter((user) => user.user_type === 'STUDENT')" /></NTabPane></NTabs
-    ></NCard>
+    <NAlert v-if="failure" type="error"
+      >{{ failure }} <NButton size="small" @click="load">重试加载</NButton></NAlert
+    >
+    <NCard :bordered="false">
+      <NSpace
+        ><NInput
+          v-model:value="query"
+          :input-props="{ 'aria-label': '搜索账号' }"
+          placeholder="按账号或姓名搜索"
+          @keyup.enter="search"
+        /><NButton :loading="loading" @click="search">查询账号</NButton></NSpace
+      >
+      <NRadioGroup
+        :value="role"
+        name="account-role"
+        aria-label="账号角色"
+        style="margin: 16px 0"
+        @update:value="changeRole"
+      >
+        <NRadioButton value="all">全部账号</NRadioButton
+        ><NRadioButton value="TEACHER">教师</NRadioButton
+        ><NRadioButton value="STUDENT">学生</NRadioButton>
+      </NRadioGroup>
+      <NDataTable
+        :columns="columns"
+        :data="users"
+        :loading="loading"
+        :row-key="(row: User) => row.id"
+      />
+      <ListPager
+        label="账号"
+        :page="page"
+        :page-size="pageSize"
+        :total="total"
+        :loading="loading"
+        @change="changePage"
+      />
+    </NCard>
     <NModal v-model:show="createVisible" preset="card" title="新建教师账号" style="width: 640px"
       ><NForm :model="teacher" label-placement="top"
         ><div class="form-grid two-columns">

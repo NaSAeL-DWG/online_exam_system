@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   NAvatar,
@@ -10,13 +10,17 @@ import {
   NLayoutSider,
   NMenu,
   NTag,
+  useMessage,
   type MenuOption,
 } from 'naive-ui'
 import { useAuthStore } from '../stores/auth'
+import { errorMessage } from '../api/client'
 
 const auth = useAuthStore()
 const route = useRoute()
 const router = useRouter()
+const message = useMessage()
+const loggingOut = ref(false)
 
 const roleLabel = { STUDENT: '学生', TEACHER: '教师', ADMIN: '管理员' } as const
 const menuOptions = computed<MenuOption[]>(() => {
@@ -40,8 +44,16 @@ const menuOptions = computed<MenuOption[]>(() => {
 })
 
 async function logout(): Promise<void> {
-  await auth.logout()
-  await router.push('/login')
+  if (loggingOut.value) return
+  loggingOut.value = true
+  try {
+    await auth.logout()
+    await router.push('/login')
+  } catch (error) {
+    message.error(errorMessage(error))
+  } finally {
+    loggingOut.value = false
+  }
 }
 </script>
 
@@ -65,7 +77,7 @@ async function logout(): Promise<void> {
           <NAvatar round :style="{ backgroundColor: '#356ae6' }">{{
             auth.user?.real_name.slice(0, 1)
           }}</NAvatar>
-          <NButton quaternary @click="logout">退出登录</NButton>
+          <NButton quaternary :loading="loggingOut" @click="logout">退出登录</NButton>
         </div>
       </NLayoutHeader>
       <NLayoutContent class="workspace"><RouterView /></NLayoutContent>

@@ -13,7 +13,8 @@ import {
   NSpin,
   useMessage,
 } from 'naive-ui'
-import { errorMessage, request } from '../api/client'
+import { errorMessage } from '../api/client'
+import { identityApi } from '../api/identity'
 import { useAuthStore } from '../stores/auth'
 import type { StudentApplication } from '../types'
 
@@ -28,9 +29,7 @@ const form = reactive({ student_no: '', real_name: '', email: '', phone_number: 
 async function load(): Promise<void> {
   loading.value = true
   try {
-    application.value = (
-      await request<{ application: StudentApplication }>('/student/application')
-    ).application
+    application.value = (await identityApi.application()).application
     Object.assign(form, application.value.submitted_profile)
   } catch (error) {
     failure.value = errorMessage(error)
@@ -42,12 +41,7 @@ async function resubmit(): Promise<void> {
   saving.value = true
   failure.value = ''
   try {
-    application.value = (
-      await request<{ application: StudentApplication }>('/student/application', {
-        method: 'PUT',
-        body: JSON.stringify(form),
-      })
-    ).application
+    application.value = (await identityApi.resubmitApplication(form)).application
     await auth.restore()
     message.success('申请已重新提交')
   } catch (error) {

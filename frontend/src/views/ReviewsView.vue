@@ -12,12 +12,19 @@ import {
   useMessage,
   type DataTableColumns,
 } from 'naive-ui'
-import { errorMessage, request } from '../api/client'
+import { errorMessage } from '../api/client'
+import { identityApi } from '../api/identity'
+import ListPager from '../components/ListPager.vue'
 import type { StudentReview } from '../types'
 
 const items = ref<StudentReview[]>([])
 const loading = ref(false)
 const failure = ref('')
+const page = ref(1)
+const pageSize = 20
+const total = ref(0)
+const query = ref('')
+let loadVersion = 0
 const selected = ref<StudentReview | null>(null)
 const rejectVisible = ref(false)
 const reason = ref('')
@@ -85,15 +92,30 @@ const columns: DataTableColumns<StudentReview> = [
 ]
 
 async function load(): Promise<void> {
+  const version = ++loadVersion
   loading.value = true
   failure.value = ''
   try {
-    items.value = (await request<{ items: StudentReview[]; total: number }>('/staff/reviews')).items
+    const result = await identityApi.reviews({
+      page: page.value,
+      page_size: pageSize,
+      q: query.value,
+    })
+    if (version !== loadVersion) return
+    items.value = result.items
+    total.value = result.total
   } catch (error) {
+    if (version !== loadVersion) return
+    items.value = []
     failure.value = errorMessage(error)
   } finally {
-    loading.value = false
+    if (version === loadVersion) loading.value = false
   }
+}
+
+function changePage(value: number): void {
+  page.value = value
+  void load()
 }
 
 async function decide(row: StudentReview, decision: 'APPROVED' | 'REJECTED'): Promise<void> {
@@ -102,13 +124,11 @@ async function decide(row: StudentReview, decision: 'APPROVED' | 'REJECTED'): Pr
     return
   }
   try {
-    await request(`/staff/reviews/${row.id}/decision`, {
-      method: 'POST',
-      body: JSON.stringify({
-        decision,
-        ...(decision === 'REJECTED' ? { reason: reason.value.trim() } : {}),
-      }),
-    })
+    await identityApi.decideReview(
+      row.id,
+      decision,
+      decision === 'REJECTED' ? reason.value.trim() : undefined,
+    )
     message.success(decision === 'APPROVED' ? '已通过学生申请' : '已拒绝学生申请')
     rejectVisible.value = false
     reason.value = ''
@@ -135,13 +155,27 @@ onMounted(load)
       </div>
       <NButton @click="load">刷新</NButton>
     </header>
-    <NAlert v-if="failure" type="error">{{ failure }}</NAlert
+    <NAlert v-if="failure" type="error"
+      >{{ failure }} <NButton size="small" @click="load">重试加载</NButton></NAlert
     ><NCard :bordered="false"
+      ><NSpace style="margin-bottom: 16px"
+        ><NInput
+          v-model:value="query"
+          :input-props="{ 'aria-label': '搜索申请' }"
+          placeholder="按姓名或学号搜索"
+          @keyup.enter="changePage(1)"
+        /><NButton :loading="loading" @click="changePage(1)">查询申请</NButton></NSpace
       ><NDataTable
         :columns="columns"
         :data="items"
         :loading="loading"
-        :row-key="(row: StudentReview) => row.id" /></NCard
+        :row-key="(row: StudentReview) => row.id" /><ListPager
+        label="审核"
+        :page="page"
+        :page-size="pageSize"
+        :total="total"
+        :loading="loading"
+        @change="changePage" /></NCard
     ><NModal v-model:show="rejectVisible" preset="card" title="拒绝学生申请" style="width: 520px"
       ><p>
         学生：{{ selected?.submitted_profile.real_name }}（{{

@@ -18,6 +18,17 @@ let csrfToken = ''
 let csrfPromise: Promise<string> | null = null
 let refreshPromise: Promise<boolean> | null = null
 
+function uncertainWrite(): ApiError {
+  return new ApiError(0, {
+    code: 'WRITE_RESULT_UNKNOWN',
+    message: '操作结果尚未确认，请先查看最新状态，不要直接重复提交。',
+  })
+}
+
+export function isWriteResultUnknown(error: unknown): boolean {
+  return error instanceof ApiError && error.problem.code === 'WRITE_RESULT_UNKNOWN'
+}
+
 function readCookie(name: string): string {
   const prefix = `${encodeURIComponent(name)}=`
   const item = document.cookie.split('; ').find((value) => value.startsWith(prefix))
@@ -61,7 +72,22 @@ async function rawFetch(path: string, init: RequestInit = {}): Promise<Response>
   const headers = new Headers(init.headers)
   if (init.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json')
   if (writeMethods.has(method)) headers.set('X-CSRF-Token', await ensureCsrf())
-  return fetch(`/api${path}`, { ...init, method, headers, credentials: 'include' })
+  try {
+    return await fetch(`/api${path}`, { ...init, method, headers, credentials: 'include' })
+  } catch {
+    if (path === '/auth/refresh') {
+      // 单次刷新凭据可能已被消费，交付中断时不能自动再发刷新请求。
+      throw new ApiError(0, {
+        code: 'REFRESH_RESULT_UNKNOWN',
+        message: '登录状态更新未能确认，请重新登录。',
+      })
+    }
+    // CSRF 获取失败发生在发送写请求之前；只有写请求已经发出，结果才可能不确定。
+    if (writeMethods.has(method) && path !== '/auth/login' && path !== '/auth/refresh') {
+      throw uncertainWrite()
+    }
+    throw new ApiError(0, { code: 'NETWORK_ERROR', message: '无法连接服务器，请检查网络后重试' })
+  }
 }
 
 async function attemptRefresh(): Promise<boolean> {
@@ -92,7 +118,25 @@ async function attemptRefresh(): Promise<boolean> {
   return refreshPromise
 }
 
-export async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+export interface ApiResult<T> {
+  data: T
+  cleanupPending: boolean
+}
+
+function reportAuthFailure(path: string, error: ApiError): void {
+  if (path === '/auth/login') return
+  const deactivated = error.problem.code === 'ACCOUNT_DEACTIVATED'
+  const expired = error.status === 401 || error.problem.code === 'REFRESH_RESULT_UNKNOWN'
+  // 首次公开页面的身份恢复允许匿名，不抢走注册页；恢复错误由登录页展示。
+  if (deactivated || (expired && path !== '/auth/me')) {
+    window.dispatchEvent(new CustomEvent('auth:expired', { detail: error.problem.code }))
+  }
+}
+
+export async function requestResult<T>(
+  path: string,
+  init: RequestInit = {},
+): Promise<ApiResult<T>> {
   let response: Response
   try {
     response = await rawFetch(path, init)
@@ -102,23 +146,36 @@ export async function request<T>(path: string, init: RequestInit = {}): Promise<
       if (refreshed) response = await rawFetch(path, init)
     }
   } catch (error) {
-    if (error instanceof ApiError) throw error
+    if (error instanceof ApiError) {
+      reportAuthFailure(path, error)
+      throw error
+    }
     throw new ApiError(0, {
       code: 'NETWORK_ERROR',
       message: '无法连接服务器，请检查网络后重试',
     })
   }
-  if (!response!.ok) {
-    const problem = await parseProblem(response!)
-    // 首次进入公开页面时 /me 返回 401 只代表匿名，不应抢走当前导航。
-    const accessRevoked = response!.status === 403 && problem.code === 'ACCOUNT_DEACTIVATED'
-    if ((response!.status === 401 && path !== '/auth/me') || accessRevoked) {
-      window.dispatchEvent(new CustomEvent('auth:expired'))
-    }
-    throw new ApiError(response!.status, problem)
+  if (!response.ok) {
+    const problem = await parseProblem(response)
+    const error = new ApiError(response.status, problem)
+    reportAuthFailure(path, error)
+    throw error
   }
-  if (response!.status === 204) return undefined as T
-  return (await response!.json()) as T
+  const cleanupPending = response.headers.get('X-Session-Cleanup') === 'pending'
+  if (response.status === 204) return { data: undefined as T, cleanupPending }
+  try {
+    return { data: (await response.json()) as T, cleanupPending }
+  } catch {
+    if (writeMethods.has((init.method ?? 'GET').toUpperCase())) throw uncertainWrite()
+    throw new ApiError(0, {
+      code: 'RESPONSE_UNREADABLE',
+      message: '未能读取服务器响应，请重新加载',
+    })
+  }
+}
+
+export async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  return (await requestResult<T>(path, init)).data
 }
 
 export function errorMessage(error: unknown): string {
