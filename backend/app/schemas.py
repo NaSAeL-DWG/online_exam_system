@@ -49,6 +49,11 @@ class RegisterRequest(BaseModel):
     password: str = Field(min_length=10, max_length=256)
 
 
+class RegistrationResponse(BaseModel):
+    user: UserPublic
+    application: ApplicationPublic
+
+
 class LoginRequest(BaseModel):
     login_name: str
     password: str

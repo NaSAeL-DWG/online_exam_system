@@ -18,7 +18,7 @@ from ..models import (
     UserType,
     utc_now,
 )
-from ..schemas import ContactsRequest, LoginRequest, PasswordRequest, RegisterRequest, UserPublic
+from ..schemas import ApplicationPublic, ContactsRequest, LoginRequest, PasswordRequest, RegisterRequest, RegistrationResponse, UserPublic
 from ..security import (
     create_session,
     consume_rate_limit,
@@ -70,7 +70,7 @@ async def issue_csrf(request: Request, response: Response):
     return {"csrf_token": token}
 
 
-@router.post("/register", status_code=201, dependencies=[Depends(require_csrf)])
+@router.post("/register", status_code=201, response_model=RegistrationResponse, dependencies=[Depends(require_csrf)])
 async def register(
     payload: RegisterRequest,
     session: AsyncSession = Depends(get_session),
@@ -114,7 +114,7 @@ async def register(
         raise api_error(409, "LOGIN_NAME_EXISTS", "登录账号已存在") from None
     await session.refresh(user)
     await session.refresh(application)
-    return {"user": UserPublic.model_validate(user), "application": application}
+    return {"user": UserPublic.model_validate(user), "application": ApplicationPublic.model_validate(application)}
 
 
 @router.post("/login", dependencies=[Depends(require_csrf)])
