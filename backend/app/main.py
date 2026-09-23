@@ -7,7 +7,12 @@ from fastapi.responses import JSONResponse
 
 from .config import Settings, get_settings
 from .db import Resources
-from .routes import admin, auth, classes, staff, student
+from .modules.teaching_class import router as classes
+from .modules.auth import router as auth
+from .modules.identity import router as identity
+from .core.errors import BusinessError, STATUS_CODES
+from .core.contracts import HealthResponse
+from sqlalchemy.exc import OperationalError, InterfaceError
 
 
 def create_app(settings_override: Settings | None = None) -> FastAPI:
@@ -33,6 +38,7 @@ def create_app(settings_override: Settings | None = None) -> FastAPI:
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
+        expose_headers=["X-Session-Cleanup"],
     )
 
     @app.exception_handler(RequestValidationError)
@@ -45,16 +51,31 @@ def create_app(settings_override: Settings | None = None) -> FastAPI:
             },
         )
 
-    @app.get("/api/health")
+    @app.get("/api/health", response_model=HealthResponse)
     async def health():
         """返回 API 进程存活状态。"""
 
         return {"status": "ok"}
 
+    @app.exception_handler(BusinessError)
+    async def business_error_handler(_, exc: BusinessError):
+        return JSONResponse(
+            status_code=STATUS_CODES[exc.code],
+            content={"detail": {"code": exc.code, "message": exc.message}},
+        )
+
+    @app.exception_handler(OperationalError)
+    @app.exception_handler(InterfaceError)
+    async def database_error_handler(_, exc):
+        return JSONResponse(
+            status_code=503,
+            content={
+                "detail": {"code": "DATABASE_UNAVAILABLE", "message": "数据服务暂时不可用，请重试"}
+            },
+        )
+
     app.include_router(auth.router)
-    app.include_router(student.router)
-    app.include_router(staff.router)
-    app.include_router(admin.router)
+    app.include_router(identity.router)
     app.include_router(classes.router)
     return app
 

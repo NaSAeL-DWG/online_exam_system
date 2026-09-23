@@ -1,14 +1,12 @@
 from datetime import datetime
-from typing import Any, Literal
+from typing import Literal
 from uuid import UUID
-
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
-
-from .models import ClassStatus, MemberRole, ReviewStatus, UserStatus, UserType
+from .models import ReviewStatus, UserStatus, UserType
 
 
 class UserPublic(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, frozen=True)
 
     id: UUID
     login_name: str
@@ -30,12 +28,19 @@ class UserSummary(BaseModel):
     status: UserStatus
 
 
+class SubmittedProfile(BaseModel):
+    student_no: str
+    real_name: str
+    email: str
+    phone_number: str
+
+
 class ApplicationPublic(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: UUID
     status: ReviewStatus
     reason: str | None
-    submitted_profile: dict[str, Any]
+    submitted_profile: SubmittedProfile
     submitted_at: datetime
     reviewed_at: datetime | None
     reviewer_id: UUID | None
@@ -52,22 +57,6 @@ class RegisterRequest(BaseModel):
 class RegistrationResponse(BaseModel):
     user: UserPublic
     application: ApplicationPublic
-
-
-class LoginRequest(BaseModel):
-    login_name: str
-    password: str
-
-
-class PasswordRequest(BaseModel):
-    current_password: str
-    new_password: str = Field(min_length=10, max_length=256)
-
-
-class ContactsRequest(BaseModel):
-    current_password: str
-    email: EmailStr
-    phone_number: str = Field(min_length=5, max_length=32)
 
 
 class ApplicationUpdateRequest(BaseModel):
@@ -102,34 +91,13 @@ class UserPatchRequest(BaseModel):
     status: Literal["ACTIVATED", "DEACTIVATED"] | None = None
 
 
-class ResetPasswordRequest(BaseModel):
-    temporary_password: str = Field(min_length=10, max_length=256)
+class UserResponse(BaseModel):
+    user: UserPublic
 
 
-class ClassCreateRequest(BaseModel):
-    name: str = Field(min_length=1, max_length=200)
-    description: str | None = None
-    teacher_ids: list[UUID] = Field(default_factory=list)
+class ApplicationResponse(BaseModel):
+    application: ApplicationPublic
 
 
-class ClassPatchRequest(BaseModel):
-    name: str | None = Field(default=None, min_length=1, max_length=200)
-    description: str | None = None
-    status: ClassStatus | None = None
-    teacher_ids: list[UUID] | None = None
-
-
-class MemberPutRequest(BaseModel):
-    role: MemberRole
-
-
-class ClassPublic(BaseModel):
-    id: UUID
-    name: str
-    description: str | None
-    status: ClassStatus
-    teachers: list[UserSummary]
-    students: list[UserSummary] | None = None
-    student_count: int
-    created_at: datetime
-    updated_at: datetime
+class ReviewPublic(ApplicationPublic):
+    user: UserSummary

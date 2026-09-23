@@ -1,34 +1,11 @@
-import asyncio
 import hashlib
 import secrets
 import time
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
 from uuid import UUID, uuid4
-
-import jwt
-from argon2 import PasswordHasher
-from argon2.exceptions import VerifyMismatchError
 from redis.asyncio import Redis
-
-from .config import Settings
-
-_hasher = PasswordHasher(time_cost=3, memory_cost=65536, parallelism=4)
-
-
-async def hash_password(password: str) -> str:
-    """在线程池中执行 Argon2id 哈希，避免阻塞事件循环。"""
-
-    return await asyncio.to_thread(_hasher.hash, password)
-
-
-async def verify_password(password_hash: str, password: str) -> bool:
-    """在线程池中验证密码。"""
-
-    try:
-        return await asyncio.to_thread(_hasher.verify, password_hash, password)
-    except VerifyMismatchError:
-        return False
+from app.config import Settings
+from .tokens import issue_access_token
 
 
 def token_digest(token: str) -> str:
@@ -56,23 +33,6 @@ class SessionTokens:
     refresh_token: str
 
 
-def _access_token(settings: Settings, user_id: UUID, session_id: UUID) -> str:
-    now = datetime.now(timezone.utc)
-    payload = {
-        "sub": str(user_id),
-        "sid": str(session_id),
-        "iat": now,
-        "exp": now + timedelta(minutes=settings.access_minutes),
-    }
-    return jwt.encode(payload, settings.jwt_secret, algorithm="HS256")
-
-
-def issue_access_token(settings: Settings, user_id: UUID, session_id: UUID) -> str:
-    """为已存在的会话签发短期 Access JWT。"""
-
-    return _access_token(settings, user_id, session_id)
-
-
 async def create_session(
     redis: Redis, settings: Settings, user_id: UUID, auth_version: int
 ) -> SessionTokens:
@@ -96,7 +56,9 @@ async def create_session(
         pipe.sadd(f"user_sessions:{user_id}", str(session_id))
         pipe.expire(f"user_sessions:{user_id}", settings.session_absolute_seconds)
         await pipe.execute()
-    return SessionTokens(session_id, _access_token(settings, user_id, session_id), refresh_token)
+    return SessionTokens(
+        session_id, issue_access_token(settings, user_id, session_id), refresh_token
+    )
 
 
 _TOUCH_SCRIPT = """
@@ -130,6 +92,10 @@ async def touch_session(
 _ROTATE_SCRIPT = """
 local key = KEYS[1]
 if redis.call('EXISTS', key) == 0 then return 0 end
+if redis.call('HGET', key, 'auth_version') ~= ARGV[5] then return 0 end
+if tonumber(redis.call('HGET', key, 'absolute_expires_at')) <= tonumber(ARGV[3]) then
+  redis.call('DEL', key); return 0
+end
 if redis.call('HGET', key, 'refresh_hash') ~= ARGV[1] then return -1 end
 redis.call('HSET', key, 'refresh_hash', ARGV[2], 'last_active_at', ARGV[3])
 redis.call('EXPIRE', key, tonumber(ARGV[4]))
@@ -138,12 +104,11 @@ return 1
 
 
 async def rotate_refresh(
-    redis: Redis, settings: Settings, session_id: UUID, presented: str
+    redis: Redis, settings: Settings, session_id: UUID, presented: str, values: dict[str, str]
 ) -> tuple[str, dict[str, str]] | None:
     """以 Redis 原子脚本消费旧刷新凭据并写入新摘要。"""
 
     key = f"session:{session_id}"
-    values = await redis.hgetall(key)
     if not values:
         return None
     now = int(time.time())
@@ -161,12 +126,52 @@ async def rotate_refresh(
         token_digest(replacement),
         str(now),
         str(ttl),
+        values["auth_version"],
     )
     if result != 1:
         if result == -1:
             await redis.delete(key)
         return None
     return replacement, values
+
+
+async def read_session(redis, session_id):
+    return await redis.hgetall(f"session:{session_id}")
+
+
+async def limit_login(redis, remote, login_name):
+    return await consume_rate_limit(redis, f"login_rate:{remote}:{login_name}", 10, 60)
+
+
+async def clear_login_rate(redis, remote, login_name):
+    await redis.delete(f"login_rate:{remote}:{login_name}")
+
+
+async def limit_password(redis, user_id):
+    return await consume_rate_limit(redis, f"password_verify:{user_id}", 5, 60)
+
+
+async def clear_password_rate(redis, user_id):
+    await redis.delete(f"password_verify:{user_id}")
+
+
+_REVOKE_OLD_SCRIPT = """
+local version = redis.call('HGET', KEYS[1], 'auth_version')
+if not version then redis.call('SREM', KEYS[2], ARGV[1]); return 0 end
+if tonumber(version) < tonumber(ARGV[2]) then
+  redis.call('DEL', KEYS[1])
+  redis.call('SREM', KEYS[2], ARGV[1])
+  return 1
+end
+return 0
+"""
+
+
+async def revoke_before_version(redis, user_id, version):
+    """按版本原子删除旧会话，迟到的补偿不影响新密码建立的会话。"""
+    index = f"user_sessions:{user_id}"
+    for sid in await redis.smembers(index):
+        await redis.eval(_REVOKE_OLD_SCRIPT, 2, f"session:{sid}", index, sid, str(version))
 
 
 async def revoke_session(redis: Redis, session_id: UUID, user_id: UUID | None = None) -> None:
@@ -185,8 +190,3 @@ async def revoke_all_sessions(redis: Redis, user_id: UUID) -> None:
     if session_ids:
         await redis.delete(*(f"session:{item}" for item in session_ids))
     await redis.delete(index)
-
-
-def decode_access(settings: Settings, value: str) -> tuple[UUID, UUID]:
-    payload = jwt.decode(value, settings.jwt_secret, algorithms=["HS256"])
-    return UUID(payload["sub"]), UUID(payload["sid"])

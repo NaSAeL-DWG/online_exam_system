@@ -1,0 +1,38 @@
+class BusinessError(Exception):
+    """业务错误不依赖 HTTP，由入口映射协议状态。"""
+
+    def __init__(self, code: str, message: str):
+        self.code = code
+        self.message = message
+        super().__init__(message)
+
+
+STATUS_CODES = {
+    "AUTH_REQUIRED": 401,
+    "SESSION_INVALID": 401,
+    "INVALID_CREDENTIALS": 401,
+    "ACCOUNT_DEACTIVATED": 403,
+    "PASSWORD_CHANGE_REQUIRED": 403,
+    "ACCOUNT_NOT_ACTIVE": 403,
+    "FORBIDDEN": 403,
+    "LOGIN_NAME_EXISTS": 409,
+    "ADMIN_DEACTIVATION_FORBIDDEN": 409,
+    "REVIEW_REQUIRED": 409,
+    "ADMIN_RESET_REQUIRES_CLI": 409,
+    "REVIEW_ALREADY_DECIDED": 409,
+    "APPLICATION_NOT_REJECTED": 409,
+    "CLASS_ARCHIVED": 409,
+    "ADMIN_EXISTS": 409,
+    "USER_NOT_FOUND": 404,
+    "REVIEW_NOT_FOUND": 404,
+    "APPLICATION_NOT_FOUND": 404,
+    "CLASS_NOT_FOUND": 404,
+    "MEMBER_NOT_FOUND": 404,
+    "CURRENT_PASSWORD_INVALID": 400,
+    "INVALID_TEACHER": 400,
+    "INVALID_MEMBER": 400,
+    "LOGIN_RATE_LIMITED": 429,
+    "PASSWORD_VERIFY_RATE_LIMITED": 429,
+    "AUTH_SERVICE_UNAVAILABLE": 503,
+    "DATABASE_UNAVAILABLE": 503,
+}
