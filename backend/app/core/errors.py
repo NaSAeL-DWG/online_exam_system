@@ -8,6 +8,9 @@ class BusinessError(Exception):
 
 
 STATUS_CODES = {
+    "QUESTION_NOT_FOUND": 404,
+    "QUESTION_CLOSED": 409,
+    "VERSION_CONFLICT": 409,
     "AUTH_REQUIRED": 401,
     "SESSION_INVALID": 401,
     "INVALID_CREDENTIALS": 401,

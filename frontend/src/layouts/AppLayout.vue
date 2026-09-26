@@ -39,6 +39,8 @@ const menuOptions = computed<MenuOption[]>(() => {
       { label: '账号管理', key: '/admin/accounts' },
       { label: '教学班', key: '/classes' },
     )
+  if (auth.user?.user_type === 'TEACHER' || auth.user?.user_type === 'ADMIN')
+    common.push({ label: '共享题库', key: '/staff/questions' })
   common.push({ label: '账号安全', key: '/account/password' })
   return common
 })

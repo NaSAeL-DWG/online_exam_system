@@ -20,6 +20,12 @@ const routes: RouteRecordRaw[] = [
     children: [
       { path: 'home', name: 'home', component: () => import('./views/HomeView.vue') },
       {
+        path: 'staff/questions',
+        name: 'questions',
+        component: () => import('./views/QuestionsView.vue'),
+        meta: { roles: ['TEACHER', 'ADMIN'], active: true },
+      },
+      {
         path: 'account/password',
         name: 'password',
         component: () => import('./views/PasswordView.vue'),
