@@ -246,7 +246,12 @@ def participant_public(row, user, counts):
 async def list_participants(session, identity, exam_id, pagination, status):
     identity_service.ensure_role(identity.user, UserType.ADMIN, UserType.TEACHER)
     await require_exam(session, exam_id)
-    rows, total = await crud.participant_page(session, exam_id, pagination, status)
+    user_ids = None
+    if pagination.q.strip():
+        user_ids = await identity_service.filter_user_ids(
+            session, await crud.participant_user_ids(session, exam_id), pagination.q
+        )
+    rows, total = await crud.participant_page(session, exam_id, pagination, status, user_ids)
     users = await identity_service.summaries(session, [row.user_id for row in rows])
     counts = await attempt_service.participant_attempt_counts(session, [row.id for row in rows])
     return Page[ParticipantPublic](

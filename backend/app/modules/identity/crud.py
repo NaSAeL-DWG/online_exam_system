@@ -35,6 +35,17 @@ async def shared_locked_users(session, user_ids):
     ).all()
 
 
+async def matching_user_ids(session, user_ids, query):
+    term = "%" + query.strip() + "%"
+    return (
+        await session.scalars(
+            select(User.id).where(
+                User.id.in_(user_ids), or_(User.real_name.ilike(term), User.login_name.ilike(term))
+            )
+        )
+    ).all()
+
+
 async def add_user(session, user, profile=None):
     session.add(user)
     await session.flush()

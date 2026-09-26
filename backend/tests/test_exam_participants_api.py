@@ -56,3 +56,18 @@ async def test_audience_expands_classes_once_deduplicates_and_never_silently_res
     archived = await client.post(url, headers=headers, json={"class_ids": [classes[0]]})
     assert archived.status_code == 409
     assert archived.json()["detail"]["code"] == "CLASS_ARCHIVED"
+
+
+@pytest.mark.asyncio
+async def test_participants_filter_by_student_login_name_and_paginate(client):
+    first, _ = await create_student(client)
+    second, _ = await create_student(client)
+    headers = await admin_login(client)
+    paper, _ = await create_paper(client, headers)
+    exam = await create_exam(client, headers, paper)
+    url = f"/api/staff/exams/{exam['id']}/participants"
+    await client.post(url, headers=headers, json={"student_ids": [first["id"], second["id"]]})
+    response = await client.get(url, params={"q": second["login_name"], "page_size": 1})
+    assert response.status_code == 200
+    assert response.json()["total"] == 1
+    assert response.json()["items"][0]["user"]["id"] == second["id"]

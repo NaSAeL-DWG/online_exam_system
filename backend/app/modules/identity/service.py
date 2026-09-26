@@ -88,6 +88,11 @@ async def locked_summaries(session, user_ids):
     }
 
 
+async def filter_user_ids(session, user_ids, query):
+    """在调用方已有成员集合内匹配姓名或登录名，不泄露其他用户资料。"""
+    return await crud.matching_user_ids(session, user_ids, query)
+
+
 async def credentials_by_login(session, login_name, *, lock=False):
     user = await crud.user_by_login(session, login_name, lock=lock)
     return (

@@ -99,8 +99,10 @@ async def participant_by_id(session, participant_id):
     )
 
 
-async def participant_page(session, exam_id, pagination, status):
+async def participant_page(session, exam_id, pagination, status, user_ids=None):
     statement = select(ExamParticipant).where(ExamParticipant.exam_id == exam_id)
+    if user_ids is not None:
+        statement = statement.where(ExamParticipant.user_id.in_(user_ids))
     if status is not None:
         statement = statement.where(ExamParticipant.status == status)
     total = await session.scalar(select(func.count()).select_from(statement.subquery()))
@@ -112,3 +114,11 @@ async def participant_page(session, exam_id, pagination, status):
         )
     ).all()
     return rows, total
+
+
+async def participant_user_ids(session, exam_id):
+    return (
+        await session.scalars(
+            select(ExamParticipant.user_id).where(ExamParticipant.exam_id == exam_id)
+        )
+    ).all()
