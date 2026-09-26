@@ -6,6 +6,8 @@ import LoginView from './views/LoginView.vue'
 import RegisterView from './views/RegisterView.vue'
 
 const routes: RouteRecordRaw[] = [
+  // 根入口始终进入实际页面，避免登录回跳时只显示无子页面的布局。
+  { path: '/', redirect: '/home' },
   {
     path: '/',
     component: AuthLayout,
