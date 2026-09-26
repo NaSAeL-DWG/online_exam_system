@@ -117,7 +117,7 @@ async function save(): Promise<void> {
     await load()
   } catch (error) {
     editorFailure.value = errorMessage(error)
-    conflict.value = error instanceof ApiError && error.status === 409
+    conflict.value = error instanceof ApiError && error.problem.code === 'VERSION_CONFLICT'
   } finally {
     saving.value = false
   }
@@ -136,7 +136,7 @@ function closeQuestion(): void {
         await load()
       } catch (error) {
         editorFailure.value = errorMessage(error)
-        conflict.value = error instanceof ApiError && error.status === 409
+        conflict.value = error instanceof ApiError && error.problem.code === 'VERSION_CONFLICT'
       }
     },
   })
@@ -206,6 +206,8 @@ onMounted(load)
       :title="selected ? '编辑题目' : '新建题目'"
       style="width: 960px; max-height: 90vh; overflow-y: auto"
       :mask-closable="false"
+      :closable="!saving && !uploading"
+      :close-on-esc="!saving && !uploading"
     >
       <NAlert v-if="editorFailure" type="error">{{ editorFailure }}</NAlert>
       <NButton v-if="conflict && selected" @click="edit(selected)">重新加载最新题目</NButton>

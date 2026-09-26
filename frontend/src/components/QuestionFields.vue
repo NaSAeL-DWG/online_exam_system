@@ -1,11 +1,18 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { NAlert, NButton } from 'naive-ui'
 import { questionTypeLabels, questionsApi, type QuestionInput } from '../api/questions'
 import { errorMessage } from '../api/client'
 import SafeMarkdown from './SafeMarkdown.vue'
 
 const model = defineModel<QuestionInput>({ required: true })
+const tagText = ref(model.value.knowledge_tags.join(', '))
+watch(
+  () => model.value,
+  (value) => {
+    tagText.value = value.knowledge_tags.join(', ')
+  },
+)
 const emit = defineEmits<{ uploading: [value: boolean] }>()
 const uploading = ref(false)
 const uploadFailure = ref('')
@@ -13,12 +20,14 @@ async function upload(event: Event, field: 'content' | 'explanation'): Promise<v
   const input = event.target as HTMLInputElement
   const file = input.files?.[0]
   if (!file) return
+  // 上传始终写回启动时的题目，防止编辑器切换后污染另一个草稿。
+  const target = model.value
   uploading.value = true
   emit('uploading', true)
   uploadFailure.value = ''
   try {
     const asset = await questionsApi.upload(file)
-    model.value[field] = `${model.value[field] ?? ''}\n\n![图片](${asset.url})`
+    target[field] = `${target[field] ?? ''}\n\n![图片](${asset.url})`
   } catch (error) {
     uploadFailure.value = errorMessage(error)
   } finally {
@@ -28,19 +37,17 @@ async function upload(event: Event, field: 'content' | 'explanation'): Promise<v
   }
 }
 const isChoice = computed(() => ['SINGLE_CHOICE', 'MULTIPLE_CHOICE'].includes(model.value.type))
-const tags = computed({
-  get: () => model.value.knowledge_tags.join(', '),
-  set: (value: string) => {
-    model.value.knowledge_tags = [
-      ...new Set(
-        value
-          .split(/[,，]/)
-          .map((tag) => tag.trim())
-          .filter(Boolean),
-      ),
-    ]
-  },
-})
+function changeTags(event: Event): void {
+  const value = (event.target as HTMLInputElement).value
+  model.value.knowledge_tags = [
+    ...new Set(
+      value
+        .split(/[,，]/)
+        .map((tag) => tag.trim())
+        .filter(Boolean),
+    ),
+  ]
+}
 function changeType(): void {
   if (isChoice.value) {
     if (model.value.options.length < 2)
@@ -93,7 +100,11 @@ function addOption(): void {
         </select></label
       >
       <label
-        >知识点标签<input v-model="tags" aria-label="知识点标签" placeholder="用逗号分隔"
+        >知识点标签<input
+          v-model="tagText"
+          aria-label="知识点标签"
+          placeholder="用逗号分隔"
+          @input="changeTags"
       /></label>
     </div>
     <label

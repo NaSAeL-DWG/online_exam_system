@@ -109,7 +109,7 @@ async function save(): Promise<void> {
       description: description.value || null,
       questions: questions.value.map((item) => ({
         question_id: item.question.id,
-        score: item.score,
+        score: String(item.score),
       })),
     }
     if (selected.value) await papersApi.update(selected.value.id, input, selected.value.version)
@@ -118,7 +118,7 @@ async function save(): Promise<void> {
     await load()
   } catch (error) {
     editorFailure.value = errorMessage(error)
-    conflict.value = error instanceof ApiError && error.status === 409
+    conflict.value = error instanceof ApiError && error.problem.code === 'VERSION_CONFLICT'
   } finally {
     saving.value = false
   }
@@ -136,7 +136,7 @@ function archive(): void {
         await load()
       } catch (error) {
         editorFailure.value = errorMessage(error)
-        conflict.value = error instanceof ApiError && error.status === 409
+        conflict.value = error instanceof ApiError && error.problem.code === 'VERSION_CONFLICT'
       }
     },
   })

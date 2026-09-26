@@ -35,6 +35,8 @@ test('教师编辑选择题和简答题时可安全预览 Markdown 与公式', a
   await expect(preview.locator('.katex svg path')).toHaveCount(1)
   await expect(preview.locator('script')).toHaveCount(0)
   await expect(preview.locator('img')).toHaveCount(0)
+  await preview.scrollIntoViewIfNeeded()
+  await page.screenshot({ path: 'test-results/visual/question-editor.png' })
   await page.getByRole('button', { name: '保存题目' }).click()
   await expect(page.getByRole('dialog')).toBeHidden()
   await page.getByLabel('搜索题目').fill(title)
@@ -76,13 +78,11 @@ test('上传题目图片、筛选标签并检测共享编辑冲突后关闭题�
   await page.getByLabel('科目', { exact: true }).fill('几何')
   await page.getByLabel('题干', { exact: true }).fill(title)
   await page.getByLabel('知识点标签').fill(title)
-  await page
-    .getByLabel('上传题干图片')
-    .setInputFiles({
-      name: 'preview.png',
-      mimeType: 'image/png',
-      buffer: await page.screenshot({ clip: { x: 0, y: 0, width: 20, height: 20 } }),
-    })
+  await page.getByLabel('上传题干图片').setInputFiles({
+    name: 'preview.png',
+    mimeType: 'image/png',
+    buffer: await page.screenshot({ clip: { x: 0, y: 0, width: 20, height: 20 } }),
+  })
   const previewImage = page.getByTestId('question-preview').locator('img')
   await expect(previewImage).toHaveAttribute('src', /\/api\/assets\//)
   await expect(previewImage).toBeVisible()

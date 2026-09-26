@@ -43,6 +43,7 @@ const menuOptions = computed<MenuOption[]>(() => {
     common.push(
       { label: '共享题库', key: '/staff/questions' },
       { label: '共享试卷', key: '/staff/papers' },
+      { label: '考试管理', key: '/staff/exams' },
     )
   common.push({ label: '账号安全', key: '/account/password' })
   return common

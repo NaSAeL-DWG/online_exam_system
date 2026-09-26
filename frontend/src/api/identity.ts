@@ -24,6 +24,9 @@ export interface ApplicationInput {
 }
 
 export const identityApi = {
+  staffTeachers(query: PageQuery): Promise<PageResult<UserSummary>> {
+    return request(`/staff/teachers?${pageQuery(query, { status: 'ACTIVATED' })}`)
+  },
   teachers(query: PageQuery): Promise<PageResult<UserSummary>> {
     return request(`/admin/teachers?${pageQuery(query, { status: 'ACTIVATED' })}`)
   },

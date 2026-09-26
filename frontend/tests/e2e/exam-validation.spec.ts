@@ -1,0 +1,23 @@
+import { expect, test } from '@playwright/test'
+
+test('题目保存显示具体校验原因，纠正后可以提交', async ({ page }) => {
+  test.skip(!process.env.E2E_ADMIN_LOGIN || !process.env.E2E_ADMIN_PASSWORD, '需要管理员测试凭据')
+  await page.goto('/login')
+  await page.getByLabel('登录账号').fill(process.env.E2E_ADMIN_LOGIN!)
+  await page.getByLabel('密码').fill(process.env.E2E_ADMIN_PASSWORD!)
+  await page.getByRole('button', { name: '登录', exact: true }).click()
+  await expect(page).toHaveURL('/home')
+  await page.goto('/staff/questions')
+  await page.getByRole('button', { name: '新建题目' }).click()
+  await page.getByLabel('题型', { exact: true }).selectOption('MULTIPLE_CHOICE')
+  await page.getByLabel('科目', { exact: true }).fill('数学')
+  await page.getByLabel('题干', { exact: true }).fill(`校验 ${Date.now()}`)
+  await page.getByLabel('选项 1', { exact: true }).fill('1')
+  await page.getByLabel('选项 2', { exact: true }).fill('2')
+  await page.getByLabel('正确选项 1', { exact: true }).check()
+  await page.getByRole('button', { name: '保存题目' }).click()
+  await expect(page.getByRole('alert')).toContainText('多选')
+  await page.getByLabel('正确选项 2', { exact: true }).check()
+  await page.getByRole('button', { name: '保存题目' }).click()
+  await expect(page.getByRole('dialog')).toBeHidden()
+})

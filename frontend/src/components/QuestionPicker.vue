@@ -74,6 +74,20 @@ onMounted(load)
         placeholder="知识点"
       /><NButton @click="changePage(1)">查询可用题目</NButton>
     </div>
+    <div class="search-fields">
+      <select v-model="filters.difficulty" aria-label="选题难度">
+        <option value="">全部难度</option>
+        <option value="EASY">简单</option>
+        <option value="MEDIUM">中等</option>
+        <option value="HARD">困难</option>
+      </select>
+      <select v-model="filters.type" aria-label="选题题型">
+        <option value="">全部题型</option>
+        <option v-for="(label, type) in questionTypeLabels" :key="type" :value="type">
+          {{ label }}
+        </option>
+      </select>
+    </div>
     <NAlert v-if="failure" type="error">{{ failure }}</NAlert>
     <NDataTable
       :columns="columns"
@@ -97,7 +111,8 @@ onMounted(load)
   gap: 10px;
   margin-bottom: 12px;
 }
-input {
+input,
+select {
   min-width: 0;
   width: 100%;
   padding: 8px;

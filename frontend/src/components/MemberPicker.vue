@@ -12,6 +12,7 @@ const props = withDefaults(
     kind: 'teacher' | 'student'
     selectedMembers?: UserSummary[]
     excludedIds?: string[]
+    staffTeachers?: boolean
   }>(),
   { selectedMembers: () => [], excludedIds: () => [] },
 )
@@ -59,7 +60,9 @@ async function load(): Promise<void> {
   try {
     const queryValue = { page: page.value, page_size: pageSize, q: query.value }
     const result = await (props.kind === 'teacher'
-      ? identityApi.teachers(queryValue)
+      ? props.staffTeachers
+        ? identityApi.staffTeachers(queryValue)
+        : identityApi.teachers(queryValue)
       : identityApi.students(queryValue))
     if (version !== loadVersion) return
     candidates.value = result.items

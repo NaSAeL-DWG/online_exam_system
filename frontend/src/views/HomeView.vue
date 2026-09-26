@@ -7,9 +7,9 @@ const auth = useAuthStore()
 const copy = computed(
   () =>
     ({
-      STUDENT: ['学生工作台', '审核通过后，考试将在这里集中展示。'],
-      TEACHER: ['教师工作台', '处理学生审核，维护所负责的教学班。'],
-      ADMIN: ['管理工作台', '创建教师、维护账号状态并配置教学班。'],
+      STUDENT: ['学生工作台', '账号已激活，考试列表和作答功能尚未开放。'],
+      TEACHER: ['教师工作台', '维护共享题库、组卷与考试，处理学生审核和教学班。'],
+      ADMIN: ['管理工作台', '管理账号和教学班，协作维护题库、试卷与考试。'],
     })[auth.user?.user_type ?? 'STUDENT'],
 )
 const guide = computed(
@@ -17,11 +17,11 @@ const guide = computed(
     ({
       STUDENT: {
         title: '开始使用',
-        description: '考试开放后可从工作台查看可参加的考试，并按考试说明开始作答。',
+        description: '当前可维护联系方式与账号安全；考试列表、主动开始和作答尚未开放。',
       },
       TEACHER: {
         title: '从哪里开始',
-        description: '从左侧进入学生审核或教学班；如需更新密码，可进入账号安全。',
+        description: '从共享题库准备题目，在共享试卷组卷，再进入考试管理建立独立快照并发布。',
       },
       ADMIN: {
         title: '从哪里开始',

@@ -28,9 +28,7 @@ export const questionTypeLabels: Record<QuestionType, string> = {
   SHORT_ANSWER: '简答题',
 }
 export const questionsApi = {
-  upload(
-    file: File,
-  ): Promise<{
+  upload(file: File): Promise<{
     id: string
     url: string
     media_type: string

@@ -180,5 +180,7 @@ export async function request<T>(path: string, init: RequestInit = {}): Promise<
 }
 
 export function errorMessage(error: unknown): string {
-  return error instanceof ApiError ? error.message : '发生未知错误，请重试'
+  if (!(error instanceof ApiError)) return '发生未知错误，请重试'
+  const reasons = [...new Set(Object.values(error.problem.fields ?? {}).flat())]
+  return reasons.length ? `${error.message}：${reasons.join('；')}` : error.message
 }
