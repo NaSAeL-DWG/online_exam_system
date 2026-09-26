@@ -6,3 +6,4 @@ from app.modules.auth.models import SessionCleanup  # noqa: F401
 from app.modules.question.models import Question  # noqa: F401
 from app.modules.asset.models import UploadedAsset  # noqa: F401
 from app.modules.paper.models import Paper, PaperQuestion  # noqa: F401
+from app.modules.exam.models import Exam, ExamGrader, ExamQuestion  # noqa: F401
