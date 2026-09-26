@@ -23,6 +23,18 @@ async def users_by_ids(session, user_ids):
     return (await session.scalars(select(User).where(User.id.in_(user_ids)))).all()
 
 
+async def shared_locked_users(session, user_ids):
+    return (
+        await session.scalars(
+            select(User)
+            .where(User.id.in_(user_ids))
+            .order_by(User.id)
+            .with_for_update(read=True)
+            .execution_options(populate_existing=True)
+        )
+    ).all()
+
+
 async def add_user(session, user, profile=None):
     session.add(user)
     await session.flush()

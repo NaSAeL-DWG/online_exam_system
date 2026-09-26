@@ -18,7 +18,7 @@ async def require_question(session, question_id, *, lock=False):
 
 async def create_question(session, identity, payload):
     async with session.begin():
-        await identity_service.validate_actor(session, identity, UserType.ADMIN, UserType.TEACHER)
+        await identity_service.validate_content_actor(session, identity)
         item = Question(creator_id=identity.user.id, **payload.model_dump(mode="json"))
         await crud.insert(session, item)
         result = QuestionPublic.model_validate(item)
@@ -43,7 +43,7 @@ async def list_questions(session, identity, pagination, filters):
 
 async def update_question(session, identity, question_id, payload, *, close=False):
     async with session.begin():
-        await identity_service.validate_actor(session, identity, UserType.ADMIN, UserType.TEACHER)
+        await identity_service.validate_content_actor(session, identity)
         item = await require_question(session, question_id, lock=True)
         if item.version != payload.version:
             raise BusinessError("VERSION_CONFLICT", "内容已被其他教师修改，请重新读取后再编辑")

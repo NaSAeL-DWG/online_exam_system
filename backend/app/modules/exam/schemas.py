@@ -2,11 +2,12 @@ from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
 
-from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, field_validator, model_validator
 from app.modules.paper.schemas import Score
+from app.modules.identity.schemas import UserSummary
 
 from app.modules.question.schemas import QuestionContent
-from .types import AudienceType, ExamStatus, MultipleChoiceMode
+from .types import AudienceType, ExamStatus, MultipleChoiceMode, ParticipantStatus
 
 
 class ExamCreate(BaseModel):
@@ -14,6 +15,13 @@ class ExamCreate(BaseModel):
     title: str = Field(min_length=1, max_length=200)
     description: str | None = Field(default=None, max_length=100000)
     audience_type: AudienceType
+
+    @field_validator("title")
+    @classmethod
+    def nonblank_title(cls, value):
+        if not value.strip():
+            raise ValueError("考试标题不能为空")
+        return value
 
 
 class ExamQuestionPublic(QuestionContent):
@@ -55,6 +63,7 @@ class ExamSummary(BaseModel):
 class ExamDetail(ExamSummary):
     questions: list[ExamQuestionPublic]
     grader_ids: list[UUID]
+    graders: list[UserSummary]
 
 
 class SnapshotEdit(QuestionContent):
@@ -105,3 +114,38 @@ class ExamUpdate(BaseModel):
         if sum((row.score for row in self.questions), Decimal("0.0")) > Decimal("999999999.9"):
             raise ValueError("考试总分超过允许范围")
         return self
+
+
+class ParticipantPublic(BaseModel):
+    id: UUID
+    user: UserSummary
+    status: ParticipantStatus
+    version: int
+    assigned_at: datetime
+    cancelled_at: datetime | None
+    cancelled_reason: str | None
+    used_attempts: int
+    voided_attempts: int
+
+
+class ParticipantAdd(BaseModel):
+    class_ids: list[UUID] = Field(default_factory=list, max_length=100)
+    student_ids: list[UUID] = Field(default_factory=list, max_length=1000)
+
+
+class ParticipantAddResult(BaseModel):
+    added: int
+    existing: int
+    cancelled_user_ids: list[UUID]
+
+
+class ParticipantChange(BaseModel):
+    version: int = Field(ge=1)
+    reason: str = Field(min_length=1, max_length=2000)
+
+    @field_validator("reason")
+    @classmethod
+    def reason_nonblank(cls, value):
+        if not value.strip():
+            raise ValueError("请填写原因")
+        return value

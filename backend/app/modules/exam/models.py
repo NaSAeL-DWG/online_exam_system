@@ -19,7 +19,7 @@ from sqlmodel import Field, SQLModel
 
 from app.core.clock import utc_now
 from app.modules.question.types import Difficulty, QuestionType
-from .types import AudienceType, ExamStatus, MultipleChoiceMode
+from .types import AudienceType, ExamStatus, MultipleChoiceMode, ParticipantStatus
 
 
 class Exam(SQLModel, table=True):
@@ -109,3 +109,25 @@ class ExamGrader(SQLModel, table=True):
     teacher_id: UUID = Field(foreign_key="user_account.id", primary_key=True)
     assigned_by: UUID = Field(foreign_key="user_account.id")
     assigned_at: datetime = Field(default_factory=utc_now, sa_type=DateTime(timezone=True))
+
+
+class ExamParticipant(SQLModel, table=True):
+    __tablename__ = "exam_participant"
+    __table_args__ = (
+        UniqueConstraint("exam_id", "user_id"),
+        Index("ix_participant_user_status_exam", "user_id", "status", "exam_id"),
+        Index("ix_participant_exam_status", "exam_id", "status"),
+    )
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
+    exam_id: UUID = Field(foreign_key="exam.id")
+    user_id: UUID = Field(foreign_key="user_account.id")
+    status: ParticipantStatus = Field(
+        default=ParticipantStatus.ASSIGNED,
+        sa_column=Column(SAEnum(ParticipantStatus, name="participant_status"), nullable=False),
+    )
+    assigned_at: datetime = Field(default_factory=utc_now, sa_type=DateTime(timezone=True))
+    cancelled_at: datetime | None = Field(default=None, sa_type=DateTime(timezone=True))
+    cancelled_reason: str | None = Field(default=None, sa_column=Column(Text))
+    version: int = Field(default=1, sa_type=BigInteger)
+    created_at: datetime = Field(default_factory=utc_now, sa_type=DateTime(timezone=True))
+    updated_at: datetime = Field(default_factory=utc_now, sa_type=DateTime(timezone=True))

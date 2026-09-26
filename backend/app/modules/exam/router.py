@@ -4,9 +4,19 @@ from fastapi import APIRouter, Depends
 from app.core.contracts import Page, Pagination
 from app.deps import Identity, get_session, require_csrf, roles
 from app.modules.identity.types import UserType
+from app.modules.question.schemas import VersionRequest
 from . import service
-from .schemas import ExamCreate, ExamDetail, ExamSummary, ExamUpdate
-from .types import ExamStatus
+from .schemas import (
+    ExamCreate,
+    ExamDetail,
+    ExamSummary,
+    ExamUpdate,
+    ParticipantPublic,
+    ParticipantAdd,
+    ParticipantAddResult,
+    ParticipantChange,
+)
+from .types import ExamStatus, ParticipantStatus
 
 router = APIRouter(prefix="/api/staff/exams", tags=["考试组织"])
 staff = roles(UserType.ADMIN, UserType.TEACHER)
@@ -48,3 +58,86 @@ async def update_exam(
 ):
     """修改独立考试草稿的题目、顺序、分值、配置及指定教师。"""
     return await service.update_exam(session, identity, exam_id, payload)
+
+
+@router.post("/{exam_id}/publish", response_model=ExamDetail, dependencies=[Depends(require_csrf)])
+async def publish_exam(
+    exam_id: UUID,
+    payload: VersionRequest,
+    identity: Identity = Depends(staff),
+    session=Depends(get_session),
+):
+    """校验完整配置与激活阅卷教师后发布，并锁定考试内容。"""
+    return await service.change_release(session, identity, exam_id, payload)
+
+
+@router.post("/{exam_id}/withdraw", response_model=ExamDetail, dependencies=[Depends(require_csrf)])
+async def withdraw_exam(
+    exam_id: UUID,
+    payload: VersionRequest,
+    identity: Identity = Depends(staff),
+    session=Depends(get_session),
+):
+    """仅在不存在任何历史开始记录时撤回考试发布。"""
+    return await service.change_release(session, identity, exam_id, payload, withdraw=True)
+
+
+@router.get("/{exam_id}/participants", response_model=Page[ParticipantPublic])
+async def list_participants(
+    exam_id: UUID,
+    pagination: Pagination = Depends(),
+    status: ParticipantStatus | None = None,
+    identity: Identity = Depends(staff),
+    session=Depends(get_session),
+):
+    """分页查询独立考试资格及包含废弃历史的已用次数。"""
+    return await service.list_participants(session, identity, exam_id, pagination, status)
+
+
+@router.post(
+    "/{exam_id}/participants",
+    response_model=ParticipantAddResult,
+    dependencies=[Depends(require_csrf)],
+)
+async def add_participants(
+    exam_id: UUID,
+    payload: ParticipantAdd,
+    identity: Identity = Depends(staff),
+    session=Depends(get_session),
+):
+    """按多个班级及单独学生补入并去重，不隐式恢复撤销资格。"""
+    return await service.add_participants(session, identity, exam_id, payload)
+
+
+@router.post(
+    "/{exam_id}/participants/{participant_id}/cancel",
+    response_model=ParticipantPublic,
+    dependencies=[Depends(require_csrf)],
+)
+async def cancel_participant(
+    exam_id: UUID,
+    participant_id: UUID,
+    payload: ParticipantChange,
+    identity: Identity = Depends(staff),
+    session=Depends(get_session),
+):
+    """显式撤销资格并在同一事务废弃全部既有作答。"""
+    return await service.change_participant(session, identity, exam_id, participant_id, payload)
+
+
+@router.post(
+    "/{exam_id}/participants/{participant_id}/restore",
+    response_model=ParticipantPublic,
+    dependencies=[Depends(require_csrf)],
+)
+async def restore_participant(
+    exam_id: UUID,
+    participant_id: UUID,
+    payload: ParticipantChange,
+    identity: Identity = Depends(staff),
+    session=Depends(get_session),
+):
+    """恢复资格但不复活历史作答，也不重置已使用次数。"""
+    return await service.change_participant(
+        session, identity, exam_id, participant_id, payload, restore=True
+    )

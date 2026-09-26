@@ -15,7 +15,7 @@ async def upload(session, identity, settings, filename, data):
         raise BusinessError("IMAGE_TOO_LARGE", "图片超过上传大小限制")
     media_type = await asyncio.to_thread(storage.validate_image, data)
     async with session.begin():
-        await identity_service.validate_actor(session, identity, UserType.ADMIN, UserType.TEACHER)
+        await identity_service.validate_content_actor(session, identity)
         item = UploadedAsset(
             uploader_id=identity.user.id,
             storage_key=uuid4().hex,

@@ -63,7 +63,7 @@ async def list_papers(session, identity, pagination, status):
 
 async def create_paper(session, identity, payload):
     async with session.begin():
-        await identity_service.validate_actor(session, identity, UserType.ADMIN, UserType.TEACHER)
+        await identity_service.validate_content_actor(session, identity)
         await question_service.copyable_questions(
             session, [row.question_id for row in payload.questions]
         )
@@ -78,7 +78,7 @@ async def create_paper(session, identity, payload):
 
 async def update_paper(session, identity, paper_id, payload, *, archive=False):
     async with session.begin():
-        await identity_service.validate_actor(session, identity, UserType.ADMIN, UserType.TEACHER)
+        await identity_service.validate_content_actor(session, identity)
         item = await require_paper(session, paper_id, lock=True)
         if item.version != payload.version:
             raise BusinessError("VERSION_CONFLICT", "试卷已被修改，请重新读取")

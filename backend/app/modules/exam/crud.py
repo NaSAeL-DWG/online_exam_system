@@ -1,6 +1,6 @@
 from sqlalchemy import delete, func, select
 
-from .models import Exam, ExamGrader, ExamQuestion
+from .models import Exam, ExamGrader, ExamParticipant, ExamQuestion
 
 
 async def insert(session, item, questions):
@@ -70,3 +70,45 @@ async def replace_graders(session, exam_id, teacher_ids, actor_id):
         ]
     )
     await session.flush()
+
+
+async def participant_ids(session, exam_id):
+    return (
+        await session.scalars(select(ExamParticipant.id).where(ExamParticipant.exam_id == exam_id))
+    ).all()
+
+
+async def participants_for_users(session, exam_id, user_ids):
+    return (
+        await session.scalars(
+            select(ExamParticipant).where(
+                ExamParticipant.exam_id == exam_id, ExamParticipant.user_id.in_(user_ids)
+            )
+        )
+    ).all()
+
+
+async def add_participants(session, rows):
+    session.add_all(rows)
+    await session.flush()
+
+
+async def participant_by_id(session, participant_id):
+    return await session.get(
+        ExamParticipant, participant_id, with_for_update=True, populate_existing=True
+    )
+
+
+async def participant_page(session, exam_id, pagination, status):
+    statement = select(ExamParticipant).where(ExamParticipant.exam_id == exam_id)
+    if status is not None:
+        statement = statement.where(ExamParticipant.status == status)
+    total = await session.scalar(select(func.count()).select_from(statement.subquery()))
+    rows = (
+        await session.scalars(
+            statement.order_by(ExamParticipant.assigned_at, ExamParticipant.id)
+            .offset((pagination.page - 1) * pagination.page_size)
+            .limit(pagination.page_size)
+        )
+    ).all()
+    return rows, total

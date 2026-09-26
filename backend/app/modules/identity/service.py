@@ -71,6 +71,23 @@ async def validate_actor(session, identity, *roles, active=True):
     return UserPublic.model_validate(await locked_actor(session, identity, *roles, active=active))
 
 
+async def validate_content_actor(session, identity):
+    """内容用例只读身份，持有共享锁阻挡停用，避免教师互为阅卷人时排他锁互锁。"""
+    users = await crud.shared_locked_users(session, [identity.user.id])
+    if not users or users[0].auth_version != identity.auth_version:
+        raise BusinessError("SESSION_INVALID", "登录已失效")
+    ensure_role(users[0], UserType.ADMIN, UserType.TEACHER)
+    return UserPublic.model_validate(users[0])
+
+
+async def locked_summaries(session, user_ids):
+    """组合用例内批量共享锁定身份状态，保持到外层事务结束。"""
+    return {
+        user.id: UserSummary.model_validate(user)
+        for user in await crud.shared_locked_users(session, set(user_ids))
+    }
+
+
 async def credentials_by_login(session, login_name, *, lock=False):
     user = await crud.user_by_login(session, login_name, lock=lock)
     return (
@@ -248,6 +265,18 @@ async def list_users(session, identity, pagination, user_type=None, status=None)
     rows, total = await crud.list_users(session, pagination, user_type, status)
     return Page[UserPublic](
         items=[UserPublic.model_validate(user) for user in rows],
+        total=total,
+        page=pagination.page,
+        page_size=pagination.page_size,
+    )
+
+
+async def list_grader_candidates(session, identity, pagination, status):
+    """共享考试用教师候选，只公开已有资料 DTO，不授予账号管理能力。"""
+    ensure_role(identity.user, UserType.ADMIN, UserType.TEACHER)
+    rows, total = await crud.list_users(session, pagination, UserType.TEACHER, status)
+    return Page[UserPublic](
+        items=[UserPublic.model_validate(row) for row in rows],
         total=total,
         page=pagination.page,
         page_size=pagination.page_size,

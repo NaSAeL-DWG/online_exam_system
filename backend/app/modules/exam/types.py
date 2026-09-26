@@ -16,3 +16,8 @@ class AudienceType(StrEnum):
 class MultipleChoiceMode(StrEnum):
     EXACT = "EXACT"
     PARTIAL = "PARTIAL"
+
+
+class ParticipantStatus(StrEnum):
+    ASSIGNED = "ASSIGNED"
+    CANCELLED = "CANCELLED"

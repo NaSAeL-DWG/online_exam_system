@@ -203,3 +203,29 @@ async def delete_member(session, identity, class_id, user_id):
             entity_id=item.id,
             before_data={"user_id": str(user_id), "role": role.value},
         )
+
+
+async def expand_exam_students(session, class_ids):
+    """考试名单公开组合查询；锁班级固定本次成员视图，不建立持续授权关系。"""
+    for class_id in sorted(set(class_ids), key=str):
+        item = await require_class(session, class_id, lock=True)
+        if item.status == ClassStatus.ARCHIVED:
+            raise BusinessError("CLASS_ARCHIVED", "归档班级不能补入考试名单")
+    return {
+        member.user_id
+        for member in await crud.members(session, set(class_ids))
+        if member.role == MemberRole.STUDENT
+    }
+
+
+async def list_audience_classes(session, identity, pagination):
+    """教师共享考试可从所有教学班补入；不开放非关联班级成员维护。"""
+    identity_service.ensure_role(identity.user, UserType.ADMIN, UserType.TEACHER)
+    rows, total = await crud.list_page(session, pagination)
+    counts = await crud.student_counts(session, [row.id for row in rows]) if rows else {}
+    return Page[ClassPublic](
+        items=[class_public(row, [], None, counts.get(row.id, 0)) for row in rows],
+        total=total,
+        page=pagination.page,
+        page_size=pagination.page_size,
+    )

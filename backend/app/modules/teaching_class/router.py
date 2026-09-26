@@ -19,6 +19,16 @@ staff = roles(UserType.ADMIN, UserType.TEACHER)
 admin = roles(UserType.ADMIN)
 
 
+@router.get("/audience-options", response_model=Page[ClassPublic])
+async def audience_options(
+    pagination: Pagination = Depends(),
+    identity: Identity = Depends(staff),
+    session=Depends(get_session),
+):
+    """查询共享考试可选班级及人数，不授予成员维护权限。"""
+    return await service.list_audience_classes(session, identity, pagination)
+
+
 @router.get("", response_model=Page[ClassPublic])
 async def list_classes(
     pagination: Pagination = Depends(),

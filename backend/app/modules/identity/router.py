@@ -104,6 +104,17 @@ async def teachers(
     return await service.list_users(session, identity, pagination, UserType.TEACHER, status)
 
 
+@router.get("/api/staff/teachers", response_model=Page[UserPublic])
+async def grader_options(
+    status: UserStatus | None = None,
+    pagination: Pagination = Depends(),
+    identity: Identity = Depends(staff),
+    session=Depends(get_session),
+):
+    """分页查询共享考试可指定的教师候选。"""
+    return await service.list_grader_candidates(session, identity, pagination, status)
+
+
 @router.post(
     "/api/admin/teachers",
     status_code=201,
