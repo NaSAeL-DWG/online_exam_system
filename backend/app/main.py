@@ -12,6 +12,7 @@ from .modules.auth import router as auth
 from .modules.identity import router as identity
 from .modules.question import router as question
 from .modules.asset import router as asset
+from .modules.paper import router as paper
 from .core.errors import BusinessError, STATUS_CODES
 from .core.contracts import HealthResponse
 from sqlalchemy.exc import OperationalError, InterfaceError
@@ -81,6 +82,7 @@ def create_app(settings_override: Settings | None = None) -> FastAPI:
     app.include_router(classes.router)
     app.include_router(question.router)
     app.include_router(asset.router)
+    app.include_router(paper.router)
     return app
 
 
