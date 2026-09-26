@@ -40,7 +40,10 @@ const menuOptions = computed<MenuOption[]>(() => {
       { label: '教学班', key: '/classes' },
     )
   if (auth.user?.user_type === 'TEACHER' || auth.user?.user_type === 'ADMIN')
-    common.push({ label: '共享题库', key: '/staff/questions' })
+    common.push(
+      { label: '共享题库', key: '/staff/questions' },
+      { label: '共享试卷', key: '/staff/papers' },
+    )
   common.push({ label: '账号安全', key: '/account/password' })
   return common
 })
