@@ -1,7 +1,16 @@
 <script setup lang="ts">
-import { h, onMounted, ref } from 'vue'
-import { NAlert, NButton, NCard, NDataTable, NModal, NSpace, type DataTableColumns } from 'naive-ui'
-import { errorMessage } from '../api/client'
+import { h, onMounted, reactive, ref } from 'vue'
+import {
+  NAlert,
+  NButton,
+  NCard,
+  NDataTable,
+  NModal,
+  NSpace,
+  useDialog,
+  type DataTableColumns,
+} from 'naive-ui'
+import { ApiError, errorMessage } from '../api/client'
 import {
   questionsApi,
   questionTypeLabels,
@@ -9,19 +18,23 @@ import {
   type QuestionInput,
 } from '../api/questions'
 import ListPager from '../components/ListPager.vue'
+import QuestionFields from '../components/QuestionFields.vue'
 
 const items = ref<Question[]>([])
 const page = ref(1)
 const total = ref(0)
 const query = ref('')
+const filters = reactive({ subject: '', difficulty: '', tag: '', status: '', type: '' })
+const dialog = useDialog()
+const conflict = ref(false)
 const failure = ref('')
 const editorFailure = ref('')
 const loading = ref(false)
 const saving = ref(false)
+const uploading = ref(false)
 const visible = ref(false)
 const selected = ref<Question | null>(null)
 const form = ref<QuestionInput>(blank())
-const answer = ref('true')
 function blank(): QuestionInput {
   return {
     type: 'TRUE_FALSE',
@@ -56,7 +69,10 @@ async function load(): Promise<void> {
   loading.value = true
   failure.value = ''
   try {
-    const result = await questionsApi.list({ page: page.value, page_size: 20, q: query.value })
+    const result = await questionsApi.list(
+      { page: page.value, page_size: 20, q: query.value },
+      filters,
+    )
     if (version === loadVersion) {
       items.value = result.items
       total.value = result.total
@@ -74,8 +90,8 @@ function changePage(value: number): void {
 function create(): void {
   selected.value = null
   form.value = blank()
-  answer.value = 'true'
   editorFailure.value = ''
+  conflict.value = false
   visible.value = true
 }
 async function edit(row: Question): Promise<void> {
@@ -83,8 +99,8 @@ async function edit(row: Question): Promise<void> {
     const question = await questionsApi.get(row.id)
     selected.value = question
     form.value = structuredClone(question)
-    answer.value = String(question.standard_answer)
     editorFailure.value = ''
+    conflict.value = false
     visible.value = true
   } catch (error) {
     failure.value = errorMessage(error)
@@ -94,16 +110,36 @@ async function save(): Promise<void> {
   saving.value = true
   editorFailure.value = ''
   try {
-    const input = { ...form.value, standard_answer: answer.value === 'true' }
+    const input = form.value
     if (selected.value) await questionsApi.update(selected.value.id, input, selected.value.version)
     else await questionsApi.create(input)
     visible.value = false
     await load()
   } catch (error) {
     editorFailure.value = errorMessage(error)
+    conflict.value = error instanceof ApiError && error.status === 409
   } finally {
     saving.value = false
   }
+}
+function closeQuestion(): void {
+  if (!selected.value) return
+  dialog.warning({
+    title: '关闭题目',
+    content: '关闭后不能新增组卷，已有试卷和考试仍保留题目。',
+    positiveText: '确认关闭',
+    negativeText: '取消',
+    onPositiveClick: async () => {
+      try {
+        await questionsApi.close(selected.value!.id, selected.value!.version)
+        visible.value = false
+        await load()
+      } catch (error) {
+        editorFailure.value = errorMessage(error)
+        conflict.value = error instanceof ApiError && error.status === 409
+      }
+    },
+  })
 }
 onMounted(load)
 </script>
@@ -128,6 +164,27 @@ onMounted(load)
           @keyup.enter="changePage(1)"
         /><NButton @click="changePage(1)">查询题目</NButton></NSpace
       >
+      <div class="filter-grid">
+        <input v-model="filters.subject" aria-label="筛选科目" placeholder="科目" />
+        <input v-model="filters.tag" aria-label="筛选知识点" placeholder="知识点标签" />
+        <select v-model="filters.difficulty" aria-label="筛选难度">
+          <option value="">全部难度</option>
+          <option value="EASY">简单</option>
+          <option value="MEDIUM">中等</option>
+          <option value="HARD">困难</option>
+        </select>
+        <select v-model="filters.type" aria-label="筛选题型">
+          <option value="">全部题型</option>
+          <option v-for="(label, type) in questionTypeLabels" :key="type" :value="type">
+            {{ label }}
+          </option>
+        </select>
+        <select v-model="filters.status" aria-label="筛选状态">
+          <option value="">全部状态</option>
+          <option value="ACTIVE">使用中</option>
+          <option value="CLOSED">已关闭</option>
+        </select>
+      </div>
       <NDataTable
         :columns="columns"
         :data="items"
@@ -147,25 +204,28 @@ onMounted(load)
       v-model:show="visible"
       preset="card"
       :title="selected ? '编辑题目' : '新建题目'"
-      style="width: 800px"
+      style="width: 960px; max-height: 90vh; overflow-y: auto"
       :mask-closable="false"
     >
       <NAlert v-if="editorFailure" type="error">{{ editorFailure }}</NAlert>
+      <NButton v-if="conflict && selected" @click="edit(selected)">重新加载最新题目</NButton>
       <form class="editor-form" @submit.prevent="save">
-        <label
-          >题型<select v-model="form.type" aria-label="题型">
-            <option value="TRUE_FALSE">判断题</option>
-          </select></label
+        <QuestionFields v-model="form" @uploading="uploading = $event" />
+        <NSpace
+          ><NButton
+            attr-type="submit"
+            type="primary"
+            :loading="saving"
+            :disabled="conflict || uploading"
+            >保存题目</NButton
+          ><NButton
+            v-if="selected?.status === 'ACTIVE'"
+            type="warning"
+            :disabled="saving || conflict || uploading"
+            @click="closeQuestion"
+            >关闭题目</NButton
+          ></NSpace
         >
-        <label>科目<input v-model="form.subject" aria-label="科目" required /></label>
-        <label>题干<textarea v-model="form.content" aria-label="题干" required rows="6" /></label>
-        <label
-          >判断答案<select v-model="answer" aria-label="判断答案">
-            <option value="true">真</option>
-            <option value="false">假</option>
-          </select></label
-        >
-        <NButton attr-type="submit" type="primary" :loading="saving">保存题目</NButton>
       </form>
     </NModal>
   </div>
@@ -175,6 +235,12 @@ onMounted(load)
 .editor-form {
   display: grid;
   gap: 18px;
+}
+.filter-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 12px;
+  margin: 18px 0;
 }
 label {
   display: grid;

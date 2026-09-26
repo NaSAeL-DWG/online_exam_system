@@ -28,6 +28,19 @@ export const questionTypeLabels: Record<QuestionType, string> = {
   SHORT_ANSWER: '简答题',
 }
 export const questionsApi = {
+  upload(
+    file: File,
+  ): Promise<{
+    id: string
+    url: string
+    media_type: string
+    size_bytes: number
+    original_name: string
+  }> {
+    const body = new FormData()
+    body.append('file', file)
+    return request('/staff/assets', { method: 'POST', body })
+  },
   list(
     query: PageQuery,
     filters: Record<string, string | undefined> = {},
