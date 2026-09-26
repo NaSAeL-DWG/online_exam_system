@@ -11,6 +11,10 @@ async def get_session(request: Request):
         yield session
 
 
+def get_runtime_settings(request: Request):
+    return request.app.state.settings
+
+
 async def get_auth_service(request: Request, session=Depends(get_session)):
     resources = request.app.state.resources
     return AuthService(

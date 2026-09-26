@@ -13,6 +13,8 @@ dependencies = [
   "redis==6.4.0",
   "sqlmodel==0.0.25",
   "uvicorn[standard]==0.36.0",
+  "pillow==11.3.0",
+  "python-multipart==0.0.20",
 ]
 
 [dependency-groups]

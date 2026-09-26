@@ -22,6 +22,8 @@ class Settings(BaseSettings):
     session_absolute_seconds: int = 12 * 60 * 60
     password_min_length: int = 10
     cors_origins: str = "http://localhost:5173"
+    asset_storage_dir: str = "../.local/uploads"
+    asset_max_bytes: int = Field(default=5 * 1024 * 1024, ge=1)
     admin_login_name: str | None = None
     admin_password: str | None = Field(default=None, min_length=10, max_length=256)
     admin_real_name: str | None = None

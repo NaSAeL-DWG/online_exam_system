@@ -3,6 +3,8 @@ from uuid import uuid4
 import pytest
 
 from test_classes_api import admin_login
+from test_classes_api import user_login
+from content_helpers import create_student, create_teacher, teacher_login
 
 
 def question_payload(**changes):
@@ -94,3 +96,29 @@ async def test_question_filters_version_conflict_and_close(client):
     assert closed.status_code == 200
     assert closed.json()["status"] == "CLOSED"
     assert (await client.get(url)).json()["content"] == "更新题干"
+
+
+@pytest.mark.asyncio
+async def test_teachers_share_questions_but_students_cannot_read_answers(client):
+    first, first_no = await create_teacher(client)
+    _, second_no = await create_teacher(client)
+    _, student_no = await create_student(client)
+    first_headers = await teacher_login(client, first_no)
+    payload = question_payload()
+    question = (
+        await client.post("/api/staff/questions", headers=first_headers, json=payload)
+    ).json()
+    second_headers = await teacher_login(client, second_no)
+    url = f"/api/staff/questions/{question['id']}"
+    assert (await client.get(url)).json()["creator_id"] == first["id"]
+    edited = await client.put(
+        url, headers=second_headers, json=payload | {"version": 1, "content": "另一教师共同编辑"}
+    )
+    assert edited.status_code == 200
+    client.cookies.clear()
+    student_headers = await user_login(client, student_no, "ValidPassword!123")
+    assert (await client.get(url)).status_code == 403
+    assert (await client.get("/api/staff/questions")).status_code == 403
+    assert (
+        await client.post("/api/staff/questions", headers=student_headers, json=payload)
+    ).status_code == 403

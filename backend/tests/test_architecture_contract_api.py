@@ -43,7 +43,16 @@ async def test_registration_uses_explicit_application_contract(client):
         for operation in operations.values():
             for code, contract in operation.get("responses", {}).items():
                 if code.startswith("2") and code != "204":
-                    assert contract["content"]["application/json"]["schema"].get("$ref"), path
+                    content = contract["content"]
+                    if "application/json" in content:
+                        assert content["application/json"]["schema"].get("$ref"), path
+                    else:
+                        assert path == "/api/assets/{asset_id}"
+                        assert set(content) == {"image/png", "image/jpeg", "image/webp"}
+                        assert all(
+                            value["schema"] == {"type": "string", "format": "binary"}
+                            for value in content.values()
+                        )
     submitted = schema["components"]["schemas"]["SubmittedProfile"]
     assert set(submitted["properties"]) == {"student_no", "real_name", "email", "phone_number"}
     # 模拟 JSONB 增加内部字段，公开申请 DTO 仍只输出四个资料字段。
