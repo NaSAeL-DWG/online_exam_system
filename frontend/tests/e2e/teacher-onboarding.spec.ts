@@ -14,7 +14,10 @@ test('管理员创建的教师首次登录必须修改临时密码', async ({ pa
   await page.getByLabel('登录账号').fill(adminLogin!)
   await page.getByLabel('密码').fill(adminPassword!)
   await page.getByRole('button', { name: '登录' }).click()
-  await page.getByText('账号管理', { exact: true }).click()
+  await page
+    .getByRole('navigation', { name: '主导航' })
+    .getByRole('link', { name: '账号管理', exact: true })
+    .click()
 
   await page.getByRole('button', { name: '新建教师' }).click()
   await page.getByLabel('工号').fill(teacherNo)
@@ -36,7 +39,7 @@ test('管理员创建的教师首次登录必须修改临时密码', async ({ pa
   await page.getByLabel('确认新密码').fill(newPassword)
   await page.getByRole('button', { name: '保存新密码' }).click()
 
-  await expect(page.getByRole('heading', { name: '欢迎回来' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '账号登录', level: 1 })).toBeVisible()
   await page.getByLabel('登录账号').fill(teacherNo)
   await page.getByLabel('密码').fill(newPassword)
   await page.getByRole('button', { name: '登录' }).click()

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { reactive, ref } from 'vue'
-import { NAlert, NButton, NForm, NFormItem, NInput, NResult, useMessage } from 'naive-ui'
+import { NAlert, NButton, NForm, NFormItem, NInput, useMessage } from 'naive-ui'
+import AppIcon from '../components/ui/AppIcon.vue'
 import { errorMessage } from '../api/client'
 import { useAuthStore } from '../stores/auth'
 
@@ -44,18 +45,18 @@ async function submit(): Promise<void> {
 </script>
 
 <template>
-  <div class="auth-card">
-    <NResult v-if="submitted" status="success" title="申请已提交" description="等待教师审核">
-      <template #footer
-        ><NButton type="primary" @click="$router.push('/login')"
-          >登录查看审核状态</NButton
-        ></template
-      >
-    </NResult>
+  <div class="auth-form">
+    <div v-if="submitted" class="auth-success" role="status">
+      <AppIcon class="auth-success-icon" name="check-circle" :size="42" />
+      <h1>申请已提交</h1>
+      <p>等待教师审核。你可以登录查看审核状态，资料需要更正时重新提交。</p>
+      <NButton type="primary" @click="$router.push('/login')">登录查看审核状态</NButton>
+    </div>
     <template v-else>
-      <p class="eyebrow accent">学生注册</p>
-      <h2>创建你的学习账号</h2>
-      <p class="muted">提交后可登录查看审核进度，审核通过即可参加考试。</p>
+      <header class="auth-task-header">
+        <h1>学生注册</h1>
+        <p>填写真实资料，提交后登录查看身份审核进度。</p>
+      </header>
       <NAlert v-if="failure" type="error" class="form-alert">{{ failure }}</NAlert>
       <NForm :model="form" size="large" @submit.prevent="submit">
         <div class="form-grid two-columns">
@@ -100,7 +101,7 @@ async function submit(): Promise<void> {
         </div>
         <NButton attr-type="submit" type="primary" block :loading="loading">提交注册</NButton>
       </NForm>
-      <p class="auth-switch">已有账号？<RouterLink to="/login">返回登录</RouterLink></p>
+      <p class="auth-switch"><span>已有账号</span><RouterLink to="/login">返回登录</RouterLink></p>
     </template>
   </div>
 </template>

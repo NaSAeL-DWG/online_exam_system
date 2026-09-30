@@ -1,291 +1,311 @@
 <script setup lang="ts">
-import { h, onMounted, ref } from 'vue'
-import {
-  NAlert,
-  NButton,
-  NCard,
-  NDataTable,
-  NModal,
-  NSpace,
-  useDialog,
-  type DataTableColumns,
-} from 'naive-ui'
-import { ApiError, errorMessage } from '../api/client'
-import { papersApi, type Paper, type PaperSummary } from '../api/papers'
-import type { Question } from '../api/questions'
+import { NAlert, NButton, NModal, useDialog } from 'naive-ui'
+import { papersApi } from '../api/papers'
 import QuestionPicker from '../components/QuestionPicker.vue'
-import SafeMarkdown from '../components/SafeMarkdown.vue'
 import ListPager from '../components/ListPager.vue'
-
+import PageHeader from '../components/ui/PageHeader.vue'
+import SurfacePanel from '../components/ui/SurfacePanel.vue'
+import StatusBadge from '../components/ui/StatusBadge.vue'
+import AppIcon from '../components/ui/AppIcon.vue'
+import PaperQuestionList from '../features/papers/PaperQuestionList.vue'
+import { usePaperEditor } from '../features/papers/usePaperEditor'
+import { usePagedList } from '../composables/usePagedList'
+const { items, page, total, query, loading, failure, load, changePage } = usePagedList(
+  papersApi.list,
+)
+const {
+  visible,
+  selected,
+  title,
+  description,
+  questions,
+  saving,
+  failure: editorFailure,
+  conflict,
+  archived,
+  draftTotal,
+  create,
+  edit,
+  move,
+  persist,
+} = usePaperEditor(load)
 const dialog = useDialog()
-const items = ref<PaperSummary[]>([])
-const page = ref(1)
-const total = ref(0)
-const query = ref('')
-const loading = ref(false)
-const failure = ref('')
-const visible = ref(false)
-const saving = ref(false)
-const editorFailure = ref('')
-const conflict = ref(false)
-const selected = ref<Paper | null>(null)
-const title = ref('')
-const description = ref('')
-const questions = ref<{ question: Question; score: string }[]>([])
-const columns: DataTableColumns<PaperSummary> = [
-  { title: '试卷', key: 'title' },
-  { title: '题数', key: 'question_count' },
-  { title: '总分', key: 'total_score' },
-  {
-    title: '状态',
-    key: 'status',
-    render: (row) => (row.status === 'ACTIVE' ? '使用中' : '已归档'),
-  },
-  {
-    title: '操作',
-    key: 'actions',
-    render: (row) =>
-      h(NButton, { size: 'small', onClick: () => edit(row.id) }, { default: () => '编辑' }),
-  },
-]
-let loadVersion = 0
-async function load(): Promise<void> {
-  const version = ++loadVersion
-  loading.value = true
-  failure.value = ''
-  try {
-    const result = await papersApi.list({ page: page.value, page_size: 20, q: query.value })
-    if (version === loadVersion) {
-      items.value = result.items
-      total.value = result.total
-    }
-  } catch (error) {
-    if (version === loadVersion) failure.value = errorMessage(error)
-  } finally {
-    if (version === loadVersion) loading.value = false
-  }
-}
-function changePage(value: number): void {
-  page.value = value
-  void load()
-}
-function create(): void {
-  selected.value = null
-  title.value = ''
-  description.value = ''
-  questions.value = []
-  editorFailure.value = ''
-  conflict.value = false
-  visible.value = true
-}
-async function edit(id: string): Promise<void> {
-  try {
-    const paper = await papersApi.get(id)
-    selected.value = paper
-    title.value = paper.title
-    description.value = paper.description ?? ''
-    questions.value = paper.questions.map((item) => ({
-      question: item.question,
-      score: item.score,
-    }))
-    editorFailure.value = ''
-    conflict.value = false
-    visible.value = true
-  } catch (error) {
-    failure.value = errorMessage(error)
-  }
-}
-function move(index: number, direction: number): void {
-  const item = questions.value.splice(index, 1)[0]
-  if (item) questions.value.splice(index + direction, 0, item)
-}
-async function save(): Promise<void> {
-  if (saving.value) return
-  saving.value = true
-  editorFailure.value = ''
-  try {
-    const input = {
-      title: title.value,
-      description: description.value || null,
-      questions: questions.value.map((item) => ({
-        question_id: item.question.id,
-        score: String(item.score),
-      })),
-    }
-    if (selected.value) await papersApi.update(selected.value.id, input, selected.value.version)
-    else await papersApi.create(input)
-    visible.value = false
-    await load()
-  } catch (error) {
-    editorFailure.value = errorMessage(error)
-    conflict.value = error instanceof ApiError && error.problem.code === 'VERSION_CONFLICT'
-  } finally {
-    saving.value = false
-  }
-}
 function archive(): void {
   dialog.warning({
     title: '归档试卷',
     content: '归档后不能再用于创建新考试，已有考试快照保持不变。',
     positiveText: '确认归档',
     negativeText: '取消',
-    onPositiveClick: async () => {
-      try {
-        await papersApi.archive(selected.value!.id, selected.value!.version)
-        visible.value = false
-        await load()
-      } catch (error) {
-        editorFailure.value = errorMessage(error)
-        conflict.value = error instanceof ApiError && error.problem.code === 'VERSION_CONFLICT'
-      }
-    },
+    onPositiveClick: () => persist('archive'),
   })
 }
-onMounted(load)
 </script>
-
 <template>
   <div class="page-stack">
-    <div class="page-title">
-      <div>
-        <p class="eyebrow accent">SHARED PAPERS</p>
-        <h1>共享试卷</h1>
-        <p>手动选题、调整顺序与分值，供多场考试复用。</p>
-      </div>
-      <NButton type="primary" @click="create">新建试卷</NButton>
-    </div>
-    <NAlert v-if="failure" type="error">{{ failure }}</NAlert>
-    <NCard
-      ><NSpace
-        ><input
+    <PageHeader title="共享试卷" description="挑选题目，安排顺序与分值，为考试准备试卷。"
+      ><template #actions
+        ><NButton type="primary" @click="create"
+          ><template #icon><AppIcon name="plus" :size="17" /></template>新建试卷</NButton
+        ></template
+      ></PageHeader
+    >
+    <NAlert v-if="failure || (!visible && editorFailure)" type="error"
+      >{{ failure || editorFailure }}
+      <NButton size="small" @click="load">重新加载试卷</NButton></NAlert
+    >
+    <SurfacePanel>
+      <form class="toolbar" @submit.prevent="changePage(1)">
+        <input
           v-model="query"
+          class="form-control paper-search"
           aria-label="搜索试卷"
           placeholder="搜索试卷名称"
-          @keyup.enter="changePage(1)"
-        /><NButton @click="changePage(1)">查询试卷</NButton></NSpace
-      ><NDataTable
-        :columns="columns"
-        :data="items"
-        :loading="loading"
-        :row-key="(row: PaperSummary) => row.id" /><ListPager
+        /><NButton attr-type="submit" :loading="loading">查询试卷</NButton
+        ><span class="toolbar-meta">共 {{ total }} 张试卷</span>
+      </form>
+      <div class="table-region" :aria-busy="loading">
+        <table class="paper-table">
+          <thead>
+            <tr>
+              <th>试卷名称</th>
+              <th>题数</th>
+              <th>总分</th>
+              <th>状态</th>
+              <th class="action-cell">操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="paper in items" :key="paper.id">
+              <td>
+                <strong>{{ paper.title }}</strong>
+                <p v-if="paper.description" class="paper-description">{{ paper.description }}</p>
+              </td>
+              <td>{{ paper.question_count }} 道</td>
+              <td>
+                <span class="score">{{ paper.total_score }}</span
+                ><span class="muted"> 分</span>
+              </td>
+              <td>
+                <StatusBadge
+                  :label="paper.status === 'ACTIVE' ? '使用中' : '已归档'"
+                  :tone="paper.status === 'ACTIVE' ? 'success' : 'neutral'"
+                />
+              </td>
+              <td class="action-cell">
+                <NButton size="small" @click="edit(paper.id)">编辑</NButton>
+              </td>
+            </tr>
+            <tr v-if="!items.length">
+              <td colspan="5" class="empty-state">
+                {{ loading ? '正在加载试卷…' : '没有找到试卷，可调整搜索或新建试卷。' }}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <ListPager
         label="试卷"
         :page="page"
         :page-size="20"
         :total="total"
         :loading="loading"
         @change="changePage"
-    /></NCard>
+      />
+    </SurfacePanel>
     <NModal
       v-model:show="visible"
       preset="card"
       :title="selected ? '编辑试卷' : '新建试卷'"
-      style="width: 1000px; max-height: 90vh; overflow-y: auto"
+      class="responsive-modal responsive-modal--composer"
+      :content-style="{ minHeight: '0', overflow: 'auto' }"
       :mask-closable="false"
       :closable="!saving"
       :close-on-esc="!saving"
     >
-      <NAlert v-if="editorFailure" type="error">{{ editorFailure }}</NAlert
-      ><NButton v-if="conflict && selected" @click="edit(selected.id)">重新加载最新试卷</NButton>
-      <NAlert v-if="selected?.status === 'ARCHIVED'" type="info"
-        >此试卷已归档，保留内容供追溯。</NAlert
+      <NAlert v-if="editorFailure" class="form-alert" type="error"
+        >{{ editorFailure }}
+        <NButton v-if="conflict && selected" @click="edit(selected.id)"
+          >重新加载最新试卷</NButton
+        ></NAlert
       >
-      <form class="paper-form" @submit.prevent="save">
-        <fieldset :disabled="saving || selected?.status === 'ARCHIVED'">
-          <label>试卷名称<input v-model="title" aria-label="试卷名称" required /></label
-          ><label>说明<textarea v-model="description" aria-label="试卷说明" rows="2" /></label>
+      <NAlert v-if="archived" class="form-alert" type="info">此试卷已归档，保留内容供追溯。</NAlert>
+      <form id="paper-editor-form" class="paper-form" @submit.prevent="persist('save')">
+        <fieldset :disabled="saving || archived" class="paper-basics">
+          <label class="field"
+            >试卷名称<input
+              v-model="title"
+              aria-label="试卷名称"
+              required
+              placeholder="为试卷取一个便于查找的名称" /></label
+          ><label class="field"
+            >试卷说明<textarea
+              v-model="description"
+              aria-label="试卷说明"
+              rows="2"
+              placeholder="适用范围或使用说明（可选）"
+            />
+          </label>
         </fieldset>
-        <section data-testid="selected-questions">
-          <h3>已选题目（{{ questions.length }}）</h3>
-          <article
-            v-for="(item, index) in questions"
-            :key="item.question.id"
-            class="selected-question"
-          >
-            <div class="question-toolbar">
-              <strong>第 {{ index + 1 }} 题</strong
-              ><span v-if="item.question.status === 'CLOSED'">来源题已关闭；保留原关联</span
-              ><label
-                >分值<input
-                  v-model="item.score"
-                  :aria-label="`第 ${index + 1} 题分值`"
-                  type="number"
-                  min="0.1"
-                  step="0.1"
-                  required
-                  :disabled="selected?.status === 'ARCHIVED'" /></label
-              ><NButton
-                :aria-label="`上移第 ${index + 1} 题`"
-                :disabled="index === 0 || selected?.status === 'ARCHIVED'"
-                @click="move(index, -1)"
-                >上移</NButton
-              ><NButton
-                :disabled="index === questions.length - 1 || selected?.status === 'ARCHIVED'"
-                @click="move(index, 1)"
-                >下移</NButton
-              ><NButton
-                :disabled="selected?.status === 'ARCHIVED'"
-                @click="questions.splice(index, 1)"
-                >移出</NButton
-              >
-            </div>
-            <SafeMarkdown :content="item.question.content" />
-          </article>
-        </section>
-        <QuestionPicker
-          v-if="selected?.status !== 'ARCHIVED'"
-          :excluded-ids="questions.map((item) => item.question.id)"
-          @add="questions.push({ question: $event, score: '1.0' })"
-        />
-        <NSpace v-if="selected?.status !== 'ARCHIVED'"
-          ><NButton attr-type="submit" type="primary" :loading="saving" :disabled="conflict"
-            >保存试卷</NButton
-          ><NButton v-if="selected" type="warning" :disabled="conflict || saving" @click="archive"
-            >归档试卷</NButton
-          ></NSpace
-        >
+        <div class="composer-workspace" :class="{ 'composer-workspace--archived': archived }">
+          <QuestionPicker
+            v-if="!archived"
+            :excluded-ids="questions.map((item) => item.question.id)"
+            @add="questions.push({ question: $event, score: '1.0' })"
+          />
+          <section class="selected-column">
+            <header class="selected-heading">
+              <h3>已选题目</h3>
+              <p role="status" aria-label="试卷分值汇总">
+                {{ questions.length }} 道题 · 总分 {{ draftTotal }} 分
+              </p>
+            </header>
+            <PaperQuestionList v-model="questions" :disabled="archived || saving" @move="move" />
+          </section>
+        </div>
       </form>
+      <template #footer
+        ><div v-if="!archived" class="editor-actions editor-actions--split">
+          <span class="muted">同一道题只能加入一次；分值支持一位小数。</span>
+          <div class="action-buttons">
+            <NButton v-if="selected" type="warning" :disabled="conflict || saving" @click="archive"
+              >归档试卷</NButton
+            ><NButton
+              form="paper-editor-form"
+              attr-type="submit"
+              type="primary"
+              :loading="saving"
+              :disabled="conflict"
+              >保存试卷</NButton
+            >
+          </div>
+        </div></template
+      >
     </NModal>
   </div>
 </template>
 <style scoped>
+.paper-search {
+  flex: 1;
+  min-width: 0;
+  max-width: 420px;
+}
+.paper-table {
+  width: 100%;
+  min-width: 600px;
+  border-collapse: collapse;
+  text-align: left;
+}
+th {
+  background: var(--color-bg);
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+th,
+td {
+  padding: 16px;
+  border-bottom: 1px solid var(--color-border);
+}
+td:first-child {
+  width: 48%;
+}
+td:first-child strong {
+  font-weight: 600;
+}
+.paper-description {
+  margin: 6px 0 0;
+  color: var(--color-muted);
+  font-size: 12px;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.score {
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+.action-cell {
+  text-align: right;
+  white-space: nowrap;
+}
+.empty-state {
+  text-align: center;
+  color: var(--color-muted);
+  padding: 48px 16px;
+}
 .paper-form {
   display: grid;
-  gap: 20px;
+  gap: 24px;
 }
-fieldset {
-  border: 0;
+.paper-basics {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 18px;
   padding: 0;
+  border: 0;
+}
+.composer-workspace {
   display: grid;
-  gap: 16px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 26px;
+  border-top: 1px solid var(--color-border);
+  padding-top: 24px;
+  align-items: start;
 }
-label {
-  display: grid;
-  gap: 7px;
+.selected-column {
+  min-width: 0;
 }
-input,
-textarea {
-  border: 1px solid #d9dfe9;
-  border-radius: 6px;
-  padding: 9px 12px;
-  font: inherit;
+.composer-workspace--archived {
+  grid-template-columns: 1fr;
 }
-.selected-question {
-  border: 1px solid #e5eaf2;
-  border-radius: 8px;
-  padding: 16px;
-  margin-bottom: 14px;
-}
-.question-toolbar {
+.selected-heading {
   display: flex;
-  align-items: center;
+  justify-content: space-between;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.selected-heading h3 {
+  margin: 0;
+  font-size: 15px;
+}
+.selected-heading p {
+  margin: 0;
+  color: var(--color-primary);
+  font-size: 13px;
+  font-weight: 600;
+}
+.editor-actions > span {
+  font-size: 12px;
+}
+.action-buttons {
+  display: flex;
   gap: 10px;
 }
-.question-toolbar label {
-  display: flex;
-  align-items: center;
-  margin-left: auto;
+@media (max-width: 900px) {
+  .composer-workspace {
+    grid-template-columns: 1fr;
+  }
+  .selected-column {
+    border-top: 1px solid var(--color-border);
+    padding-top: 22px;
+  }
 }
-.question-toolbar input {
-  width: 90px;
+@media (max-width: 600px) {
+  .paper-basics {
+    grid-template-columns: 1fr;
+  }
+  .paper-search {
+    flex-basis: 100%;
+    max-width: none;
+  }
+  .editor-actions {
+    align-items: stretch;
+  }
+  .action-buttons {
+    flex-wrap: wrap;
+  }
 }
 </style>

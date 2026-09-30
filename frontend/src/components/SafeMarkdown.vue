@@ -34,6 +34,7 @@ const rendered = computed(() =>
 
 <style scoped>
 .safe-markdown {
+  min-width: 0;
   overflow-wrap: anywhere;
   line-height: 1.8;
 }
@@ -43,16 +44,27 @@ const rendered = computed(() =>
 }
 .safe-markdown :deep(pre) {
   padding: 14px;
-  background: #f3f5f8;
+  background: var(--color-bg);
   overflow: auto;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
 }
 .safe-markdown :deep(table) {
   border-collapse: collapse;
 }
 .safe-markdown :deep(td),
 .safe-markdown :deep(th) {
-  border: 1px solid #d9dfe9;
+  border: 1px solid var(--color-border);
   padding: 8px;
+}
+.safe-markdown :deep(> :first-child) {
+  margin-top: 0;
+}
+.safe-markdown :deep(> :last-child) {
+  margin-bottom: 0;
+}
+.safe-markdown :deep(.katex-display) {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 4px 0;
 }
 </style>

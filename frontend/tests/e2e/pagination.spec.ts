@@ -43,7 +43,10 @@ test('账号列表翻页和角色筛选由服务器决定，故障后可以重�
       },
     })
   })
-  await page.getByText('账号管理', { exact: true }).click()
+  await page
+    .getByRole('navigation', { name: '主导航' })
+    .getByRole('link', { name: '账号管理', exact: true })
+    .click()
   await expect(page.getByRole('row').filter({ hasText: '第一页学生' })).toBeVisible()
   await page.getByRole('button', { name: '账号下一页' }).click()
   await expect(page.getByRole('row').filter({ hasText: '第二页学生' })).toBeVisible()
@@ -93,7 +96,10 @@ test('审核列表可查询后续页申请，搜索会回到第一页', async ({
       },
     })
   })
-  await page.getByText('学生审核', { exact: true }).click()
+  await page
+    .getByRole('navigation', { name: '主导航' })
+    .getByRole('link', { name: '学生审核', exact: true })
+    .click()
   await expect(page.getByRole('button', { name: '审核下一页' })).toBeVisible()
   await page.getByRole('button', { name: '审核下一页' }).click()
   await expect(page.getByRole('row').filter({ hasText: '第二页申请' })).toBeVisible()
@@ -132,7 +138,10 @@ test('教学班可从候选第二页选择教师，搜索不丢失已选择教�
       },
     })
   })
-  await page.getByText('教学班', { exact: true }).click()
+  await page
+    .getByRole('navigation', { name: '主导航' })
+    .getByRole('link', { name: '教学班', exact: true })
+    .click()
   await page.getByRole('button', { name: '新建教学班' }).click()
   await page.getByLabel('负责教师').click()
   await page.getByText('第一页教师（T01）', { exact: true }).click()

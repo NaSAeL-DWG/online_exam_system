@@ -1,53 +1,37 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import {
-  NAvatar,
-  NButton,
-  NLayout,
-  NLayoutContent,
-  NLayoutHeader,
-  NLayoutSider,
-  NMenu,
-  NTag,
-  useMessage,
-  type MenuOption,
-} from 'naive-ui'
+import { NButton, NDrawer, useMessage } from 'naive-ui'
 import { useAuthStore } from '../stores/auth'
 import { errorMessage } from '../api/client'
+import AppIcon from '../components/ui/AppIcon.vue'
+import AppNavigation from '../navigation/AppNavigation.vue'
+import {
+  accessibleModules,
+  currentModule,
+  navigationGroups,
+  roleLabels,
+} from '../navigation/modules'
 
 const auth = useAuthStore()
 const route = useRoute()
 const router = useRouter()
 const message = useMessage()
 const loggingOut = ref(false)
+const navigationOpen = ref(false)
+const modules = computed(() => accessibleModules(auth.user))
+const module = computed(() => currentModule(route.path, modules.value))
+const section = computed(
+  () => navigationGroups.find((group) => group.key === module.value?.group)?.label,
+)
 
-const roleLabel = { STUDENT: '学生', TEACHER: '教师', ADMIN: '管理员' } as const
-const menuOptions = computed<MenuOption[]>(() => {
-  const common: MenuOption[] = [{ label: '工作台', key: '/home' }]
-  if (auth.user?.user_type === 'STUDENT' && auth.user.status === 'WAITING_ACTIVATE') {
-    return [
-      { label: '审核状态', key: '/student/application' },
-      { label: '联系方式', key: '/account/contacts' },
-    ]
-  }
-  if (auth.user?.user_type === 'TEACHER')
-    common.push({ label: '学生审核', key: '/staff/reviews' }, { label: '教学班', key: '/classes' })
-  if (auth.user?.user_type === 'ADMIN')
-    common.push(
-      { label: '学生审核', key: '/staff/reviews' },
-      { label: '账号管理', key: '/admin/accounts' },
-      { label: '教学班', key: '/classes' },
-    )
-  if (auth.user?.user_type === 'TEACHER' || auth.user?.user_type === 'ADMIN')
-    common.push(
-      { label: '共享题库', key: '/staff/questions' },
-      { label: '共享试卷', key: '/staff/papers' },
-      { label: '考试管理', key: '/staff/exams' },
-    )
-  common.push({ label: '账号安全', key: '/account/password' })
-  return common
-})
+// 窗口切回桌面时关闭抽屉，避免与固定导航同时进入可访问树。
+const mobileViewport = window.matchMedia('(max-width: 760px)')
+function closeDesktopDrawer(): void {
+  if (!mobileViewport.matches) navigationOpen.value = false
+}
+onMounted(() => mobileViewport.addEventListener('change', closeDesktopDrawer))
+onUnmounted(() => mobileViewport.removeEventListener('change', closeDesktopDrawer))
 
 async function logout(): Promise<void> {
   if (loggingOut.value) return
@@ -64,29 +48,65 @@ async function logout(): Promise<void> {
 </script>
 
 <template>
-  <NLayout has-sider class="app-shell">
-    <NLayoutSider bordered :width="244" class="sidebar">
-      <div class="side-brand"><span>知衡</span><small>ONLINE EXAM</small></div>
-      <NMenu :value="route.path" :options="menuOptions" @update:value="router.push" />
-      <div class="side-help">
-        <strong>需要帮助？</strong><span>请联系系统管理员处理账号问题。</span>
+  <div class="app-shell">
+    <a class="skip-link" href="#workspace">跳至主要内容</a>
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <div class="brand">
+          <span class="brand-symbol"><AppIcon name="book" :size="21" /></span
+          ><span class="brand-name">知衡</span>
+        </div>
+        <span class="sidebar-product">在线限时考试系统</span>
       </div>
-    </NLayoutSider>
-    <NLayout>
-      <NLayoutHeader bordered class="topbar">
-        <div>
-          <p class="topbar-caption">在线限时考试系统</p>
-          <strong>{{ auth.user?.real_name }}</strong>
+      <AppNavigation :modules="modules" />
+      <div class="sidebar-footer"><strong>账号协助</strong>身份资料或登录问题，请联系管理员。</div>
+    </aside>
+    <div class="app-main">
+      <header class="topbar">
+        <div class="topbar-location">
+          <button
+            class="mobile-menu-button"
+            aria-label="打开导航"
+            :aria-expanded="navigationOpen"
+            aria-controls="mobile-navigation"
+            @click="navigationOpen = true"
+          >
+            <AppIcon name="menu" :size="22" />
+          </button>
+          <span class="topbar-section">{{ section }}</span>
+          <strong>{{ module?.label ?? '工作空间' }}</strong>
         </div>
         <div class="user-actions">
-          <NTag size="small" round>{{ auth.user ? roleLabel[auth.user.user_type] : '' }}</NTag>
-          <NAvatar round :style="{ backgroundColor: '#356ae6' }">{{
-            auth.user?.real_name.slice(0, 1)
-          }}</NAvatar>
-          <NButton quaternary :loading="loggingOut" @click="logout">退出登录</NButton>
+          <div class="user-info">
+            <span class="user-avatar" aria-hidden="true">{{
+              auth.user?.real_name.slice(0, 1)
+            }}</span
+            ><span class="user-name" :title="auth.user?.real_name">{{ auth.user?.real_name }}</span
+            ><span class="user-role">{{ auth.user ? roleLabels[auth.user.user_type] : '' }}</span>
+          </div>
+          <NButton text :loading="loggingOut" @click="logout"
+            ><template #icon><AppIcon name="logout" :size="16" /></template>退出登录</NButton
+          >
         </div>
-      </NLayoutHeader>
-      <NLayoutContent class="workspace"><RouterView /></NLayoutContent>
-    </NLayout>
-  </NLayout>
+      </header>
+      <main id="workspace" class="workspace" tabindex="-1"><RouterView /></main>
+    </div>
+    <NDrawer
+      v-model:show="navigationOpen"
+      placement="left"
+      :width="288"
+      :trap-focus="true"
+      :auto-focus="true"
+    >
+      <div id="mobile-navigation" class="mobile-navigation">
+        <div class="mobile-navigation-heading">
+          <span class="brand-name">知衡</span
+          ><button aria-label="关闭导航" @click="navigationOpen = false">
+            <AppIcon name="close" />
+          </button>
+        </div>
+        <AppNavigation :modules="modules" @navigate="navigationOpen = false" />
+      </div>
+    </NDrawer>
+  </div>
 </template>

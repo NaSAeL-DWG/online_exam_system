@@ -25,7 +25,10 @@ test('真实服务的21名教师可分页查询并跨页关联教学班', async 
     })
     expect(response.status()).toBe(201)
   }
-  await page.getByText('账号管理', { exact: true }).click()
+  await page
+    .getByRole('navigation', { name: '主导航' })
+    .getByRole('link', { name: '账号管理', exact: true })
+    .click()
   await page.getByLabel('搜索账号').fill(prefix)
   await page.getByRole('button', { name: '查询账号' }).click()
   await expect(page.getByText('共 21 条 · 第 1 / 2 页')).toBeVisible()
@@ -34,7 +37,10 @@ test('真实服务的21名教师可分页查询并跨页关联教学班', async 
   await expect(page.getByRole('row').filter({ hasText: prefix })).toHaveCount(1)
   await expect(page.getByRole('row').filter({ hasText: `${prefix}00` })).toBeVisible()
 
-  await page.getByText('教学班', { exact: true }).click()
+  await page
+    .getByRole('navigation', { name: '主导航' })
+    .getByRole('link', { name: '教学班', exact: true })
+    .click()
   await page.getByRole('button', { name: '新建教学班' }).click()
   await page.getByLabel('教学班名称').fill(`跨页教学班 ${prefix}`)
   await page.getByLabel('搜索教师').fill(prefix)

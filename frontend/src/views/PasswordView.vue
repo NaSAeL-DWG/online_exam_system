@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { NAlert, NButton, NCard, NForm, NFormItem, NInput } from 'naive-ui'
+import { NAlert, NButton, NForm, NFormItem, NInput } from 'naive-ui'
+import PageHeader from '../components/ui/PageHeader.vue'
+import SurfacePanel from '../components/ui/SurfacePanel.vue'
+import AppIcon from '../components/ui/AppIcon.vue'
 import { errorMessage, isWriteResultUnknown } from '../api/client'
 import { authApi } from '../api/auth'
 import { useAuthStore } from '../stores/auth'
@@ -46,39 +49,55 @@ async function submit(): Promise<void> {
 
 <template>
   <div class="page-stack narrow-page">
-    <header class="page-title">
-      <div>
-        <p class="eyebrow accent">账号安全</p>
-        <h1>{{ auth.user?.must_change_password ? '请先修改临时密码' : '修改密码' }}</h1>
-        <p>修改后旧会话会失效，请使用新密码继续。</p>
-      </div>
-    </header>
+    <PageHeader
+      :title="auth.user?.must_change_password ? '请先修改临时密码' : '修改密码'"
+      description="更新登录密码，完成后使用新密码重新登录。"
+    />
     <NAlert v-if="auth.user?.must_change_password" type="warning"
       >临时密码仅用于首次登录，完成修改前不能进入其他功能。</NAlert
-    ><NCard
-      ><NAlert v-if="failure" :type="uncertain ? 'warning' : 'error'" class="form-alert"
-        >{{ failure
-        }}<NButton v-if="uncertain" @click="confirmByLogin">重新登录确认</NButton></NAlert
-      ><NForm :model="form" label-placement="top" @submit.prevent="submit"
-        ><NFormItem label="当前密码"
-          ><NInput
-            v-model:value="form.current_password"
-            :input-props="{ 'aria-label': '当前密码' }"
-            type="password" /></NFormItem
-        ><NFormItem label="新密码"
-          ><NInput
-            v-model:value="form.new_password"
-            :input-props="{ 'aria-label': '新密码' }"
-            type="password" /></NFormItem
-        ><NFormItem label="确认新密码"
-          ><NInput
-            v-model:value="form.confirmPassword"
-            :input-props="{ 'aria-label': '确认新密码' }"
-            type="password" /></NFormItem
-        ><NButton attr-type="submit" type="primary" :loading="loading" :disabled="uncertain"
-          >保存新密码</NButton
-        ></NForm
-      ></NCard
     >
+    <div class="settings-layout">
+      <SurfacePanel title="设置新密码">
+        <NAlert v-if="failure" :type="uncertain ? 'warning' : 'error'" class="form-alert"
+          >{{ failure
+          }}<NButton v-if="uncertain" @click="confirmByLogin">重新登录确认</NButton></NAlert
+        >
+        <NForm :model="form" class="settings-form" label-placement="top" @submit.prevent="submit">
+          <NFormItem label="当前密码"
+            ><NInput
+              v-model:value="form.current_password"
+              :input-props="{ 'aria-label': '当前密码', autocomplete: 'current-password' }"
+              type="password"
+              show-password-on="click"
+          /></NFormItem>
+          <NFormItem label="新密码"
+            ><NInput
+              v-model:value="form.new_password"
+              :input-props="{ 'aria-label': '新密码', autocomplete: 'new-password' }"
+              type="password"
+              show-password-on="click"
+          /></NFormItem>
+          <NFormItem label="确认新密码"
+            ><NInput
+              v-model:value="form.confirmPassword"
+              :input-props="{ 'aria-label': '确认新密码', autocomplete: 'new-password' }"
+              type="password"
+              show-password-on="click"
+          /></NFormItem>
+          <div class="editor-actions">
+            <NButton attr-type="submit" type="primary" :loading="loading" :disabled="uncertain"
+              >保存新密码</NButton
+            >
+          </div>
+        </NForm>
+      </SurfacePanel>
+      <aside class="settings-aside">
+        <AppIcon name="shield" :size="25" />
+        <h2>密码与登录</h2>
+        <p>修改成功后，旧登录会话将失效。请妥善保管新密码。</p>
+        <p>如果忘记密码，请联系管理员核验身份后分配临时密码。</p>
+        <p>修改结果无法确认时，页面会提供重新登录入口；请使用新密码确认。</p>
+      </aside>
+    </div>
   </div>
 </template>

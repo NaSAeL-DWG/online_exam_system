@@ -28,7 +28,10 @@ test('同一试卷创建的考试快照独立于来源和彼此，可发布并�
     data: { title: `快照试卷 ${suffix}`, questions: [{ question_id: question.id, score: '2.5' }] },
   })
   expect(paperResponse.ok()).toBeTruthy()
-  await page.getByText('考试管理', { exact: true }).click()
+  await page
+    .getByRole('navigation', { name: '主导航' })
+    .getByRole('link', { name: '考试管理', exact: true })
+    .click()
   const examUrls: string[] = []
   for (const index of [1, 2]) {
     await page.getByRole('button', { name: '创建考试' }).click()
@@ -37,7 +40,9 @@ test('同一试卷创建的考试快照独立于来源和彼此，可发布并�
     await page.getByRole('button', { name: '查询来源试卷' }).click()
     await page.getByLabel('来源试卷', { exact: true }).selectOption({ label: `快照试卷 ${suffix}` })
     await page.getByRole('button', { name: '建立考试快照' }).click()
-    await expect(page.getByRole('heading', { name: '考试草稿' })).toBeVisible()
+    await expect(
+      page.getByRole('heading', { name: `快照考试 ${suffix}-${index}`, level: 1 }),
+    ).toBeVisible()
     examUrls.push(page.url())
     await page.goto('/staff/exams')
   }
@@ -50,10 +55,12 @@ test('同一试卷创建的考试快照独立于来源和彼此，可发布并�
     ).ok(),
   ).toBeTruthy()
   await page.goto(examUrls[0]!)
+  await page.getByRole('tab', { name: '题目快照', exact: true }).click()
   await expect(page.getByTestId('exam-snapshot')).toContainText(`原题 ${suffix}`)
   await page.getByRole('button', { name: '编辑快照第 1 题' }).click()
   await page.getByLabel('题干', { exact: true }).fill(`独立快照 ${suffix}`)
   await page.getByRole('button', { name: '应用题目修改' }).click()
+  await page.getByRole('tab', { name: '考试设置', exact: true }).click()
   await page.getByLabel('参考范围', { exact: true }).selectOption('PUBLIC')
   await page.getByLabel('开始时间（上海）').fill('2030-01-01T09:00')
   await page.getByLabel('结束时间（上海）').fill('2030-01-01T11:00')
@@ -67,9 +74,11 @@ test('同一试卷创建的考试快照独立于来源和彼此，可发布并�
   await expect(page.getByText('已发布', { exact: true }).first()).toBeVisible()
   await page.getByRole('button', { name: '撤回考试发布' }).click()
   await page.getByRole('button', { name: '确认撤回' }).click()
-  await expect(page.getByRole('heading', { name: '考试草稿' })).toBeVisible()
+  await expect(page.getByText('草稿', { exact: true })).toBeVisible()
+  await page.getByRole('tab', { name: '题目快照', exact: true }).click()
   await expect(page.getByTestId('exam-snapshot')).toContainText(`独立快照 ${suffix}`)
   await page.goto(examUrls[1]!)
+  await page.getByRole('tab', { name: '题目快照', exact: true }).click()
   await expect(page.getByTestId('exam-snapshot')).toContainText(`原题 ${suffix}`)
   await expect(page.getByTestId('exam-snapshot')).not.toContainText(`独立快照 ${suffix}`)
   await page.screenshot({ path: 'test-results/visual/exam-draft.png', fullPage: true })

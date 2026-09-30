@@ -1,196 +1,158 @@
 <script setup lang="ts">
-import { h, onMounted, reactive, ref } from 'vue'
-import {
-  NAlert,
-  NButton,
-  NCard,
-  NDataTable,
-  NModal,
-  NSpace,
-  useDialog,
-  type DataTableColumns,
-} from 'naive-ui'
-import { ApiError, errorMessage } from '../api/client'
-import {
-  questionsApi,
-  questionTypeLabels,
-  type Question,
-  type QuestionInput,
-} from '../api/questions'
+import { reactive } from 'vue'
+import { NAlert, NButton, NModal, useDialog } from 'naive-ui'
+import { questionsApi, questionTypeLabels } from '../api/questions'
 import ListPager from '../components/ListPager.vue'
 import QuestionFields from '../components/QuestionFields.vue'
+import PageHeader from '../components/ui/PageHeader.vue'
+import SurfacePanel from '../components/ui/SurfacePanel.vue'
+import StatusBadge from '../components/ui/StatusBadge.vue'
+import AppIcon from '../components/ui/AppIcon.vue'
+import { usePagedList } from '../composables/usePagedList'
+import { useQuestionEditor } from '../features/questions/useQuestionEditor'
+import { difficultyLabels, questionSummary } from '../features/questions/questionDraft'
 
-const items = ref<Question[]>([])
-const page = ref(1)
-const total = ref(0)
-const query = ref('')
 const filters = reactive({ subject: '', difficulty: '', tag: '', status: '', type: '' })
+const { items, page, total, query, loading, failure, load, changePage } = usePagedList((query) =>
+  questionsApi.list(query, filters),
+)
+const {
+  visible,
+  selected,
+  form,
+  saving,
+  uploading,
+  failure: editorFailure,
+  conflict,
+  create,
+  edit,
+  persist,
+} = useQuestionEditor(load)
 const dialog = useDialog()
-const conflict = ref(false)
-const failure = ref('')
-const editorFailure = ref('')
-const loading = ref(false)
-const saving = ref(false)
-const uploading = ref(false)
-const visible = ref(false)
-const selected = ref<Question | null>(null)
-const form = ref<QuestionInput>(blank())
-function blank(): QuestionInput {
-  return {
-    type: 'TRUE_FALSE',
-    content: '',
-    options: [],
-    standard_answer: true,
-    explanation: null,
-    subject: '',
-    knowledge_tags: [],
-    difficulty: 'MEDIUM',
-  }
-}
-const columns: DataTableColumns<Question> = [
-  { title: '题干', key: 'content', ellipsis: { tooltip: true } },
-  { title: '题型', key: 'type', render: (row) => questionTypeLabels[row.type] },
-  { title: '科目', key: 'subject' },
-  {
-    title: '状态',
-    key: 'status',
-    render: (row) => (row.status === 'ACTIVE' ? '使用中' : '已关闭'),
-  },
-  {
-    title: '操作',
-    key: 'actions',
-    render: (row) =>
-      h(NButton, { size: 'small', onClick: () => edit(row) }, { default: () => '编辑' }),
-  },
-]
-let loadVersion = 0
-async function load(): Promise<void> {
-  const version = ++loadVersion
-  loading.value = true
-  failure.value = ''
-  try {
-    const result = await questionsApi.list(
-      { page: page.value, page_size: 20, q: query.value },
-      filters,
-    )
-    if (version === loadVersion) {
-      items.value = result.items
-      total.value = result.total
-    }
-  } catch (error) {
-    if (version === loadVersion) failure.value = errorMessage(error)
-  } finally {
-    if (version === loadVersion) loading.value = false
-  }
-}
-function changePage(value: number): void {
-  page.value = value
-  void load()
-}
-function create(): void {
-  selected.value = null
-  form.value = blank()
-  editorFailure.value = ''
-  conflict.value = false
-  visible.value = true
-}
-async function edit(row: Question): Promise<void> {
-  try {
-    const question = await questionsApi.get(row.id)
-    selected.value = question
-    form.value = structuredClone(question)
-    editorFailure.value = ''
-    conflict.value = false
-    visible.value = true
-  } catch (error) {
-    failure.value = errorMessage(error)
-  }
-}
-async function save(): Promise<void> {
-  saving.value = true
-  editorFailure.value = ''
-  try {
-    const input = form.value
-    if (selected.value) await questionsApi.update(selected.value.id, input, selected.value.version)
-    else await questionsApi.create(input)
-    visible.value = false
-    await load()
-  } catch (error) {
-    editorFailure.value = errorMessage(error)
-    conflict.value = error instanceof ApiError && error.problem.code === 'VERSION_CONFLICT'
-  } finally {
-    saving.value = false
-  }
-}
 function closeQuestion(): void {
-  if (!selected.value) return
   dialog.warning({
     title: '关闭题目',
     content: '关闭后不能新增组卷，已有试卷和考试仍保留题目。',
     positiveText: '确认关闭',
     negativeText: '取消',
-    onPositiveClick: async () => {
-      try {
-        await questionsApi.close(selected.value!.id, selected.value!.version)
-        visible.value = false
-        await load()
-      } catch (error) {
-        editorFailure.value = errorMessage(error)
-        conflict.value = error instanceof ApiError && error.problem.code === 'VERSION_CONFLICT'
-      }
-    },
+    onPositiveClick: () => persist('close'),
   })
 }
-onMounted(load)
+function resetFilters(): void {
+  query.value = ''
+  Object.assign(filters, { subject: '', difficulty: '', tag: '', status: '', type: '' })
+  changePage(1)
+}
 </script>
 
 <template>
   <div class="page-stack">
-    <div class="page-title">
-      <div>
-        <p class="eyebrow accent">QUESTION BANK</p>
-        <h1>共享题库</h1>
-        <p>全体教师共同维护，创建者仅用于追溯。</p>
-      </div>
-      <NButton type="primary" @click="create">新建题目</NButton>
-    </div>
-    <NAlert v-if="failure" type="error">{{ failure }}</NAlert>
-    <NCard
-      ><NSpace
-        ><input
-          v-model="query"
-          aria-label="搜索题目"
-          placeholder="搜索题干"
-          @keyup.enter="changePage(1)"
-        /><NButton @click="changePage(1)">查询题目</NButton></NSpace
+    <PageHeader title="共享题库" description="按科目、题型和知识点查找并维护共享题目。">
+      <template #actions
+        ><NButton type="primary" @click="create"
+          ><template #icon><AppIcon name="plus" :size="17" /></template>新建题目</NButton
+        ></template
       >
-      <div class="filter-grid">
-        <input v-model="filters.subject" aria-label="筛选科目" placeholder="科目" />
-        <input v-model="filters.tag" aria-label="筛选知识点" placeholder="知识点标签" />
-        <select v-model="filters.difficulty" aria-label="筛选难度">
-          <option value="">全部难度</option>
-          <option value="EASY">简单</option>
-          <option value="MEDIUM">中等</option>
-          <option value="HARD">困难</option>
-        </select>
-        <select v-model="filters.type" aria-label="筛选题型">
-          <option value="">全部题型</option>
-          <option v-for="(label, type) in questionTypeLabels" :key="type" :value="type">
-            {{ label }}
-          </option>
-        </select>
-        <select v-model="filters.status" aria-label="筛选状态">
-          <option value="">全部状态</option>
-          <option value="ACTIVE">使用中</option>
-          <option value="CLOSED">已关闭</option>
-        </select>
+    </PageHeader>
+    <NAlert v-if="failure || (!visible && editorFailure)" type="error"
+      >{{ failure || editorFailure }}
+      <NButton size="small" @click="load">重新加载题库</NButton></NAlert
+    >
+    <SurfacePanel>
+      <form class="filter-workspace" @submit.prevent="changePage(1)">
+        <div class="search-line">
+          <label class="search-box"
+            ><AppIcon name="search" :size="17" /><input
+              v-model="query"
+              class="form-control"
+              aria-label="搜索题目"
+              placeholder="搜索题干内容" /></label
+          ><NButton attr-type="submit" :loading="loading">查询题目</NButton
+          ><NButton @click="resetFilters">重置</NButton>
+        </div>
+        <div class="filter-grid">
+          <input
+            class="form-control"
+            v-model="filters.subject"
+            aria-label="筛选科目"
+            placeholder="全部科目"
+          /><select class="form-control" v-model="filters.type" aria-label="筛选题型">
+            <option value="">全部题型</option>
+            <option v-for="(label, type) in questionTypeLabels" :key="type" :value="type">
+              {{ label }}
+            </option></select
+          ><select class="form-control" v-model="filters.difficulty" aria-label="筛选难度">
+            <option value="">全部难度</option>
+            <option
+              v-for="(label, difficulty) in difficultyLabels"
+              :key="difficulty"
+              :value="difficulty"
+            >
+              {{ label }}
+            </option></select
+          ><input
+            class="form-control"
+            v-model="filters.tag"
+            aria-label="筛选知识点"
+            placeholder="知识点标签"
+          /><select class="form-control" v-model="filters.status" aria-label="筛选状态">
+            <option value="">全部状态</option>
+            <option value="ACTIVE">使用中</option>
+            <option value="CLOSED">已关闭</option>
+          </select>
+        </div>
+      </form>
+      <div class="list-heading">
+        <h2>题目列表</h2>
+        <span class="muted">共 {{ total }} 道题</span>
       </div>
-      <NDataTable
-        :columns="columns"
-        :data="items"
-        :loading="loading"
-        :row-key="(row: Question) => row.id"
-      />
+      <div class="table-region" :aria-busy="loading">
+        <table class="question-table">
+          <thead>
+            <tr>
+              <th>题目</th>
+              <th>分类</th>
+              <th>状态</th>
+              <th class="action-cell">操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="item in items" :key="item.id">
+              <td>
+                <p class="question-summary">{{ questionSummary(item.content) }}</p>
+                <span class="question-type">{{ questionTypeLabels[item.type] }}</span>
+              </td>
+              <td>
+                <strong>{{ item.subject }}</strong>
+                <p class="row-meta">
+                  {{ difficultyLabels[item.difficulty]
+                  }}<template v-if="item.knowledge_tags.length">
+                    · {{ item.knowledge_tags.join('、') }}</template
+                  >
+                </p>
+              </td>
+              <td>
+                <StatusBadge
+                  :label="item.status === 'ACTIVE' ? '使用中' : '已关闭'"
+                  :tone="item.status === 'ACTIVE' ? 'success' : 'neutral'"
+                />
+              </td>
+              <td class="action-cell"><NButton size="small" @click="edit(item)">编辑</NButton></td>
+            </tr>
+            <tr v-if="!items.length">
+              <td colspan="4" class="empty-state">
+                {{
+                  loading
+                    ? '正在加载题目…'
+                    : failure
+                      ? '题库暂时无法读取，请重试。'
+                      : '没有找到题目，可调整筛选或新建题目。'
+                }}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
       <ListPager
         label="题库"
         :page="page"
@@ -199,62 +161,178 @@ onMounted(load)
         :loading="loading"
         @change="changePage"
       />
-    </NCard>
+    </SurfacePanel>
     <NModal
       v-model:show="visible"
       preset="card"
       :title="selected ? '编辑题目' : '新建题目'"
-      style="width: 960px; max-height: 90vh; overflow-y: auto"
+      class="responsive-modal responsive-modal--editor"
       :mask-closable="false"
       :closable="!saving && !uploading"
       :close-on-esc="!saving && !uploading"
     >
-      <NAlert v-if="editorFailure" type="error">{{ editorFailure }}</NAlert>
-      <NButton v-if="conflict && selected" @click="edit(selected)">重新加载最新题目</NButton>
-      <form class="editor-form" @submit.prevent="save">
+      <NAlert v-if="editorFailure" class="form-alert" type="error"
+        >{{ editorFailure }}
+        <NButton v-if="conflict && selected" @click="edit(selected)"
+          >重新加载最新题目</NButton
+        ></NAlert
+      >
+      <form class="question-form" @submit.prevent="persist()">
         <QuestionFields v-model="form" @uploading="uploading = $event" />
-        <NSpace
-          ><NButton
-            attr-type="submit"
-            type="primary"
-            :loading="saving"
-            :disabled="conflict || uploading"
-            >保存题目</NButton
-          ><NButton
-            v-if="selected?.status === 'ACTIVE'"
-            type="warning"
-            :disabled="saving || conflict || uploading"
-            @click="closeQuestion"
-            >关闭题目</NButton
-          ></NSpace
-        >
+        <div class="editor-actions">
+          <span class="muted">{{
+            selected ? '修改将更新共享题库；既有考试快照保持不变。' : '保存后可用于手动组卷。'
+          }}</span>
+          <div class="action-buttons">
+            <NButton
+              v-if="selected?.status === 'ACTIVE'"
+              type="warning"
+              :disabled="saving || conflict || uploading"
+              @click="closeQuestion"
+              >关闭题目</NButton
+            ><NButton
+              attr-type="submit"
+              type="primary"
+              :loading="saving"
+              :disabled="conflict || uploading"
+              >保存题目</NButton
+            >
+          </div>
+        </div>
       </form>
     </NModal>
   </div>
 </template>
-
 <style scoped>
-.editor-form {
+.filter-workspace {
   display: grid;
-  gap: 18px;
+  gap: 12px;
+}
+.search-line {
+  display: flex;
+  gap: 10px;
+}
+.search-box {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding-left: 12px;
+  color: var(--color-muted);
+}
+.search-box input {
+  border: 0;
+  min-width: 0;
+  background: transparent;
 }
 .filter-grid {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 12px;
-  margin: 18px 0;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
 }
-label {
-  display: grid;
-  gap: 7px;
+.list-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 24px 0 12px;
 }
-input,
-select,
-textarea {
-  border: 1px solid #d9dfe9;
-  border-radius: 6px;
-  padding: 9px 12px;
-  font: inherit;
+.list-heading h2 {
+  margin: 0;
+  font-size: 15px;
+}
+.list-heading span {
+  font-size: 13px;
+}
+.question-table {
+  min-width: 650px;
   width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+th {
+  background: var(--color-bg);
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+th,
+td {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--color-border);
+  vertical-align: middle;
+}
+td:first-child {
+  width: 52%;
+}
+td:nth-child(2) {
+  width: 25%;
+}
+td strong {
+  font-size: 13px;
+}
+.question-summary {
+  margin: 0 0 7px;
+  line-height: 1.65;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+.question-type {
+  font-size: 12px;
+  color: var(--color-primary);
+}
+.row-meta {
+  margin: 5px 0 0;
+  color: var(--color-muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.action-cell {
+  text-align: right;
+  white-space: nowrap;
+}
+.empty-state {
+  text-align: center;
+  color: var(--color-muted);
+  padding: 48px 16px;
+}
+.question-form {
+  display: grid;
+  gap: 24px;
+}
+.editor-actions {
+  justify-content: space-between;
+}
+.editor-actions > span {
+  font-size: 12px;
+}
+.action-buttons {
+  display: flex;
+  gap: 10px;
+}
+@media (max-width: 760px) {
+  .filter-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .filter-grid select:last-child {
+    grid-column: 1 / -1;
+  }
+  .search-line {
+    flex-wrap: wrap;
+  }
+  .search-box {
+    flex-basis: 100%;
+  }
+  .editor-actions {
+    align-items: stretch;
+  }
+  .action-buttons {
+    flex-wrap: wrap;
+  }
 }
 </style>

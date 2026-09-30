@@ -97,7 +97,7 @@ test('联系方式已保存但响应内容损坏时，先读取最新资料再�
   await page.getByLabel('新密码', { exact: true }).fill('Teacher456!')
   await page.getByLabel('确认新密码').fill('Teacher456!')
   await page.getByRole('button', { name: '保存新密码' }).click()
-  await expect(page.getByRole('heading', { name: '欢迎回来' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '账号登录', level: 1 })).toBeVisible()
   await login(page, teacherNo, 'Teacher456!')
   await expect(page.getByRole('heading', { name: '教师工作台' })).toBeVisible()
   await page.goto('/account/contacts')
@@ -133,8 +133,11 @@ test('刷新凭据交付中断时要求重新登录，不把它提示成普通�
     expect(response.ok()).toBeTruthy()
     await route.abort('connectionreset')
   })
-  await page.getByText('账号管理', { exact: true }).click()
-  await expect(page.getByRole('heading', { name: '欢迎回来' })).toBeVisible()
+  await page
+    .getByRole('navigation', { name: '主导航' })
+    .getByRole('link', { name: '账号管理', exact: true })
+    .click()
+  await expect(page.getByRole('heading', { name: '账号登录', level: 1 })).toBeVisible()
   await expect(page.getByText('登录状态更新未能确认，请重新登录。')).toBeVisible()
   expect(refreshRequests).toBe(1)
 })
@@ -151,7 +154,10 @@ test('刷新前服务暂不可用保留当前页面，恢复后可以手动重�
       },
     }),
   )
-  await page.getByText('账号管理', { exact: true }).click()
+  await page
+    .getByRole('navigation', { name: '主导航' })
+    .getByRole('link', { name: '账号管理', exact: true })
+    .click()
   await expect(page.getByText('认证服务暂时不可用，请稍后重试')).toBeVisible()
   await expect(page.getByRole('heading', { name: '账号管理' })).toBeVisible()
   await page.unroute('**/api/auth/refresh')
@@ -176,5 +182,5 @@ test('退出遇到服务故障时说明未完成并保留当前身份，恢复�
   await expect(page.getByRole('heading', { name: '管理工作台' })).toBeVisible()
   await page.unroute('**/api/auth/logout')
   await page.getByRole('button', { name: '退出登录' }).click()
-  await expect(page.getByRole('heading', { name: '欢迎回来' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '账号登录', level: 1 })).toBeVisible()
 })

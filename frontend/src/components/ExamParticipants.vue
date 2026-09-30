@@ -1,12 +1,15 @@
 <script setup lang="ts">
 import { h, onMounted, ref } from 'vue'
-import { NAlert, NButton, NCard, NDataTable, NModal, NSpace, type DataTableColumns } from 'naive-ui'
+import { NAlert, NButton, NDataTable, NModal, type DataTableColumns } from 'naive-ui'
 import { examParticipantsApi, type Participant } from '../api/examParticipants'
 import { ApiError, errorMessage } from '../api/client'
 import type { AudienceType, ExamStatus } from '../api/exams'
-import type { TeachingClass } from '../types'
 import MemberPicker from './MemberPicker.vue'
 import ListPager from './ListPager.vue'
+import SurfacePanel from './ui/SurfacePanel.vue'
+import StatusBadge from './ui/StatusBadge.vue'
+import AppIcon from './ui/AppIcon.vue'
+import ClassAudiencePicker from '../features/exams/ClassAudiencePicker.vue'
 
 const props = defineProps<{ examId: string; audience: AudienceType; status: ExamStatus }>()
 const items = ref<Participant[]>([])
@@ -18,12 +21,8 @@ const loading = ref(false)
 const failure = ref('')
 const success = ref('')
 const warning = ref('')
-const classes = ref<TeachingClass[]>([])
-const classQuery = ref('')
-const classPage = ref(1)
-const classTotal = ref(0)
-const classLoading = ref(false)
-const classFailure = ref('')
+const addVisible = ref(false)
+const addFailure = ref('')
 const selectedClassIds = ref<string[]>([])
 const selectedStudentIds = ref<string[]>([])
 const saving = ref(false)
@@ -37,24 +36,42 @@ const columns: DataTableColumns<Participant> = [
   {
     title: '学生',
     key: 'user',
-    render: (row) => `${row.user.real_name}（${row.user.login_name}）`,
+    width: 230,
+    render: (row) =>
+      h('div', [
+        h('strong', { class: 'participant-name' }, row.user.real_name),
+        h('span', { class: 'table-subtitle' }, row.user.login_name),
+      ]),
   },
   {
     title: '资格',
     key: 'status',
-    render: (row) => (row.status === 'ASSIGNED' ? '有效资格' : '已撤销'),
+    width: 120,
+    render: (row) =>
+      h(StatusBadge, {
+        label: row.status === 'ASSIGNED' ? '有效资格' : '已撤销',
+        tone: row.status === 'ASSIGNED' ? 'success' : 'danger',
+      }),
   },
-  { title: '已用次数', key: 'used_attempts' },
-  { title: '废弃次数', key: 'voided_attempts' },
-  { title: '撤销原因', key: 'cancelled_reason', render: (row) => row.cancelled_reason || '—' },
+  { title: '已用次数', key: 'used_attempts', width: 100 },
+  { title: '废弃次数', key: 'voided_attempts', width: 100 },
+  {
+    title: '撤销原因',
+    key: 'cancelled_reason',
+    width: 240,
+    render: (row) => row.cancelled_reason || '—',
+  },
   {
     title: '操作',
     key: 'actions',
+    width: 110,
     render: (row) =>
       h(
         NButton,
         {
           size: 'small',
+          secondary: true,
+          type: row.status === 'ASSIGNED' ? 'error' : 'default',
           disabled: saving.value || props.status === 'CANCELLED',
           onClick: () => openChange(row),
         },
@@ -87,32 +104,10 @@ function changePage(value: number): void {
   page.value = value
   void load()
 }
-let classLoadVersion = 0
-async function loadClasses(value = 1): Promise<void> {
-  const version = ++classLoadVersion
-  classPage.value = value
-  classLoading.value = true
-  classFailure.value = ''
-  try {
-    const result = await examParticipantsApi.classes({
-      page: value,
-      page_size: 10,
-      q: classQuery.value,
-    })
-    if (version === classLoadVersion) {
-      classes.value = result.items
-      classTotal.value = result.total
-    }
-  } catch (error) {
-    if (version === classLoadVersion) classFailure.value = errorMessage(error)
-  } finally {
-    if (version === classLoadVersion) classLoading.value = false
-  }
-}
 async function add(): Promise<void> {
   if (saving.value) return
   saving.value = true
-  failure.value = ''
+  addFailure.value = ''
   success.value = ''
   warning.value = ''
   try {
@@ -121,6 +116,7 @@ async function add(): Promise<void> {
       selectedClassIds.value,
       selectedStudentIds.value,
     )
+    // 清空本次选择但保留补入工具，便于继续操作；撤销资格只能走显式恢复。
     selectedClassIds.value = []
     selectedStudentIds.value = []
     success.value = `新增 ${result.added} 人，已有 ${result.existing} 人`
@@ -128,7 +124,7 @@ async function add(): Promise<void> {
       warning.value = `${result.cancelled_user_ids.length} 人的资格已撤销，需显式恢复。普通补入不会恢复资格。`
     await load()
   } catch (error) {
-    failure.value = errorMessage(error)
+    addFailure.value = errorMessage(error)
   } finally {
     saving.value = false
   }
@@ -168,101 +164,116 @@ async function reloadChange(): Promise<void> {
 }
 onMounted(() => {
   void load()
-  void loadClasses()
 })
 </script>
 
 <template>
-  <NCard title="参考名单与资格">
-    <NAlert v-if="audience === 'PUBLIC'" type="info"
-      >公开考试面向全部已激活学生；名单仅显示已建立的资格。已撤销的资格不会因公开入口自动恢复。</NAlert
-    >
-    <p class="muted">
-      按班级补入的是当前学生名单。之后班级成员变化不联动本场考试，跨班及单独选择自动去重。
-    </p>
-    <NAlert v-if="success" type="success">{{ success }}</NAlert
-    ><NAlert v-if="warning" type="warning">{{ warning }}</NAlert
-    ><NAlert v-if="failure" type="error"
-      >{{ failure }} <NButton size="small" @click="load">重新加载名单</NButton></NAlert
-    >
-    <div v-if="status !== 'CANCELLED'" class="audience-pickers">
-      <section>
-        <h3>按教学班补入</h3>
-        <NSpace
-          ><input
-            v-model="classQuery"
-            aria-label="搜索补入班级"
-            placeholder="搜索教学班"
-            @keyup.enter="loadClasses()"
-          /><NButton :loading="classLoading" @click="loadClasses()">查询补入班级</NButton></NSpace
-        >
-        <NAlert v-if="classFailure" type="error">{{ classFailure }}</NAlert>
-        <div class="class-options">
-          <label v-for="item in classes" :key="item.id"
-            ><input
-              v-model="selectedClassIds"
-              type="checkbox"
-              :value="item.id"
-              :aria-label="`选择班级 ${item.name}`"
-              :disabled="item.status === 'ARCHIVED' || saving"
-            />{{ item.name }}（{{ item.student_count }} 人）</label
+  <SurfacePanel title="参考名单与资格" description="查看学生的参考资格、已用次数与撤销记录。">
+    <template #actions>
+      <NButton
+        v-if="status !== 'CANCELLED'"
+        type="primary"
+        :aria-expanded="addVisible"
+        aria-controls="participant-add-tools"
+        @click="addVisible = !addVisible"
+      >
+        <template #icon><AppIcon name="plus" :size="16" /></template>补入名单
+      </NButton>
+    </template>
+    <div class="participant-workspace">
+      <NAlert v-if="audience === 'PUBLIC'" type="info"
+        >公开考试面向全部已激活学生；此处仅显示已建立的资格。已撤销的资格不会因公开入口自动恢复。</NAlert
+      >
+      <NAlert v-if="success" type="success">{{ success }}</NAlert>
+      <NAlert v-if="warning" type="warning">{{ warning }}</NAlert>
+      <NAlert v-if="failure" type="error"
+        >{{ failure }} <NButton size="small" @click="load">重新加载名单</NButton></NAlert
+      >
+      <section
+        v-if="addVisible && status !== 'CANCELLED'"
+        id="participant-add-tools"
+        class="participant-add-tools"
+        aria-label="补入名单工具"
+      >
+        <div class="audience-pickers">
+          <ClassAudiencePicker v-model="selectedClassIds" :disabled="saving" />
+          <section class="student-audience-picker">
+            <h3>单独补入学生</h3>
+            <p class="muted">按姓名或学号找到需要单独补入的学生。</p>
+            <MemberPicker v-model="selectedStudentIds" kind="student" :disabled="saving" />
+          </section>
+        </div>
+        <NAlert v-if="addFailure" type="error">{{ addFailure }}</NAlert>
+        <div class="add-actions">
+          <p class="muted">班级后续成员变化不联动本场名单。已撤销资格需显式恢复。</p>
+          <NButton
+            type="primary"
+            :loading="saving"
+            :disabled="!selectedClassIds.length && !selectedStudentIds.length"
+            @click="add"
+            >补入参考名单</NButton
           >
         </div>
-        <p>已选 {{ selectedClassIds.length }} 个班级（跨页保留）</p>
+      </section>
+      <div class="participant-search">
+        <label class="field search-field"
+          ><span>查找学生</span>
+          <input
+            v-model="query"
+            aria-label="搜索参考名单"
+            placeholder="学生姓名或学号"
+            @keydown.enter.prevent="changePage(1)" /></label
+        ><label class="field qualification-field"
+          ><span>资格状态</span
+          ><select v-model="filter" aria-label="筛选资格">
+            <option value="">全部资格</option>
+            <option value="ASSIGNED">有效资格</option>
+            <option value="CANCELLED">已撤销</option>
+          </select></label
+        ><NButton :loading="loading" @click="changePage(1)">查询参考名单</NButton>
+      </div>
+      <div data-testid="exam-participants">
+        <div class="table-region">
+          <NDataTable
+            :columns="columns"
+            :data="items"
+            :loading="loading"
+            :bordered="false"
+            :scroll-x="900"
+            :row-key="(row: Participant) => row.id"
+            ><template #empty
+              ><div class="participants-empty">
+                <AppIcon name="users" :size="28" /><strong>{{
+                  query || filter ? '没有符合条件的学生' : '尚未建立参考资格'
+                }}</strong>
+                <p>
+                  {{
+                    query || filter
+                      ? '调整搜索或资格状态后重试。'
+                      : audience === 'PUBLIC'
+                        ? '公开考试的学生首次进入答题流程时会建立资格。'
+                        : '通过「补入名单」按教学班或学生建立参考资格。'
+                  }}
+                </p>
+              </div></template
+            ></NDataTable
+          >
+        </div>
         <ListPager
-          label="补入班级"
-          :page="classPage"
-          :page-size="10"
-          :total="classTotal"
-          :loading="classLoading"
-          @change="loadClasses"
+          label="参考名单"
+          :page="page"
+          :page-size="20"
+          :total="total"
+          :loading="loading"
+          @change="changePage"
         />
-      </section>
-      <section>
-        <h3>单独补入学生</h3>
-        <MemberPicker v-model="selectedStudentIds" kind="student" />
-      </section>
-    </div>
-    <NButton
-      v-if="status !== 'CANCELLED'"
-      type="primary"
-      :loading="saving"
-      :disabled="!selectedClassIds.length && !selectedStudentIds.length"
-      @click="add"
-      >补入参考名单</NButton
-    >
-    <div class="participant-search">
-      <input
-        v-model="query"
-        aria-label="搜索参考名单"
-        placeholder="学生姓名或学号"
-        @keyup.enter="changePage(1)"
-      /><select v-model="filter" aria-label="筛选资格">
-        <option value="">全部资格</option>
-        <option value="ASSIGNED">有效资格</option>
-        <option value="CANCELLED">已撤销</option></select
-      ><NButton @click="changePage(1)">查询参考名单</NButton>
-    </div>
-    <div data-testid="exam-participants">
-      <NDataTable
-        :columns="columns"
-        :data="items"
-        :loading="loading"
-        :row-key="(row: Participant) => row.id"
-      /><ListPager
-        label="参考名单"
-        :page="page"
-        :page-size="20"
-        :total="total"
-        :loading="loading"
-        @change="changePage"
-      />
+      </div>
     </div>
     <NModal
       v-model:show="changeVisible"
       preset="card"
       :title="action === 'cancel' ? '撤销参考资格' : '显式恢复资格'"
-      style="width: 600px"
+      class="responsive-modal responsive-modal--compact"
       :mask-closable="false"
       :closable="!saving"
       :close-on-esc="!saving"
@@ -273,62 +284,150 @@ onMounted(() => {
       }}</NAlert
       ><NAlert v-if="changeFailure" type="error">{{ changeFailure }}</NAlert
       ><NButton v-if="changeConflict" @click="reloadChange">重新加载名单</NButton>
+      <p v-if="selected" class="change-student">
+        {{ selected.user.real_name }}<span class="muted">（{{ selected.user.login_name }}）</span>
+      </p>
       <form class="reason-form" @submit.prevent="change">
-        <label
-          >资格变更原因<textarea
-            v-model="reason"
-            aria-label="资格变更原因"
-            required
-            rows="3"
-          /></label
-        ><NButton attr-type="submit" type="primary" :loading="saving" :disabled="changeConflict">{{
-          action === 'cancel' ? '确认撤销资格' : '确认恢复资格'
-        }}</NButton>
+        <label class="field"
+          >资格变更原因<textarea v-model="reason" aria-label="资格变更原因" required rows="3" />
+        </label>
+        <div class="editor-actions">
+          <NButton :disabled="saving" @click="changeVisible = false">取消</NButton
+          ><NButton
+            attr-type="submit"
+            :type="action === 'cancel' ? 'error' : 'primary'"
+            :loading="saving"
+            :disabled="changeConflict"
+            >{{ action === 'cancel' ? '确认撤销资格' : '确认恢复资格' }}</NButton
+          >
+        </div>
       </form></NModal
     >
-  </NCard>
+  </SurfacePanel>
 </template>
 
 <style scoped>
+.participant-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 20px;
+  min-width: 0;
+}
+.participant-workspace > * {
+  min-width: 0;
+}
+.participant-add-tools {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 18px;
+  padding: 20px;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+  border-radius: var(--radius-sm);
+}
 .audience-pickers {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 24px;
-  margin: 20px 0;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 28px;
 }
-.class-options {
-  display: grid;
-  gap: 10px;
-  margin-top: 18px;
+.student-audience-picker {
+  min-width: 0;
 }
-.class-options label {
+.student-audience-picker h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 650;
+}
+.student-audience-picker > p {
+  margin: 6px 0 16px;
+  font-size: 12px;
+}
+.add-actions {
   display: flex;
-  gap: 10px;
   align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  border-top: 1px solid var(--color-border);
+  padding-top: 18px;
 }
-.class-options input {
-  width: auto;
+.add-actions p {
+  margin: 0;
+  font-size: 12px;
+  max-width: 520px;
 }
-input,
-select,
-textarea {
-  border: 1px solid #d9dfe9;
-  border-radius: 6px;
-  padding: 9px 12px;
-  font: inherit;
+.add-actions .n-button {
+  flex-shrink: 0;
 }
 .participant-search {
   display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
   gap: 12px;
-  margin: 24px 0 14px;
+}
+.participant-search .field {
+  font-size: 12px;
+}
+.search-field {
+  flex: 1 1 240px;
+  max-width: 440px;
+}
+.qualification-field {
+  flex: 0 1 180px;
+}
+.participant-search > .n-button {
+  margin-bottom: 3px;
+}
+.participants-empty {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  padding: 30px 18px;
+  color: var(--color-muted);
+}
+.participants-empty strong {
+  font-size: 14px;
+  color: var(--color-text);
+  font-weight: 550;
+}
+.participants-empty p {
+  margin: 0;
+  font-size: 13px;
+}
+.change-student {
+  margin: 20px 0 0;
+  font-weight: 550;
 }
 .reason-form {
   display: grid;
   gap: 18px;
   margin-top: 18px;
 }
-.reason-form label {
-  display: grid;
-  gap: 8px;
+:deep(.participant-name) {
+  font-weight: 550;
+}
+@media (max-width: 1000px) {
+  .audience-pickers {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 24px;
+  }
+  .student-audience-picker {
+    border-top: 1px solid var(--color-border);
+    padding-top: 22px;
+  }
+}
+@media (max-width: 600px) {
+  .participant-add-tools {
+    padding: 16px;
+  }
+  .add-actions {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .search-field,
+  .qualification-field {
+    flex-basis: 100%;
+    max-width: none;
+  }
 }
 </style>

@@ -15,7 +15,10 @@ test('共享题库保存判断题的假答案并可重新读取', async ({ page 
   test.skip(!adminLogin || !adminPassword, '需要管理员测试凭据')
   const content = `判断题 ${Date.now()}：零是正数。`
   await login(page)
-  await page.getByText('共享题库', { exact: true }).click()
+  await page
+    .getByRole('navigation', { name: '主导航' })
+    .getByRole('link', { name: '共享题库', exact: true })
+    .click()
   await page.getByRole('button', { name: '新建题目' }).click()
   await page.getByLabel('题型', { exact: true }).selectOption('TRUE_FALSE')
   await page.getByLabel('题干', { exact: true }).fill(content)

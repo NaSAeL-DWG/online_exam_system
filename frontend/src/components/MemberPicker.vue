@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { NAlert, NButton, NInput, NSelect, NSpace } from 'naive-ui'
+import { NAlert, NButton, NInput, NSelect } from 'naive-ui'
 import { identityApi } from '../api/identity'
 import { errorMessage } from '../api/client'
 import type { UserSummary } from '../types'
@@ -13,8 +13,9 @@ const props = withDefaults(
     selectedMembers?: UserSummary[]
     excludedIds?: string[]
     staffTeachers?: boolean
+    disabled?: boolean
   }>(),
-  { selectedMembers: () => [], excludedIds: () => [] },
+  { selectedMembers: () => [], excludedIds: () => [], disabled: false },
 )
 const emit = defineEmits<{ 'update:modelValue': [value: string[]] }>()
 const query = ref('')
@@ -84,18 +85,22 @@ onMounted(load)
 </script>
 
 <template>
-  <div class="member-picker">
-    <NSpace class="picker-search">
+  <div class="member-picker" :aria-busy="loading">
+    <div class="picker-search">
       <NInput
         v-model:value="query"
+        :disabled="disabled"
         :input-props="{ 'aria-label': `搜索${label}` }"
         :placeholder="`按姓名或${kind === 'teacher' ? '工号' : '学号'}搜索`"
-        @keyup.enter="changePage(1)"
+        @keydown.enter.prevent="changePage(1)"
       />
-      <NButton :loading="loading" @click="changePage(1)">查询{{ label }}</NButton>
-    </NSpace>
+      <NButton :loading="loading" :disabled="disabled" @click="changePage(1)"
+        >查询{{ label }}</NButton
+      >
+    </div>
     <NAlert v-if="failure" type="error"
-      >{{ failure }} <NButton size="small" @click="load">重试加载候选</NButton></NAlert
+      >{{ failure }}
+      <NButton size="small" :disabled="disabled" @click="load">重试加载候选</NButton></NAlert
     >
     <NSelect
       :value="kind === 'teacher' ? modelValue : (modelValue[0] ?? null)"
@@ -104,15 +109,22 @@ onMounted(load)
       :placeholder="`选择当前页${label}`"
       :options="options"
       :loading="loading"
+      :disabled="disabled"
       clearable
       @update:value="select"
     />
+    <p class="picker-selection">
+      已选 {{ modelValue.length }} 位{{ label
+      }}<span class="muted">{{
+        kind === 'teacher' ? ' · 翻页和搜索保留选择' : ' · 可清除后重新选择'
+      }}</span>
+    </p>
     <ListPager
       :label="`${label}候选`"
       :page="page"
       :page-size="pageSize"
       :total="total"
-      :loading="loading"
+      :loading="loading || disabled"
       @change="changePage"
     />
   </div>
@@ -121,8 +133,30 @@ onMounted(load)
 <style scoped>
 .member-picker {
   width: 100%;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
 }
 .picker-search {
-  margin-bottom: 12px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+}
+.picker-selection {
+  margin: 0;
+  font-size: 12px;
+}
+:deep(.list-pager) {
+  padding-top: 2px;
+}
+@media (max-width: 480px) {
+  .picker-search {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .picker-search .n-button {
+    justify-self: start;
+  }
 }
 </style>

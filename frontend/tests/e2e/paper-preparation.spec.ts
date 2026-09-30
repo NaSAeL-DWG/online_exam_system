@@ -25,7 +25,10 @@ test('教师手动组卷、调整顺序与一位小数分值并归档试卷', as
     })
     expect(response.ok()).toBeTruthy()
   }
-  await page.getByText('共享试卷', { exact: true }).click()
+  await page
+    .getByRole('navigation', { name: '主导航' })
+    .getByRole('link', { name: '共享试卷', exact: true })
+    .click()
   await page.getByRole('button', { name: '新建试卷' }).click()
   await page.getByLabel('试卷名称').fill(`组卷 ${suffix}`)
   await page.getByLabel('搜索可用题目').fill(String(suffix))

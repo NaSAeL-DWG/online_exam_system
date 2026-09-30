@@ -27,7 +27,10 @@ test('管理员可创建多教师教学班、维护学生并归档', async ({ pa
   await page.getByRole('button', { name: '提交注册' }).click()
 
   await login(page, adminLogin!, adminPassword!)
-  await page.getByText('学生审核', { exact: true }).click()
+  await page
+    .getByRole('navigation', { name: '主导航' })
+    .getByRole('link', { name: '学生审核', exact: true })
+    .click()
   await page.getByLabel('搜索申请').fill(studentNo)
   await page.getByRole('button', { name: '查询申请' }).click()
   await page
@@ -53,7 +56,10 @@ test('管理员可创建多教师教学班、维护学生并归档', async ({ pa
     expect(response.ok()).toBeTruthy()
   }
 
-  await page.getByText('教学班', { exact: true }).click()
+  await page
+    .getByRole('navigation', { name: '主导航' })
+    .getByRole('link', { name: '教学班', exact: true })
+    .click()
   await page.getByRole('button', { name: '新建教学班' }).click()
   await page.getByLabel('教学班名称').fill(className)
   await page.getByLabel('说明').fill('真实 API 浏览器流程创建')

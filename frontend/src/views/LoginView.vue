@@ -42,28 +42,31 @@ async function submit(): Promise<void> {
 </script>
 
 <template>
-  <div class="auth-card compact-card">
-    <p class="eyebrow accent">账号登录</p>
-    <h2>欢迎回来</h2>
-    <p class="muted">使用学号、工号或管理员账号登录。</p>
+  <div class="auth-form">
+    <header class="auth-task-header">
+      <h1>账号登录</h1>
+      <p>使用学号、工号或管理员账号登录。</p>
+    </header>
     <NAlert v-if="auth.notice" type="success" class="form-alert">{{ auth.notice }}</NAlert>
     <NAlert v-if="failure" type="error" class="form-alert">{{ failure }}</NAlert>
     <NForm :model="form" size="large" @submit.prevent="submit">
       <NFormItem label="登录账号"
         ><NInput
           v-model:value="form.login_name"
-          :input-props="{ 'aria-label': '登录账号' }"
+          :input-props="{ 'aria-label': '登录账号', autocomplete: 'username' }"
           placeholder="请输入登录账号"
       /></NFormItem>
       <NFormItem label="密码"
         ><NInput
           v-model:value="form.password"
-          :input-props="{ 'aria-label': '密码' }"
+          :input-props="{ 'aria-label': '密码', autocomplete: 'current-password' }"
           type="password"
           show-password-on="click"
       /></NFormItem>
       <NButton attr-type="submit" type="primary" block :loading="loading">登录</NButton>
     </NForm>
-    <p class="auth-switch">还没有账号？<RouterLink to="/register">学生注册</RouterLink></p>
+    <p class="auth-switch">
+      <span>首次使用的学生</span><RouterLink to="/register">学生注册</RouterLink>
+    </p>
   </div>
 </template>

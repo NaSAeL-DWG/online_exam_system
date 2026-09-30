@@ -1,65 +1,106 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { NCard, NTag } from 'naive-ui'
 import { useAuthStore } from '../stores/auth'
+import PageHeader from '../components/ui/PageHeader.vue'
+import StatusBadge from '../components/ui/StatusBadge.vue'
+import AppIcon from '../components/ui/AppIcon.vue'
+import { accessibleModules, roleLabels } from '../navigation/modules'
 
 const auth = useAuthStore()
 const copy = computed(
   () =>
     ({
-      STUDENT: ['学生工作台', '账号已激活，考试列表和作答功能尚未开放。'],
-      TEACHER: ['教师工作台', '维护共享题库、组卷与考试，处理学生审核和教学班。'],
-      ADMIN: ['管理工作台', '管理账号和教学班，协作维护题库、试卷与考试。'],
+      STUDENT: { title: '学生工作台', description: '查看并维护你的个人账号资料。' },
+      TEACHER: {
+        title: '教师工作台',
+        description: '准备题目与试卷，安排考试，处理教学与身份事务。',
+      },
+      ADMIN: { title: '管理工作台', description: '维护人员与教学组织，协作完成考试准备。' },
     })[auth.user?.user_type ?? 'STUDENT'],
 )
-const guide = computed(
-  () =>
-    ({
-      STUDENT: {
-        title: '开始使用',
-        description: '当前可维护联系方式与账号安全；考试列表、主动开始和作答尚未开放。',
-      },
-      TEACHER: {
-        title: '从哪里开始',
-        description: '从共享题库准备题目，在共享试卷组卷，再进入考试管理建立独立快照并发布。',
-      },
-      ADMIN: {
-        title: '从哪里开始',
-        description: '从左侧进入账号管理创建教师，或进入教学班配置负责教师和学生成员。',
-      },
-    })[auth.user?.user_type ?? 'STUDENT'],
+const modules = computed(() => accessibleModules(auth.user))
+const preparation = computed(() =>
+  modules.value.filter((item) => item.group === 'preparation' && item.entry),
+)
+const people = computed(() => modules.value.filter((item) => item.group === 'people' && item.entry))
+const account = computed(() =>
+  modules.value.filter((item) => item.group === 'account' && item.entry),
 )
 </script>
 
 <template>
   <div class="page-stack">
-    <header class="page-title">
-      <div>
-        <p class="eyebrow accent">工作台</p>
-        <h1>{{ copy[0] }}</h1>
-        <p>{{ copy[1] }}</p>
+    <PageHeader :title="copy.title" :description="copy.description"
+      ><template #actions><StatusBadge label="账号已激活" tone="success" /></template
+    ></PageHeader>
+    <section v-if="preparation.length" class="home-section">
+      <header class="home-section-heading">
+        <h2>考试准备</h2>
+        <p>题目 → 试卷 → 独立考试快照</p>
+      </header>
+      <div class="home-preparation">
+        <RouterLink
+          v-for="(item, index) in preparation"
+          :key="item.path"
+          :to="item.path"
+          class="home-entry"
+        >
+          <div class="home-entry-top">
+            <span class="home-entry-icon"><AppIcon :name="item.icon" :size="23" /></span
+            ><span class="home-entry-step" aria-hidden="true">0{{ index + 1 }}</span>
+          </div>
+          <h3>{{ item.entry!.title }}</h3>
+          <p>{{ item.entry!.description }}</p>
+          <span class="home-entry-action"
+            >{{ item.entry!.action }}<AppIcon name="arrow-right" :size="17"
+          /></span>
+        </RouterLink>
       </div>
-      <NTag type="success" round>账号已激活</NTag>
-    </header>
-    <div class="metric-grid">
-      <NCard
-        ><span class="metric-label">当前身份</span
-        ><strong>{{
-          auth.user?.user_type === 'STUDENT'
-            ? '学生'
-            : auth.user?.user_type === 'TEACHER'
-              ? '教师'
-              : '管理员'
-        }}</strong></NCard
-      >
-      <NCard
-        ><span class="metric-label">登录账号</span
-        ><strong>{{ auth.user?.login_name }}</strong></NCard
-      >
-      <NCard><span class="metric-label">登录状态</span><strong>已登录</strong></NCard>
+    </section>
+    <div class="home-secondary">
+      <section v-if="people.length" class="home-section">
+        <header class="home-section-heading">
+          <h2>人员与教学</h2>
+          <p>组织成员与账号身份</p>
+        </header>
+        <div class="home-task-list">
+          <RouterLink v-for="item in people" :key="item.path" :to="item.path" class="home-task">
+            <AppIcon :name="item.icon" :size="21" />
+            <div>
+              <h3>{{ item.entry!.title }}</h3>
+              <p>{{ item.entry!.description }}</p>
+            </div>
+            <AppIcon name="arrow-right" :size="18" />
+          </RouterLink>
+        </div>
+      </section>
+      <section class="home-section">
+        <header class="home-section-heading"><h2>我的账号</h2></header>
+        <div class="home-account">
+          <div class="home-account-identity">
+            <span class="home-account-avatar" aria-hidden="true">{{
+              auth.user?.real_name.slice(0, 1)
+            }}</span>
+            <div>
+              <strong>{{ auth.user?.real_name }}</strong
+              ><span
+                >{{ auth.user ? roleLabels[auth.user.user_type] : '' }} ·
+                {{ auth.user?.login_name }}</span
+              >
+            </div>
+          </div>
+          <div class="home-account-links">
+            <RouterLink v-for="item in account" :key="item.path" :to="item.path"
+              ><AppIcon :name="item.icon" :size="17" /><span>{{ item.entry!.action }}</span
+              ><AppIcon name="arrow-right" :size="16"
+            /></RouterLink>
+          </div>
+          <p v-if="auth.user?.user_type === 'STUDENT'" class="home-account-note">
+            当前开放个人资料和账号安全。考试列表与作答功能尚未开放。
+          </p>
+          <p v-else class="home-account-note">姓名或登录账号需要更正时，请由管理员核验后处理。</p>
+        </div>
+      </section>
     </div>
-    <NCard :title="guide.title"
-      ><p class="muted">{{ guide.description }}</p></NCard
-    >
   </div>
 </template>
