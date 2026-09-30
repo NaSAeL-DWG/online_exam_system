@@ -19,3 +19,4 @@ test-results/
 .local/
 .deletedfiles/
 *.log
+docs/
