@@ -15,11 +15,32 @@ from .schemas import (
     ParticipantAdd,
     ParticipantAddResult,
     ParticipantChange,
+    StudentExamSummary,
 )
 from .types import ExamStatus, ParticipantStatus
 
 router = APIRouter(prefix="/api/staff/exams", tags=["考试组织"])
 staff = roles(UserType.ADMIN, UserType.TEACHER)
+student_router = APIRouter(prefix="/api/student/exams", tags=["学生考试"])
+student = roles(UserType.STUDENT)
+
+
+@student_router.get("", response_model=Page[StudentExamSummary])
+async def list_student_exams(
+    pagination: Pagination = Depends(),
+    identity: Identity = Depends(student),
+    session=Depends(get_session),
+):
+    """分页查看本人考试及资格撤销提示，不建立资格或消耗机会。"""
+    return await service.list_student_exams(session, identity, pagination)
+
+
+@student_router.get("/{exam_id}", response_model=StudentExamSummary)
+async def get_student_exam(
+    exam_id: UUID, identity: Identity = Depends(student), session=Depends(get_session)
+):
+    """读取考试说明和本人次数，不返回考试快照或评分依据。"""
+    return await service.get_student_exam(session, identity, exam_id)
 
 
 @router.get("", response_model=Page[ExamSummary])
@@ -141,3 +162,14 @@ async def restore_participant(
     return await service.change_participant(
         session, identity, exam_id, participant_id, payload, restore=True
     )
+
+
+@router.post("/{exam_id}/cancel", response_model=ExamDetail, dependencies=[Depends(require_csrf)])
+async def cancel_exam(
+    exam_id: UUID,
+    payload: ParticipantChange,
+    identity: Identity = Depends(staff),
+    session=Depends(get_session),
+):
+    """强制记录原因取消整场考试，并在同一事务废弃全部历史作答。"""
+    return await service.cancel_exam(session, identity, exam_id, payload)

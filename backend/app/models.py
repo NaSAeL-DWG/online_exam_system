@@ -7,4 +7,4 @@ from app.modules.question.models import Question  # noqa: F401
 from app.modules.asset.models import UploadedAsset  # noqa: F401
 from app.modules.paper.models import Paper, PaperQuestion  # noqa: F401
 from app.modules.exam.models import Exam, ExamGrader, ExamParticipant, ExamQuestion  # noqa: F401
-from app.modules.attempt.models import ExamAttempt  # noqa: F401
+from app.modules.attempt.models import AttemptQuestionOrder, ExamAttempt, StudentAnswer  # noqa: F401

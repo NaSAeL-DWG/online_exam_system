@@ -21,6 +21,7 @@ from .schemas import (
     SnapshotEdit,
     ParticipantPublic,
     ParticipantAddResult,
+    StudentExamSummary,
 )
 from .types import AudienceType, ExamStatus, ParticipantStatus
 
@@ -376,3 +377,181 @@ async def ensure_public_start_participant(session, exam_id, student_id):
             entity_id=row.id,
         )
     return row.id
+
+
+def student_summary(exam, participant, counts, current, now):
+    used = counts[0]
+    reason = None
+    if participant and participant.status == ParticipantStatus.CANCELLED:
+        reason = "PARTICIPANT_CANCELLED"
+    elif exam.status == ExamStatus.CANCELLED:
+        reason = "EXAM_CANCELLED"
+    elif now < exam.start_at:
+        reason = "EXAM_NOT_STARTED"
+    elif now >= exam.end_at:
+        reason = "EXAM_ENDED"
+    elif used >= exam.max_attempts and not (
+        current and current.status.value == "IN_PROGRESS" and current.deadline_at > now
+    ):
+        reason = "ATTEMPTS_EXHAUSTED"
+    return StudentExamSummary(
+        id=exam.id,
+        title=exam.title,
+        description=exam.description,
+        audience_type=exam.audience_type,
+        status=exam.status,
+        start_at=exam.start_at,
+        end_at=exam.end_at,
+        duration_seconds=exam.duration_seconds,
+        max_attempts=exam.max_attempts,
+        total_score=exam.total_score,
+        server_now=now,
+        participant_status=participant.status if participant else None,
+        cancelled_reason=participant.cancelled_reason
+        if participant and participant.status == ParticipantStatus.CANCELLED
+        else exam.cancelled_reason,
+        used_attempts=used,
+        remaining_attempts=max(0, exam.max_attempts - used),
+        current_attempt_id=current.id if current else None,
+        current_attempt_status=current.status.value if current else None,
+        can_start=reason is None,
+        unavailable_reason=reason,
+    )
+
+
+async def list_student_exams(session, identity, pagination):
+    identity_service.ensure_role(identity.user, UserType.STUDENT)
+    rows, total = await crud.student_page(session, identity.user.id, pagination)
+    participant_ids = [participant.id for _, participant in rows if participant]
+    counts = await attempt_service.participant_attempt_counts(session, participant_ids)
+    current = await attempt_service.current_participant_attempts(session, participant_ids)
+    now = utc_now()
+    return Page[StudentExamSummary](
+        items=[
+            student_summary(
+                exam,
+                participant,
+                counts.get(participant.id, (0, 0)) if participant else (0, 0),
+                current.get(participant.id) if participant else None,
+                now,
+            )
+            for exam, participant in rows
+        ],
+        total=total,
+        page=pagination.page,
+        page_size=pagination.page_size,
+    )
+
+
+async def get_student_exam(session, identity, exam_id):
+    identity_service.ensure_role(identity.user, UserType.STUDENT)
+    exam = await require_exam(session, exam_id)
+    rows = await crud.participants_for_users(session, exam_id, [identity.user.id])
+    participant = rows[0] if rows else None
+    if (
+        exam.status == ExamStatus.DRAFT
+        or (exam.audience_type == AudienceType.RESTRICTED and not participant)
+        or (exam.status == ExamStatus.CANCELLED and not participant)
+    ):
+        raise BusinessError("EXAM_NOT_FOUND", "考试不存在")
+    ids = [participant.id] if participant else []
+    counts = await attempt_service.participant_attempt_counts(session, ids)
+    current = await attempt_service.current_participant_attempts(session, ids)
+    return student_summary(
+        exam,
+        participant,
+        counts.get(participant.id, (0, 0)) if participant else (0, 0),
+        current.get(participant.id) if participant else None,
+        utc_now(),
+    )
+
+
+async def prepare_student_start(session, identity, exam_id):
+    """可组合开始能力：身份共享锁后按考试、资格顺序锁定，公开资格仅在实际开始建立。"""
+    await identity_service.validate_shared_actor(session, identity, UserType.STUDENT)
+    exam = await require_exam(session, exam_id, lock=True)
+    if exam.status == ExamStatus.CANCELLED:
+        raise BusinessError("EXAM_CANCELLED", "考试已取消")
+    if exam.status != ExamStatus.RELEASED:
+        raise BusinessError("EXAM_STATE_INVALID", "考试未开放作答")
+    now = utc_now()
+    participant = await crud.participant_for_user(session, exam_id, identity.user.id)
+    if participant is None and exam.audience_type == AudienceType.PUBLIC:
+        if now < exam.start_at:
+            raise BusinessError("EXAM_NOT_STARTED", "考试尚未开始")
+        if now >= exam.end_at:
+            raise BusinessError("EXAM_ENDED", "考试已经结束")
+        participant = ExamParticipant(exam_id=exam_id, user_id=identity.user.id)
+        await crud.add_participants(session, [participant])
+        identity_service.record_audit(
+            session,
+            actor_id=identity.user.id,
+            action="EXAM_PUBLIC_PARTICIPANT_CREATED",
+            entity_type="exam_participant",
+            entity_id=participant.id,
+        )
+    if participant is None:
+        raise BusinessError("PARTICIPANT_REQUIRED", "没有本场考试参考资格")
+    if participant.status == ParticipantStatus.CANCELLED:
+        raise BusinessError("PARTICIPANT_CANCELLED", "参考资格已撤销")
+    return exam, participant, await crud.questions(session, exam_id)
+
+
+async def locked_attempt_context(session, participant_id, identity=None):
+    """公开作答协调能力：先定位归属，再按考试、资格顺序重读锁定。"""
+    if identity:
+        await identity_service.validate_shared_actor(session, identity, UserType.STUDENT)
+    reference = await crud.participant_by_id(session, participant_id, lock=False)
+    if reference is None or (identity and reference.user_id != identity.user.id):
+        raise BusinessError("ATTEMPT_NOT_FOUND", "作答不存在")
+    exam = await require_exam(session, reference.exam_id, lock=True)
+    participant = await crud.participant_by_id(session, participant_id)
+    if identity:
+        if participant.status == ParticipantStatus.CANCELLED:
+            raise BusinessError("PARTICIPANT_CANCELLED", "参考资格已撤销")
+        if exam.status == ExamStatus.CANCELLED:
+            raise BusinessError("EXAM_CANCELLED", "考试已取消")
+    return exam, participant
+
+
+async def attempt_questions(session, exam_id):
+    """合法作答用例的快照读取能力；调用方已持有考试与资格锁。"""
+    return await crud.questions(session, exam_id)
+
+
+async def attempt_question(session, exam_id, question_id):
+    """单题保存只读取目标题快照，避免每次自动保存加载整场Markdown和评分依据。"""
+    question = await crud.question_by_id(session, exam_id, question_id)
+    if question is None:
+        raise BusinessError("ANSWER_NOT_FOUND", "答案对应的考试题目不存在")
+    return question
+
+
+async def cancel_exam(session, identity, exam_id, payload):
+    async with session.begin():
+        await identity_service.validate_content_actor(session, identity)
+        exam = await require_exam(session, exam_id, lock=True)
+        ensure_version(exam, payload.version)
+        if exam.status == ExamStatus.CANCELLED:
+            raise BusinessError("EXAM_CANCELLED", "已取消考试不可恢复或再次取消")
+        previous_status = exam.status
+        exam.status = ExamStatus.CANCELLED
+        exam.cancelled_at = utc_now()
+        exam.cancelled_reason = payload.reason
+        exam.version += 1
+        exam.updated_at = utc_now()
+        await attempt_service.void_participant_attempts(
+            session, await crud.participant_ids(session, exam_id), payload.reason
+        )
+        identity_service.record_audit(
+            session,
+            actor_id=identity.user.id,
+            action="EXAM_CANCELLED",
+            entity_type="exam",
+            entity_id=exam.id,
+            reason=payload.reason,
+            before_data={"status": previous_status.value},
+            after_data={"status": exam.status.value, "version": exam.version},
+        )
+        result = await detail(session, exam)
+    return result

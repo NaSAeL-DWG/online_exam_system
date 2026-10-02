@@ -1,7 +1,14 @@
 from uuid import UUID
 from fastapi import APIRouter, Depends, File, Response, UploadFile
 
-from app.deps import Identity, get_runtime_settings, get_session, require_csrf, roles
+from app.deps import (
+    Identity,
+    active_identity,
+    get_runtime_settings,
+    get_session,
+    require_csrf,
+    roles,
+)
 from app.modules.identity.types import UserType
 from . import service
 from .schemas import AssetPublic
@@ -41,7 +48,7 @@ async def upload_asset(
 )
 async def read_asset(
     asset_id: UUID,
-    identity: Identity = Depends(staff),
+    identity: Identity = Depends(active_identity),
     session=Depends(get_session),
     settings=Depends(get_runtime_settings),
 ):

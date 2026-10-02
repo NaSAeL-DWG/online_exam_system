@@ -14,6 +14,10 @@ class Settings(BaseSettings):
     environment: Literal["development", "test", "production"]
     database_url: str
     redis_url: str
+    arq_redis_url: str | None = None
+    arq_queue_name: str = "arq:exam"
+    arq_enqueue_timeout_seconds: float = Field(default=1.0, gt=0, le=10)
+    attempt_scan_batch_size: int = Field(default=100, ge=1, le=1000)
     jwt_secret: str = Field(min_length=32)
     cookie_secure: bool = False
     cookie_samesite: str = "lax"

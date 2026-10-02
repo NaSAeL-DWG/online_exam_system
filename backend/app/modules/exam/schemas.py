@@ -55,6 +55,8 @@ class ExamSummary(BaseModel):
     grading_revision: int
     version: int
     released_at: datetime | None
+    cancelled_at: datetime | None
+    cancelled_reason: str | None
     warnings: list[str]
     created_at: datetime
     updated_at: datetime
@@ -149,3 +151,25 @@ class ParticipantChange(BaseModel):
         if not value.strip():
             raise ValueError("请填写原因")
         return value
+
+
+class StudentExamSummary(BaseModel):
+    id: UUID
+    title: str
+    description: str | None
+    audience_type: AudienceType
+    status: ExamStatus
+    start_at: datetime | None
+    end_at: datetime | None
+    duration_seconds: int | None
+    max_attempts: int
+    total_score: Decimal
+    server_now: datetime
+    participant_status: ParticipantStatus | None
+    cancelled_reason: str | None
+    used_attempts: int
+    remaining_attempts: int
+    current_attempt_id: UUID | None
+    current_attempt_status: str | None
+    can_start: bool
+    unavailable_reason: str | None

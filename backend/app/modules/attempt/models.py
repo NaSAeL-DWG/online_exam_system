@@ -3,6 +3,7 @@ from uuid import UUID, uuid4
 
 from sqlalchemy import (
     CheckConstraint,
+    BigInteger,
     Column,
     DateTime,
     Enum as SAEnum,
@@ -12,13 +13,14 @@ from sqlalchemy import (
     text,
 )
 from sqlmodel import Field, SQLModel
+from sqlalchemy.dialects.postgresql import JSONB
 
 from app.core.clock import utc_now
-from .types import AttemptStatus
+from .types import AttemptStatus, GradingStatus, SubmissionType
 
 
 class ExamAttempt(SQLModel, table=True):
-    """迭代2必要的真实作答基础；开始/保存/提交完整用例在迭代3补齐。"""
+    """独立计时作答；数据库状态是保存、接管和可靠提交的依据。"""
 
     __tablename__ = "exam_attempt"
     __table_args__ = (
@@ -45,8 +47,46 @@ class ExamAttempt(SQLModel, table=True):
     )
     started_at: datetime = Field(sa_type=DateTime(timezone=True))
     deadline_at: datetime = Field(sa_type=DateTime(timezone=True))
+    last_active_at: datetime | None = Field(default=None, sa_type=DateTime(timezone=True))
+    submitted_at: datetime | None = Field(default=None, sa_type=DateTime(timezone=True))
+    effective_submitted_at: datetime | None = Field(default=None, sa_type=DateTime(timezone=True))
+    submission_type: SubmissionType | None = Field(
+        default=None, sa_column=Column(SAEnum(SubmissionType, name="submission_type"))
+    )
+    grading_status: GradingStatus = Field(
+        default=GradingStatus.PENDING,
+        sa_column=Column(SAEnum(GradingStatus, name="grading_status"), nullable=False),
+    )
+    grading_revision: int = Field(default=1, sa_type=BigInteger)
+    active_token_hash: str | None = Field(default=None, max_length=64)
+    active_token_generation: int = Field(default=0, sa_type=BigInteger)
     voided_at: datetime | None = Field(default=None, sa_type=DateTime(timezone=True))
     void_reason: str | None = Field(default=None, sa_column=Column(Text))
     version: int = 1
     created_at: datetime = Field(default_factory=utc_now, sa_type=DateTime(timezone=True))
     updated_at: datetime = Field(default_factory=utc_now, sa_type=DateTime(timezone=True))
+
+
+class StudentAnswer(SQLModel, table=True):
+    __tablename__ = "stu_answer"
+    __table_args__ = (UniqueConstraint("attempt_id", "exam_question_id"),)
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
+    attempt_id: UUID = Field(foreign_key="exam_attempt.id")
+    exam_question_id: UUID = Field(foreign_key="exam_question.id")
+    answer_data: list[str] | bool | str | None = Field(default=None, sa_column=Column(JSONB))
+    version: int = Field(default=1, sa_type=BigInteger)
+    answered_at: datetime | None = Field(default=None, sa_type=DateTime(timezone=True))
+    created_at: datetime = Field(default_factory=utc_now, sa_type=DateTime(timezone=True))
+    updated_at: datetime = Field(default_factory=utc_now, sa_type=DateTime(timezone=True))
+
+
+class AttemptQuestionOrder(SQLModel, table=True):
+    __tablename__ = "attempt_question_order"
+    __table_args__ = (
+        UniqueConstraint("attempt_id", "display_order"),
+        CheckConstraint("display_order > 0"),
+    )
+    attempt_id: UUID = Field(foreign_key="exam_attempt.id", primary_key=True)
+    exam_question_id: UUID = Field(foreign_key="exam_question.id", primary_key=True)
+    display_order: int
+    option_order: list[str] = Field(default_factory=list, sa_column=Column(JSONB, nullable=False))

@@ -73,10 +73,15 @@ async def validate_actor(session, identity, *roles, active=True):
 
 async def validate_content_actor(session, identity):
     """内容用例只读身份，持有共享锁阻挡停用，避免教师互为阅卷人时排他锁互锁。"""
+    return await validate_shared_actor(session, identity, UserType.ADMIN, UserType.TEACHER)
+
+
+async def validate_shared_actor(session, identity, *roles):
+    """只读业务身份采用共享锁；与考试锁组合时避免身份排他锁交叉等待。"""
     users = await crud.shared_locked_users(session, [identity.user.id])
     if not users or users[0].auth_version != identity.auth_version:
         raise BusinessError("SESSION_INVALID", "登录已失效")
-    ensure_role(users[0], UserType.ADMIN, UserType.TEACHER)
+    ensure_role(users[0], *roles)
     return UserPublic.model_validate(users[0])
 
 

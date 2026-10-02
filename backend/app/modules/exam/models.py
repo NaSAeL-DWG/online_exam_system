@@ -63,6 +63,8 @@ class Exam(SQLModel, table=True):
     version: int = Field(default=1, sa_type=BigInteger)
     warnings: list[str] = Field(default_factory=list, sa_column=Column(JSONB, nullable=False))
     released_at: datetime | None = Field(default=None, sa_type=DateTime(timezone=True))
+    cancelled_at: datetime | None = Field(default=None, sa_type=DateTime(timezone=True))
+    cancelled_reason: str | None = Field(default=None, sa_column=Column(Text))
     created_at: datetime = Field(default_factory=utc_now, sa_type=DateTime(timezone=True))
     updated_at: datetime = Field(default_factory=utc_now, sa_type=DateTime(timezone=True))
 

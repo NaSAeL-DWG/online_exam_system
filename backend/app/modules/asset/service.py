@@ -3,6 +3,7 @@ from pathlib import PurePosixPath
 from uuid import uuid4
 
 from app.core.errors import BusinessError
+from app.modules.exam import student_assets
 from app.modules.identity import service as identity_service
 from app.modules.identity.types import UserType
 from . import crud, storage
@@ -38,16 +39,21 @@ async def upload(session, identity, settings, filename, data):
 
 
 async def read(session, identity, settings, asset_id):
-    # 迭代3须经快照题干引用授权；迭代5解析引用还须校验公布与回看。
-    # 当前学生没有答题入口，拒绝任意资源URL可阻止提前读取答案图片。
-    identity_service.ensure_role(identity.user, UserType.ADMIN, UserType.TEACHER)
-    item = await crud.by_id(session, asset_id)
-    if item is None:
-        raise BusinessError("ASSET_NOT_FOUND", "图片不存在")
-    try:
-        data = await asyncio.to_thread(
-            storage.read_bytes, settings.asset_storage_dir, item.storage_key
+    async with session.begin():
+        await identity_service.validate_shared_actor(
+            session, identity, UserType.ADMIN, UserType.TEACHER, UserType.STUDENT
         )
-    except FileNotFoundError:
-        raise BusinessError("ASSET_NOT_FOUND", "图片不存在") from None
-    return data, item.media_type
+        if identity.user.user_type == UserType.STUDENT:
+            if not await student_assets.can_read_asset(session, identity.user.id, asset_id):
+                raise BusinessError("FORBIDDEN", "当前作答无权读取该图片")
+        item = await crud.by_id(session, asset_id)
+        if item is None:
+            raise BusinessError("ASSET_NOT_FOUND", "图片不存在")
+        try:
+            data = await asyncio.to_thread(
+                storage.read_bytes, settings.asset_storage_dir, item.storage_key
+            )
+        except FileNotFoundError:
+            raise BusinessError("ASSET_NOT_FOUND", "图片不存在") from None
+        result = data, item.media_type
+    return result

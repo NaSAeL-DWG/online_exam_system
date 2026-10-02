@@ -1,6 +1,7 @@
-from sqlalchemy import delete, func, select
+from sqlalchemy import and_, delete, func, or_, select
 
 from .models import Exam, ExamGrader, ExamParticipant, ExamQuestion
+from .types import AudienceType, ExamStatus
 
 
 async def insert(session, item, questions):
@@ -22,6 +23,12 @@ async def questions(session, exam_id):
             .order_by(ExamQuestion.order_no)
         )
     ).all()
+
+
+async def question_by_id(session, exam_id, question_id):
+    return await session.scalar(
+        select(ExamQuestion).where(ExamQuestion.exam_id == exam_id, ExamQuestion.id == question_id)
+    )
 
 
 async def list_page(session, pagination, status):
@@ -93,9 +100,18 @@ async def add_participants(session, rows):
     await session.flush()
 
 
-async def participant_by_id(session, participant_id):
+async def participant_by_id(session, participant_id, *, lock=True):
     return await session.get(
-        ExamParticipant, participant_id, with_for_update=True, populate_existing=True
+        ExamParticipant, participant_id, with_for_update=lock, populate_existing=lock
+    )
+
+
+async def participant_for_user(session, exam_id, student_id):
+    return await session.scalar(
+        select(ExamParticipant)
+        .where(ExamParticipant.exam_id == exam_id, ExamParticipant.user_id == student_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
     )
 
 
@@ -122,3 +138,33 @@ async def participant_user_ids(session, exam_id):
             select(ExamParticipant.user_id).where(ExamParticipant.exam_id == exam_id)
         )
     ).all()
+
+
+async def student_page(session, student_id, pagination):
+    statement = (
+        select(Exam, ExamParticipant)
+        .outerjoin(
+            ExamParticipant,
+            and_(ExamParticipant.exam_id == Exam.id, ExamParticipant.user_id == student_id),
+        )
+        .where(
+            or_(
+                and_(
+                    Exam.status.in_([ExamStatus.RELEASED, ExamStatus.RESULTS_PUBLISHED]),
+                    or_(Exam.audience_type == AudienceType.PUBLIC, ExamParticipant.id.is_not(None)),
+                ),
+                and_(Exam.status == ExamStatus.CANCELLED, ExamParticipant.id.is_not(None)),
+            )
+        )
+    )
+    if pagination.q.strip():
+        statement = statement.where(Exam.title.ilike("%" + pagination.q.strip() + "%"))
+    total = await session.scalar(select(func.count()).select_from(statement.subquery()))
+    rows = (
+        await session.execute(
+            statement.order_by(Exam.start_at.desc(), Exam.id)
+            .offset((pagination.page - 1) * pagination.page_size)
+            .limit(pagination.page_size)
+        )
+    ).all()
+    return rows, total
