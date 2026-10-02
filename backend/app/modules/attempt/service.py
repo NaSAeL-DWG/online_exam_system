@@ -197,6 +197,12 @@ async def activate_attempt(session, identity, attempt_id, payload):
             ensure_page_token(attempt, payload.page_token)
             raw_token = payload.page_token
         else:
+            # 初始激活比较页面观察到的代次，另一设备抢先激活后不自动接管。
+            if (
+                payload.expected_generation is not None
+                and payload.expected_generation != attempt.active_token_generation
+            ):
+                raise BusinessError("PAGE_TAKEN_OVER", "作答已在其他页面激活，请确认接管后继续")
             raw_token = secrets.token_urlsafe(32)
             attempt.active_token_hash = token_hash(raw_token)
             attempt.active_token_generation += 1

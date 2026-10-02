@@ -52,6 +52,7 @@ class AttemptDetail(BaseModel):
 class ActivateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     page_token: StrictStr | None = Field(default=None, min_length=32, max_length=256)
+    expected_generation: int | None = Field(default=None, ge=0)
 
 
 class AttemptActivation(AttemptDetail):

@@ -150,6 +150,47 @@ async def test_page_activation_refresh_and_takeover_invalidates_old_page(client)
     assert stale.json()["detail"]["code"] == "PAGE_TAKEN_OVER"
 
 
+@pytest.mark.asyncio
+async def test_concurrent_initial_page_activation_does_not_take_over_the_winning_device(client):
+    _, number = await create_student(client)
+    exam = await released_exam(client)
+    headers = await student_login(client, number)
+    started = await client.post(
+        f"/api/student/exams/{exam['id']}/attempts", headers=headers, json={}
+    )
+    assert started.status_code == 200, started.text
+    url = f"/api/student/attempts/{started.json()['id']}"
+    views = await asyncio.gather(client.get(url), client.get(url))
+    assert [response.json()["token_generation"] for response in views] == [0, 0]
+    responses = await asyncio.wait_for(
+        asyncio.gather(
+            *[
+                client.post(url + "/activate", headers=headers, json={"expected_generation": 0})
+                for _ in range(2)
+            ]
+        ),
+        timeout=10,
+    )
+    assert sorted(response.status_code for response in responses) == [200, 403]
+    winner = next(response.json() for response in responses if response.status_code == 200)
+    loser = next(response.json() for response in responses if response.status_code == 403)
+    assert loser["detail"]["code"] == "PAGE_TAKEN_OVER"
+    refreshed = await client.post(
+        url + "/activate", headers=headers, json={"page_token": winner["page_token"]}
+    )
+    assert refreshed.status_code == 200, refreshed.text
+    assert refreshed.json()["page_token"] == winner["page_token"]
+    assert refreshed.json()["token_generation"] == 1
+    takeover = await client.post(url + "/activate", headers=headers, json={})
+    assert takeover.status_code == 200, takeover.text
+    assert takeover.json()["token_generation"] == 2
+    stale = await client.post(
+        url + "/activate", headers=headers, json={"page_token": winner["page_token"]}
+    )
+    assert stale.status_code == 403
+    assert stale.json()["detail"]["code"] == "PAGE_TAKEN_OVER"
+
+
 async def active_attempt(client, number, exam):
     headers = await student_login(client, number)
     response = await client.post(
