@@ -30,6 +30,7 @@ class ExamQuestionPublic(QuestionContent):
     source_question_id: UUID | None
     order_no: int
     score: Decimal
+    grading_revision: int
 
 
 class ExamSummary(BaseModel):
@@ -55,6 +56,9 @@ class ExamSummary(BaseModel):
     grading_revision: int
     version: int
     released_at: datetime | None
+    results_published_at: datetime | None
+    results_withdrawn_at: datetime | None
+    results_withdraw_reason: str | None
     cancelled_at: datetime | None
     cancelled_reason: str | None
     warnings: list[str]

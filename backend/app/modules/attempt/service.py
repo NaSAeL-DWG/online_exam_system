@@ -23,7 +23,11 @@ async def has_started(session, participant_ids):
 async def void_participant_attempts(session, participant_ids, reason):
     """参与资格撤销用例中的可组合写入，不提交调用方事务。"""
     await crud.void_all(session, participant_ids, reason, utc_now())
-    # TODO(迭代4)：grading_task 落地时在同一事务作废相关任务。
+    from app.modules.grading import service as grading_service
+
+    await grading_service.void_attempt_tasks(
+        session, [row.id for row in await crud.for_participants(session, participant_ids)]
+    )
 
 
 async def participant_attempt_counts(session, participant_ids):
@@ -79,6 +83,7 @@ async def detail(session, attempt, exam, questions=None):
 
 async def start_attempt(session, identity, exam_id, settings):
     pending_error = None
+    completed = None
     async with session.begin():
         exam, participant, questions = await exam_service.prepare_student_start(
             session, identity, exam_id
@@ -90,6 +95,7 @@ async def start_attempt(session, identity, exam_id, settings):
         now = utc_now()
         if current and current.deadline_at <= now:
             complete_submission(current, now, SubmissionType.TIMEOUT)
+            completed = (current.id, current.grading_revision)
             # 先释放进行中唯一索引，再建立新一次作答；原已消耗次数保持不变。
             await crud.flush(session)
             current = None
@@ -133,6 +139,8 @@ async def start_attempt(session, identity, exam_id, settings):
             await crud.insert(session, current, answers, orders)
             result = await detail(session, current, exam, questions)
     # 即使下一次开始被时间或次数拒绝，也保留本事务完成的到期收尾事实。
+    if completed:
+        await enqueue_submitted_grading(*completed, settings=settings)
     if pending_error:
         raise pending_error
     # 队列只加速处理；投递失败后已提交的作答由持久到期扫描补偿。
@@ -161,11 +169,15 @@ async def require_locked_attempt(session, identity, attempt_id):
 
 
 async def get_attempt(session, identity, attempt_id):
+    completed = None
     async with session.begin():
         exam, _, attempt = await require_locked_attempt(session, identity, attempt_id)
         if attempt.status == AttemptStatus.IN_PROGRESS and utc_now() >= attempt.deadline_at:
             complete_submission(attempt, utc_now(), SubmissionType.TIMEOUT)
+            completed = (attempt.id, attempt.grading_revision)
         result = await detail(session, attempt, exam)
+    if completed:
+        await enqueue_submitted_grading(*completed)
     return result
 
 
@@ -263,7 +275,7 @@ async def save_answer(session, identity, attempt_id, answer_id, payload):
 
 
 def complete_submission(attempt, now, submission_type):
-    """HTTP和后台到期处理共享状态转换，不在迭代3伪造任何评分结果。"""
+    """HTTP和后台到期处理共享提交事实，判分在提交后的独立事务执行。"""
     attempt.status = AttemptStatus.SUBMITTED
     attempt.submitted_at = now
     attempt.effective_submitted_at = (
@@ -295,6 +307,7 @@ async def submit_attempt(session, identity, attempt_id, payload):
                 attempt, now, SubmissionType.TIMEOUT if timed_out else SubmissionType.MANUAL
             )
         result = await detail(session, attempt, exam)
+    await enqueue_submitted_grading(attempt.id, attempt.grading_revision)
     return result
 
 
@@ -331,4 +344,62 @@ async def timeout_attempt(session, attempt_id):
             return False
         # 账号停用阻止继续作答，但不阻止既有作答在固定截止时正常交卷。
         complete_submission(attempt, now, SubmissionType.TIMEOUT)
+    await enqueue_submitted_grading(attempt.id, attempt.grading_revision)
     return True
+
+
+async def enqueue_submitted_grading(attempt_id, grading_revision, *, settings=None):
+    """业务提交后投递加速任务，失败由数据库待评分扫描补偿。"""
+    try:
+        from app.core.grading_queue import enqueue_attempt_grading
+
+        await enqueue_attempt_grading(attempt_id, grading_revision, settings=settings)
+    except Exception as exc:
+        logging.getLogger(__name__).warning(
+            "自动判分任务投递失败，将由扫描补偿：%s", type(exc).__name__
+        )
+
+
+async def grading_attempt(session, attempt_id, *, lock=False):
+    """阅卷公开查询，锁定前须先取得考试、资格锁。"""
+    return await crud.by_id(session, attempt_id, lock=lock)
+
+
+async def grading_attempts(session, participant_ids, *, lock=False):
+    """批量取得全部尝试，评分不会只处理最终成绩采用的那一次。"""
+    return await crud.for_participants(session, participant_ids, lock=lock)
+
+
+async def grading_answers(session, attempt_id):
+    """在作答锁后按答案ID固定顺序加锁，供评分事务组合。"""
+    return await crud.answers_for_submission(session, attempt_id)
+
+
+async def grading_answer_reference(session, answer_id):
+    """仅定位答案归属；实际写入在持有全部业务锁后重读。"""
+    return await crud.answer_reference(session, answer_id)
+
+
+async def pending_grading_attempts(session, limit=100):
+    """持久补偿查询，只返回提交且尚未自动判完的目标修订。"""
+    return await crud.pending_grading(session, limit)
+
+
+async def grading_attempts_by_ids(session, attempt_ids):
+    """任务分页的批量作答查询。"""
+    return await crud.by_ids(session, attempt_ids)
+
+
+async def submitted_grading_page(session, participant_ids, pagination):
+    """有效资格内的提交答卷分页能力，不过滤已判完状态。"""
+    return await crud.submitted_page(session, participant_ids, pagination)
+
+
+async def last_submitted_attempts(session, participant_ids):
+    """先选最后有效提交，调用方再检查当前评分完成状态。"""
+    return await crud.last_submitted(session, participant_ids)
+
+
+async def grading_answers_for_attempts(session, attempt_ids):
+    """标准更正批量锁读答案，避免逐份答卷重新执行查询。"""
+    return await crud.grading_answers_for_attempts(session, attempt_ids)

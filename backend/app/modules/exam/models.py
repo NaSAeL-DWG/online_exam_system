@@ -13,6 +13,7 @@ from sqlalchemy import (
     Numeric,
     Text,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PGUUID
 from sqlmodel import Field, SQLModel
@@ -26,6 +27,11 @@ class Exam(SQLModel, table=True):
     __tablename__ = "exam"
     __table_args__ = (
         Index("ix_exam_status_end", "status", "end_at"),
+        Index(
+            "ix_exam_grading_assignment_pending",
+            "end_at",
+            postgresql_where=text("grading_assignment_pending = true"),
+        ),
         CheckConstraint("total_score >= 0"),
         CheckConstraint("pass_percentage BETWEEN 0 AND 100"),
     )
@@ -60,9 +66,13 @@ class Exam(SQLModel, table=True):
     )
     content_revision: int = Field(default=1, sa_type=BigInteger)
     grading_revision: int = Field(default=1, sa_type=BigInteger)
+    grading_assignment_pending: bool = False
     version: int = Field(default=1, sa_type=BigInteger)
     warnings: list[str] = Field(default_factory=list, sa_column=Column(JSONB, nullable=False))
     released_at: datetime | None = Field(default=None, sa_type=DateTime(timezone=True))
+    results_published_at: datetime | None = Field(default=None, sa_type=DateTime(timezone=True))
+    results_withdrawn_at: datetime | None = Field(default=None, sa_type=DateTime(timezone=True))
+    results_withdraw_reason: str | None = Field(default=None, sa_column=Column(Text))
     cancelled_at: datetime | None = Field(default=None, sa_type=DateTime(timezone=True))
     cancelled_reason: str | None = Field(default=None, sa_column=Column(Text))
     created_at: datetime = Field(default_factory=utc_now, sa_type=DateTime(timezone=True))

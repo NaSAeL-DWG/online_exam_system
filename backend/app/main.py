@@ -15,6 +15,7 @@ from .modules.asset import router as asset
 from .modules.paper import router as paper
 from .modules.exam import router as exam
 from .modules.attempt import router as attempt
+from .modules.grading import router as grading
 from .core.errors import BusinessError, STATUS_CODES
 from .core.contracts import HealthResponse
 from sqlalchemy.exc import OperationalError, InterfaceError
@@ -88,6 +89,7 @@ def create_app(settings_override: Settings | None = None) -> FastAPI:
     app.include_router(exam.router)
     app.include_router(exam.student_router)
     app.include_router(attempt.router)
+    app.include_router(grading.router)
     return app
 
 

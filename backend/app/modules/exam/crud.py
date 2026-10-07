@@ -168,3 +168,37 @@ async def student_page(session, student_id, pagination):
         )
     ).all()
     return rows, total
+
+
+async def grading_participants(session, exam_id, *, lock=False):
+    statement = (
+        select(ExamParticipant)
+        .where(ExamParticipant.exam_id == exam_id)
+        .order_by(ExamParticipant.id)
+    )
+    if lock:
+        statement = statement.with_for_update().execution_options(populate_existing=True)
+    return (await session.scalars(statement)).all()
+
+
+async def ended_exam_ids(session, now, limit):
+    statement = (
+        select(Exam.id)
+        .where(
+            Exam.status == ExamStatus.RELEASED,
+            Exam.end_at <= now,
+            Exam.grading_assignment_pending.is_(True),
+        )
+        .order_by(Exam.end_at, Exam.id)
+    )
+    if limit is not None:
+        statement = statement.limit(limit)
+    return list(await session.scalars(statement))
+
+
+async def participants_by_ids(session, ids):
+    return (await session.scalars(select(ExamParticipant).where(ExamParticipant.id.in_(ids)))).all()
+
+
+async def exams_by_ids(session, ids):
+    return (await session.scalars(select(Exam).where(Exam.id.in_(ids)))).all()

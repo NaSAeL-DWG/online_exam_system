@@ -1,7 +1,7 @@
 from sqlalchemy import func, select, update
 
 from .models import AttemptQuestionOrder, ExamAttempt, StudentAnswer
-from .types import AttemptStatus
+from .types import AttemptStatus, GradingStatus
 
 
 async def has_any(session, participant_ids):
@@ -149,3 +149,92 @@ async def due_attempt_ids(session, now, limit):
             .limit(limit)
         )
     )
+
+
+async def for_participants(session, participant_ids, *, lock=False):
+    statement = (
+        select(ExamAttempt)
+        .where(ExamAttempt.exam_participant_id.in_(participant_ids))
+        .order_by(ExamAttempt.exam_participant_id, ExamAttempt.attempt_no)
+    )
+    if lock:
+        statement = statement.with_for_update().execution_options(populate_existing=True)
+    return (await session.scalars(statement)).all()
+
+
+async def by_ids(session, attempt_ids):
+    return (await session.scalars(select(ExamAttempt).where(ExamAttempt.id.in_(attempt_ids)))).all()
+
+
+async def pending_grading(session, limit):
+    return list(
+        (
+            await session.execute(
+                select(ExamAttempt.id, ExamAttempt.grading_revision)
+                .where(
+                    ExamAttempt.status == AttemptStatus.SUBMITTED,
+                    ExamAttempt.grading_status == GradingStatus.PENDING,
+                )
+                .order_by(ExamAttempt.submitted_at, ExamAttempt.id)
+                .limit(limit)
+            )
+        ).all()
+    )
+
+
+async def all_submitted_ids(session, participant_ids):
+    return list(
+        await session.scalars(
+            select(ExamAttempt.id)
+            .where(
+                ExamAttempt.exam_participant_id.in_(participant_ids),
+                ExamAttempt.status == AttemptStatus.SUBMITTED,
+            )
+            .order_by(ExamAttempt.id)
+        )
+    )
+
+
+async def answer_reference(session, answer_id):
+    return await session.get(StudentAnswer, answer_id)
+
+
+async def submitted_page(session, participant_ids, pagination):
+    statement = select(ExamAttempt).where(
+        ExamAttempt.exam_participant_id.in_(participant_ids),
+        ExamAttempt.status == AttemptStatus.SUBMITTED,
+    )
+    total = await session.scalar(select(func.count()).select_from(statement.subquery()))
+    rows = (
+        await session.scalars(
+            statement.order_by(ExamAttempt.submitted_at.desc(), ExamAttempt.id)
+            .offset((pagination.page - 1) * pagination.page_size)
+            .limit(pagination.page_size)
+        )
+    ).all()
+    return rows, total
+
+
+async def last_submitted(session, participant_ids):
+    statement = (
+        select(ExamAttempt)
+        .where(
+            ExamAttempt.exam_participant_id.in_(participant_ids),
+            ExamAttempt.status == AttemptStatus.SUBMITTED,
+        )
+        .distinct(ExamAttempt.exam_participant_id)
+        .order_by(ExamAttempt.exam_participant_id, ExamAttempt.attempt_no.desc())
+    )
+    return {row.exam_participant_id: row for row in (await session.scalars(statement)).all()}
+
+
+async def grading_answers_for_attempts(session, attempt_ids):
+    return (
+        await session.scalars(
+            select(StudentAnswer)
+            .where(StudentAnswer.attempt_id.in_(attempt_ids))
+            .order_by(StudentAnswer.attempt_id, StudentAnswer.id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+    ).all()

@@ -10,6 +10,7 @@ from app.core.config import get_settings
 from app.core.database import Resources
 from app.modules.attempt import service
 from app.workers.recovery import recover_due_attempts
+from app.workers.grading import grade_attempt_job, scan_grading_job
 
 
 logger = logging.getLogger(__name__)
@@ -48,6 +49,9 @@ async def startup(ctx: dict) -> None:
     result = await scan_due_attempts_job(ctx)
     ctx["startup_recovery"] = result
     logger.info("启动到期恢复 %s", json.dumps(result, ensure_ascii=False))
+    grading_result = await scan_grading_job(ctx)
+    ctx["startup_grading_recovery"] = grading_result
+    logger.info("启动判分恢复 %s", json.dumps(grading_result, ensure_ascii=False))
 
 
 async def shutdown(ctx: dict) -> None:
@@ -57,11 +61,14 @@ async def shutdown(ctx: dict) -> None:
 
 
 class WorkerSettings:
-    """ARQ 公开装配入口：定时截止任务加每 30 秒数据库补偿扫描。"""
+    """ARQ 公开装配入口：截止／判分任务加每 30 秒持久数据库补偿。"""
 
     settings = get_settings()
-    functions = [timeout_attempt_job, scan_due_attempts_job]
-    cron_jobs = [cron(scan_due_attempts_job, second={0, 30}, keep_result=60, max_tries=3)]
+    functions = [timeout_attempt_job, scan_due_attempts_job, grade_attempt_job, scan_grading_job]
+    cron_jobs = [
+        cron(scan_due_attempts_job, second={0, 30}, keep_result=60, max_tries=3),
+        cron(scan_grading_job, second={0, 30}, keep_result=60, max_tries=3),
+    ]
     redis_settings = queue_redis_settings(settings)
     queue_name = settings.arq_queue_name
     on_startup = startup

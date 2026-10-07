@@ -185,7 +185,8 @@ async def test_committed_attempt_recovers_when_queue_is_unavailable(
     assert submitted["status"] == "SUBMITTED"
     assert submitted["submission_type"] == "TIMEOUT"
     assert submitted["effective_submitted_at"] == attempt["deadline_at"]
-    assert submitted["grading_status"] == "PENDING"
+    assert submitted["grading_status"] == "GRADED"
+    assert "final_score" not in detail.text
     assert submitted["questions"] == []
 
     repeated = await run_recovery_command(database_url, redis_url, queue_name)
@@ -206,7 +207,8 @@ async def test_scheduled_timeout_and_duplicate_jobs_preserve_one_submission(
     # 进程在截止前启动，禁用新 cron 的一次性模式只消费真实截止任务。
     scheduled = await run_worker_burst(database_url, redis_url, queue_name)
     assert attempt["id"] not in scheduled["startup_recovery"]["submitted_attempt_ids"]
-    assert scheduled["jobs_complete"] == 1
+    # 截止任务提交后投递判分任务，独立 worker 完成两项公开工作。
+    assert scheduled["jobs_complete"] == 2
     redis = ArqRedis.from_url(redis_url)
     redis.default_queue_name = queue_name
     try:
@@ -296,7 +298,7 @@ async def test_deactivated_student_times_out_and_recovers_receipt_after_reactiva
     assert deactivated.status_code == 200, deactivated.text
 
     worker_result = await run_worker_burst(database_url, redis_url, queue_name)
-    assert worker_result["jobs_complete"] == 1
+    assert worker_result["jobs_complete"] == 2
     redis = ArqRedis.from_url(redis_url)
     try:
         deadline_job = Job(f"attempt-timeout:{attempt['id']}", redis, _queue_name=queue_name)
@@ -311,7 +313,8 @@ async def test_deactivated_student_times_out_and_recovers_receipt_after_reactiva
     assert receipt.status_code == 200, receipt.text
     assert receipt.json()["status"] == "SUBMITTED"
     assert receipt.json()["submission_type"] == "TIMEOUT"
-    assert receipt.json()["grading_status"] == "PENDING"
+    assert receipt.json()["grading_status"] == "GRADED"
+    assert "final_score" not in receipt.text
     assert receipt.json()["deadline_at"] == attempt["deadline_at"]
     assert receipt.json()["effective_submitted_at"] == attempt["deadline_at"]
     summary = (await client.get(f"/api/student/exams/{exam['id']}")).json()

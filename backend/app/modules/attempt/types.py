@@ -16,3 +16,8 @@ class GradingStatus(StrEnum):
     PENDING = "PENDING"
     GRADING = "GRADING"
     GRADED = "GRADED"
+
+
+class GradingMethod(StrEnum):
+    AUTO = "AUTO"
+    MANUAL = "MANUAL"

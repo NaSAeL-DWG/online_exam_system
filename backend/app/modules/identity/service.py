@@ -345,6 +345,11 @@ async def patch_user(session, identity, user_id, payload):
             user.status = restored_status
             user.auth_version += 1
             task = schedule(session, user.id, revoke_before_version=user.auth_version)
+            if user.user_type == UserType.TEACHER and restored_status == UserStatus.DEACTIVATED:
+                from app.modules.grading import service as grading_service
+
+                # 停用与未完任务待改派同事务；保留已评题分与原指派者。
+                await grading_service.wait_teacher_tasks(session, user.id)
         user.updated_at = utc_now()
         record_audit(
             session,

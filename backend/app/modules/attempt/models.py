@@ -1,4 +1,5 @@
 from datetime import datetime
+from decimal import Decimal
 from uuid import UUID, uuid4
 
 from sqlalchemy import (
@@ -8,6 +9,7 @@ from sqlalchemy import (
     DateTime,
     Enum as SAEnum,
     Index,
+    Numeric,
     Text,
     UniqueConstraint,
     text,
@@ -16,7 +18,7 @@ from sqlmodel import Field, SQLModel
 from sqlalchemy.dialects.postgresql import JSONB
 
 from app.core.clock import utc_now
-from .types import AttemptStatus, GradingStatus, SubmissionType
+from .types import AttemptStatus, GradingMethod, GradingStatus, SubmissionType
 
 
 class ExamAttempt(SQLModel, table=True):
@@ -58,6 +60,8 @@ class ExamAttempt(SQLModel, table=True):
         sa_column=Column(SAEnum(GradingStatus, name="grading_status"), nullable=False),
     )
     grading_revision: int = Field(default=1, sa_type=BigInteger)
+    final_score: Decimal | None = Field(default=None, sa_type=Numeric(10, 1))
+    graded_at: datetime | None = Field(default=None, sa_type=DateTime(timezone=True))
     active_token_hash: str | None = Field(default=None, max_length=64)
     active_token_generation: int = Field(default=0, sa_type=BigInteger)
     voided_at: datetime | None = Field(default=None, sa_type=DateTime(timezone=True))
@@ -69,11 +73,28 @@ class ExamAttempt(SQLModel, table=True):
 
 class StudentAnswer(SQLModel, table=True):
     __tablename__ = "stu_answer"
-    __table_args__ = (UniqueConstraint("attempt_id", "exam_question_id"),)
+    __table_args__ = (
+        UniqueConstraint("attempt_id", "exam_question_id"),
+        CheckConstraint("score >= 0"),
+        Index("ix_answer_attempt_grading", "attempt_id", "grading_status"),
+    )
     id: UUID = Field(default_factory=uuid4, primary_key=True)
     attempt_id: UUID = Field(foreign_key="exam_attempt.id")
     exam_question_id: UUID = Field(foreign_key="exam_question.id")
     answer_data: list[str] | bool | str | None = Field(default=None, sa_column=Column(JSONB))
+    grading_status: GradingStatus = Field(
+        default=GradingStatus.PENDING,
+        sa_column=Column(SAEnum(GradingStatus, name="grading_status"), nullable=False),
+    )
+    grading_revision: int = Field(default=1, sa_type=BigInteger)
+    score: Decimal | None = Field(default=None, sa_type=Numeric(10, 1))
+    is_correct: bool | None = None
+    grader_comment: str | None = Field(default=None, sa_column=Column(Text))
+    graded_by: UUID | None = Field(default=None, foreign_key="user_account.id")
+    grading_method: GradingMethod | None = Field(
+        default=None, sa_column=Column(SAEnum(GradingMethod, name="grading_method"))
+    )
+    graded_at: datetime | None = Field(default=None, sa_type=DateTime(timezone=True))
     version: int = Field(default=1, sa_type=BigInteger)
     answered_at: datetime | None = Field(default=None, sa_type=DateTime(timezone=True))
     created_at: datetime = Field(default_factory=utc_now, sa_type=DateTime(timezone=True))

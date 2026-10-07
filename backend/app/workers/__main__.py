@@ -6,18 +6,17 @@ import sys
 
 from app.core.config import get_settings
 from app.core.database import Resources
-from app.workers.recovery import recover_due_attempts
+from app.workers.recovery import recover_due_attempts, recover_grading
 
 
-async def recover(limit: int | None) -> int:
+async def recover(limit: int | None, *, grading: bool = False) -> int:
     """运维恢复只读取 PostgreSQL 业务状态，Redis 失效时也可执行。"""
 
     settings = get_settings()
     resources = Resources(settings)
     try:
-        result = await recover_due_attempts(
-            resources, limit=limit or settings.attempt_scan_batch_size
-        )
+        recovery = recover_grading if grading else recover_due_attempts
+        result = await recovery(resources, limit=limit or settings.attempt_scan_batch_size)
         print(json.dumps(result.to_dict(), ensure_ascii=False))
         return 1 if result.failed else 0
     except Exception as exc:
@@ -33,11 +32,15 @@ def main() -> int:
     commands = parser.add_subparsers(dest="command", required=True)
     recovery = commands.add_parser("recover-attempts", help="补提交已经到期的有效作答")
     recovery.add_argument("--limit", type=int, choices=range(1, 1001), metavar="1..1000")
+    grading_recovery = commands.add_parser(
+        "recover-grading", help="补判已提交答卷并补处理结束考试的人工阅卷任务"
+    )
+    grading_recovery.add_argument("--limit", type=int, choices=range(1, 1001), metavar="1..1000")
     worker = commands.add_parser("worker", help="运行独立 ARQ worker")
     worker.add_argument("--burst", action="store_true", help="启动恢复后处理当前队列并退出")
     args = parser.parse_args()
-    if args.command == "recover-attempts":
-        return asyncio.run(recover(args.limit))
+    if args.command in {"recover-attempts", "recover-grading"}:
+        return asyncio.run(recover(args.limit, grading=args.command == "recover-grading"))
 
     from arq.worker import create_worker
     from app.workers.attempts import WorkerSettings
@@ -58,6 +61,7 @@ def main() -> int:
             json.dumps(
                 {
                     "startup_recovery": instance.ctx["startup_recovery"],
+                    "startup_grading_recovery": instance.ctx["startup_grading_recovery"],
                     "jobs_complete": instance.jobs_complete,
                     "jobs_failed": instance.jobs_failed,
                 },

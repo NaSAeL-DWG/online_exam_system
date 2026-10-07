@@ -1,5 +1,6 @@
 from copy import deepcopy
 from decimal import Decimal
+from pydantic import ValidationError
 from app.core.clock import utc_now
 
 from app.core.contracts import Page
@@ -215,6 +216,9 @@ async def change_release(session, identity, exam_id, payload, *, withdraw=False)
             ):
                 raise BusinessError("GRADER_REQUIRED", "含简答题须指定至少一名激活阅卷教师")
             item.status = ExamStatus.RELEASED
+            item.grading_assignment_pending = any(
+                row.type == QuestionType.SHORT_ANSWER for row in questions
+            )
             item.released_at = utc_now()
         item.version += 1
         item.updated_at = utc_now()
@@ -551,6 +555,116 @@ async def cancel_exam(session, identity, exam_id, payload):
             entity_id=exam.id,
             reason=payload.reason,
             before_data={"status": previous_status.value},
+            after_data={"status": exam.status.value, "version": exam.version},
+        )
+        result = await detail(session, exam)
+    return result
+
+
+async def grading_participants(session, exam_id, *, lock=False):
+    """评分用例批量资格读取，考试锁始终先于资格锁。"""
+    return await crud.grading_participants(session, exam_id, lock=lock)
+
+
+async def grading_teacher_ids(session, exam_id):
+    """返回配置的指定教师，任务分配不得自行扩展名单。"""
+    return list(await crud.graders(session, exam_id))
+
+
+async def ended_grading_exam_ids(session, limit=100):
+    """后台扫描已结束的发布考试，具体待分配状态由阅卷用例检查。"""
+    return await crud.ended_exam_ids(session, utc_now(), limit)
+
+
+async def grading_contexts(session, participant_ids):
+    """任务分页批量读取资格与考试，避免逐任务查询。"""
+    participants = await crud.participants_by_ids(session, participant_ids)
+    exams = await crud.exams_by_ids(session, {row.exam_id for row in participants})
+    return {row.id: row for row in participants}, {row.id: row for row in exams}
+
+
+async def grading_participant_page(session, exam_id, pagination):
+    """成绩列表只纳入当前有效资格，姓名与账号筛选由身份公开能力完成。"""
+    user_ids = None
+    if pagination.q.strip():
+        user_ids = await identity_service.filter_user_ids(
+            session, await crud.participant_user_ids(session, exam_id), pagination.q
+        )
+    return await crud.participant_page(
+        session, exam_id, pagination, ParticipantStatus.ASSIGNED, user_ids
+    )
+
+
+async def correct_grading_standard(session, identity, exam, question_id, payload):
+    """专门更正评分依据，调用方持有考试锁并负责全部受影响答卷事务。"""
+    ensure_version(exam, payload.version)
+    if exam.status == ExamStatus.RESULTS_PUBLISHED:
+        raise BusinessError("RESULTS_WITHDRAW_REQUIRED", "已公布结果须先撤回再更正评分依据")
+    if exam.status != ExamStatus.RELEASED:
+        raise BusinessError("EXAM_STATE_INVALID", "仅已发布的有效考试可专门更正评分依据")
+    question = await crud.question_by_id(session, exam.id, question_id)
+    if question is None:
+        raise BusinessError("QUESTION_NOT_FOUND", "考试快照题目不存在")
+    if question.grading_revision != payload.grading_revision:
+        raise BusinessError("VERSION_CONFLICT", "评分依据已更新，请重新读取")
+    try:
+        QuestionContent.model_validate(
+            question.model_dump()
+            | {"standard_answer": payload.standard_answer, "explanation": payload.explanation}
+        )
+    except ValidationError:
+        raise BusinessError("INVALID_ANSWER", "更正后的评分依据不符合题型或选项约束") from None
+    before = {
+        "standard_answer": question.standard_answer,
+        "explanation": question.explanation,
+        "grading_revision": question.grading_revision,
+    }
+    exam.grading_revision += 1
+    exam.grading_assignment_pending = True
+    exam.version += 1
+    exam.updated_at = utc_now()
+    question.standard_answer = deepcopy(payload.standard_answer)
+    question.explanation = payload.explanation
+    question.grading_revision = exam.grading_revision
+    question.updated_at = utc_now()
+    identity_service.record_audit(
+        session,
+        actor_id=identity.user.id,
+        action="EXAM_STANDARD_CORRECTED",
+        entity_type="exam_question",
+        entity_id=question.id,
+        reason=payload.reason,
+        before_data=before,
+        after_data={
+            "standard_answer": question.standard_answer,
+            "explanation": question.explanation,
+            "grading_revision": question.grading_revision,
+        },
+    )
+    return question
+
+
+async def withdraw_results(session, identity, exam_id, payload):
+    """更正前撤回既有公布结果；完整公布与学生成绩入口留给迭代5。"""
+    async with session.begin():
+        await identity_service.validate_content_actor(session, identity)
+        exam = await require_exam(session, exam_id, lock=True)
+        ensure_version(exam, payload.version)
+        if exam.status != ExamStatus.RESULTS_PUBLISHED:
+            raise BusinessError("EXAM_STATE_INVALID", "仅已公布结果可以撤回")
+        exam.status = ExamStatus.RELEASED
+        exam.results_withdrawn_at = utc_now()
+        exam.results_withdraw_reason = payload.reason
+        exam.version += 1
+        exam.updated_at = utc_now()
+        identity_service.record_audit(
+            session,
+            actor_id=identity.user.id,
+            action="EXAM_RESULTS_WITHDRAWN",
+            entity_type="exam",
+            entity_id=exam.id,
+            reason=payload.reason,
+            before_data={"status": ExamStatus.RESULTS_PUBLISHED.value},
             after_data={"status": exam.status.value, "version": exam.version},
         )
         result = await detail(session, exam)
