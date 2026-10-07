@@ -427,6 +427,95 @@ async def test_short_answer_standard_correction_reopens_only_affected_question_a
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("corrected_type", ["TRUE_FALSE", "SHORT_ANSWER"])
+async def test_automatic_standard_correction_waits_to_complete_task_without_reopening_other_manual_scores(
+    client, monkeypatch, corrected_type
+):
+    teacher, teacher_no = await create_teacher(client)
+    await teacher_login(client, teacher_no)
+    _, number = await create_student(client)
+    objective = corrected_type == "TRUE_FALSE"
+    exam = await released_exam(
+        client,
+        shuffle_questions=False,
+        grader_ids=[teacher["id"]],
+        question_payloads=[
+            question_payload(type="SHORT_ANSWER", options=[], standard_answer="简答评分依据"),
+            question_payload(
+                type=corrected_type,
+                options=[],
+                standard_answer=False if objective else "空答题评分依据",
+            ),
+        ],
+    )
+    attempt, _ = await submit_values(
+        client, number, exam, ["非空简答", False if objective else None]
+    )
+    headers = await admin_login(client)
+    advance_server_clock(monkeypatch, datetime.fromisoformat(exam["end_at"]) + timedelta(seconds=1))
+    await client.post(f"/api/staff/exams/{exam['id']}/grading/refresh", headers=headers, json={})
+    client.cookies.clear()
+    headers = await user_login(client, teacher_no, "TeacherChanged!123")
+    attempt_url = f"/api/staff/attempts/{attempt['id']}"
+    detail = (await client.get(attempt_url)).json()
+    manual_question = detail["questions"][0]
+    finished = await client.post(
+        f"/api/staff/answers/{manual_question['answer']['id']}/grade",
+        headers=headers,
+        json=grade_payload(manual_question, "2.0"),
+    )
+    assert finished.status_code == 200, finished.text
+    detail = finished.json()
+    assert detail["final_score"] == ("4.5" if objective else "2.0")
+    assert detail["task"]["status"] == "COMPLETED"
+    first_completed_at = detail["task"]["first_review_completed_at"]
+    manual_answer = detail["questions"][0]["answer"]
+    question = detail["questions"][1]
+    headers = await admin_login(client)
+    corrected = await client.post(
+        f"/api/staff/exams/{exam['id']}/questions/{question['id']}/correct-standard",
+        headers=headers,
+        json={
+            "version": exam["version"],
+            "grading_revision": question["grading_revision"],
+            "standard_answer": True if objective else "更正后的空答题依据",
+            "reason": "更正自动评分依据",
+        },
+    )
+    assert corrected.status_code == 200, corrected.text
+    pending = (await client.get(attempt_url)).json()
+    assert pending["grading_status"] == "PENDING"
+    assert pending["final_score"] is None
+    assert pending["task"]["status"] == "IN_PROGRESS"
+    assert pending["task"]["completed_at"] is None
+    assert pending["task"]["grading_revision"] == 2
+    assert pending["task"]["first_review_completed_at"] == first_completed_at
+    assert pending["questions"][0]["answer"] == manual_answer
+    tasks = (await client.get("/api/staff/grading-tasks", params={"exam_id": exam["id"]})).json()
+    assert tasks["items"][0]["status"] == "IN_PROGRESS"
+    assert tasks["items"][0]["completed_at"] is None
+    assert tasks["items"][0]["grading_revision"] == 2
+    refreshed = await client.post(
+        f"/api/staff/exams/{exam['id']}/grading/refresh", headers=headers, json={}
+    )
+    assert refreshed.status_code == 200, refreshed.text
+    current = (await client.get(attempt_url)).json()
+    assert current["grading_status"] == "GRADED"
+    assert current["final_score"] == "2.0"
+    assert current["task"]["status"] == "COMPLETED"
+    assert current["task"]["completed_at"] is not None
+    assert current["task"]["first_review_completed_at"] == first_completed_at
+    assert current["questions"][0]["answer"] == manual_answer
+    history = (await client.get(f"/api/staff/answers/{question['answer']['id']}/history")).json()[
+        "items"
+    ]
+    assert [(row["old_score"], row["new_score"]) for row in history] == [
+        (None, "2.5" if objective else "0.0"),
+        ("2.5" if objective else "0.0", "0.0"),
+    ]
+
+
+@pytest.mark.asyncio
 async def test_concurrent_grades_reject_stale_answer_version_and_record_only_winner(
     client, monkeypatch
 ):

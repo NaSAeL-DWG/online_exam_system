@@ -745,7 +745,10 @@ async def correct_standard(session, identity, exam_id, question_id, payload):
                         if teacher and teacher.status == UserStatus.ACTIVATED
                         else TaskStatus.UNASSIGNED
                     )
-                    task.completed_at = None
+                elif task.status == TaskStatus.COMPLETED:
+                    # 无需人工重阅时仍须等待自动补判，当前任务不能沿用旧修订完成事实。
+                    task.status = TaskStatus.IN_PROGRESS
+                task.completed_at = None
                 task.version += 1
                 task.updated_at = utc_now()
             if attempt.status == AttemptStatus.SUBMITTED:
