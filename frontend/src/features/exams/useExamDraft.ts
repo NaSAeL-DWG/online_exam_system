@@ -1,5 +1,5 @@
 import { computed, onMounted, ref } from 'vue'
-import { ApiError, errorMessage } from '../../api/client'
+import { ApiError, errorMessage, isWriteResultUnknown } from '../../api/client'
 import { examsApi, type Exam, type SnapshotQuestion } from '../../api/exams'
 import type { Question, QuestionInput } from '../../api/questions'
 
@@ -129,6 +129,24 @@ export function useExamDraft(examId: () => string) {
       saving.value = false
     }
   }
+  async function cancel(reason: string): Promise<boolean> {
+    if (!exam.value || saving.value) return false
+    saving.value = true
+    failure.value = ''
+    success.value = ''
+    try {
+      assign(await examsApi.cancel(exam.value.id, exam.value.version, reason))
+      success.value = '考试已取消，全部作答已废弃。'
+      return true
+    } catch (error) {
+      recordError(error)
+      // 不确定的取消结果必须先重读，避免重复发出不可恢复的业务操作。
+      if (isWriteResultUnknown(error)) conflict.value = true
+      return false
+    } finally {
+      saving.value = false
+    }
+  }
   function move(index: number, direction: number): void {
     const questions = form.value!.questions
     const item = questions.splice(index, 1)[0]
@@ -182,6 +200,7 @@ export function useExamDraft(examId: () => string) {
     load,
     save,
     transition,
+    cancel,
     move,
     addQuestion,
     editQuestion,

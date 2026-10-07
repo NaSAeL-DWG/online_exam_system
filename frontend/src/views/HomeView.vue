@@ -10,7 +10,7 @@ const auth = useAuthStore()
 const copy = computed(
   () =>
     ({
-      STUDENT: { title: '学生工作台', description: '查看并维护你的个人账号资料。' },
+      STUDENT: { title: '学生工作台', description: '参加限时考试，维护你的个人账号资料。' },
       TEACHER: {
         title: '教师工作台',
         description: '准备题目与试卷，安排考试，处理教学与身份事务。',
@@ -19,6 +19,9 @@ const copy = computed(
     })[auth.user?.user_type ?? 'STUDENT'],
 )
 const modules = computed(() => accessibleModules(auth.user))
+const workspace = computed(() =>
+  modules.value.filter((item) => item.group === 'workspace' && item.entry),
+)
 const preparation = computed(() =>
   modules.value.filter((item) => item.group === 'preparation' && item.entry),
 )
@@ -33,6 +36,22 @@ const account = computed(() =>
     <PageHeader :title="copy.title" :description="copy.description"
       ><template #actions><StatusBadge label="账号已激活" tone="success" /></template
     ></PageHeader>
+    <section v-if="workspace.length" class="home-section">
+      <header class="home-section-heading">
+        <h2>考试作答</h2>
+        <p>查看开放时间与作答机会</p>
+      </header>
+      <div class="home-task-list">
+        <RouterLink v-for="item in workspace" :key="item.path" :to="item.path" class="home-task">
+          <AppIcon :name="item.icon" :size="21" />
+          <div>
+            <h3>{{ item.entry!.title }}</h3>
+            <p>{{ item.entry!.description }}</p>
+          </div>
+          <AppIcon name="arrow-right" :size="18" />
+        </RouterLink>
+      </div>
+    </section>
     <section v-if="preparation.length" class="home-section">
       <header class="home-section-heading">
         <h2>考试准备</h2>
@@ -96,7 +115,7 @@ const account = computed(() =>
             /></RouterLink>
           </div>
           <p v-if="auth.user?.user_type === 'STUDENT'" class="home-account-note">
-            当前开放个人资料和账号安全。考试列表与作答功能尚未开放。
+            仅在点击开始作答后使用考试机会；关闭页面和断网不会暂停计时。
           </p>
           <p v-else class="home-account-note">姓名或登录账号需要更正时，请由管理员核验后处理。</p>
         </div>

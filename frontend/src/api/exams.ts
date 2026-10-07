@@ -35,6 +35,8 @@ export interface ExamSummary extends ExamConfiguration {
   total_score: string
 }
 export interface Exam extends ExamSummary {
+  cancelled_at: string | null
+  cancelled_reason: string | null
   graders: UserSummary[]
   questions: SnapshotQuestion[]
   content_revision: number
@@ -78,6 +80,12 @@ export const examsApi = {
     return request(`/staff/exams/${id}/withdraw`, {
       method: 'POST',
       body: JSON.stringify({ version }),
+    })
+  },
+  cancel(id: string, version: number, reason: string): Promise<Exam> {
+    return request(`/staff/exams/${id}/cancel`, {
+      method: 'POST',
+      body: JSON.stringify({ version, reason }),
     })
   },
 }

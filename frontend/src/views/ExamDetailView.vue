@@ -35,12 +35,22 @@ const {
   load,
   save,
   transition,
+  cancel,
   move,
   addQuestion,
   editQuestion,
   applyQuestion,
 } = useExamDraft(() => String(route.params.id))
 const activeTab = ref(0)
+const cancelVisible = ref(false)
+const cancelReason = ref('')
+function openCancel(): void {
+  cancelReason.value = ''
+  cancelVisible.value = true
+}
+async function confirmCancel(): Promise<void> {
+  if (await cancel(cancelReason.value)) cancelVisible.value = false
+}
 const tabs = [
   { label: '考试设置', icon: 'clock', id: 'exam-settings' },
   { label: '题目快照', icon: 'paper', id: 'exam-questions' },
@@ -109,6 +119,13 @@ function confirmTransition(action: 'publish' | 'withdraw'): void {
           :loading="saving"
           @click="confirmTransition('withdraw')"
           >撤回考试发布</NButton
+        ><NButton
+          v-if="exam && exam.status !== 'CANCELLED'"
+          type="error"
+          secondary
+          :disabled="saving || conflict"
+          @click="openCancel"
+          >取消整场考试</NButton
         ></template
       >
     </PageHeader>
@@ -119,6 +136,10 @@ function confirmTransition(action: 'publish' | 'withdraw'): void {
       }}</NButton></NAlert
     >
     <NAlert v-if="success" type="success">{{ success }}</NAlert>
+    <NAlert v-if="exam?.status === 'CANCELLED'" type="error"
+      ><strong>本场考试已取消，无法恢复。</strong>
+      <p v-if="exam.cancelled_reason">{{ exam.cancelled_reason }}</p></NAlert
+    >
     <NAlert v-for="warning in exam?.warnings" :key="warning" type="warning">{{ warning }}</NAlert>
     <p v-if="loading && !exam" class="muted" role="status">正在加载考试…</p>
     <template v-if="form && exam">
@@ -177,7 +198,7 @@ function confirmTransition(action: 'publish' | 'withdraw'): void {
           role="tabpanel"
           aria-labelledby="exam-settings-tab"
         >
-          <NAlert v-if="!isDraft" class="form-alert" type="info"
+          <NAlert v-if="!isDraft && exam.status !== 'CANCELLED'" class="form-alert" type="info"
             >已发布配置已锁定。尚无人开始时可撤回发布后修改。</NAlert
           ><ExamSettings
             v-model="form"
@@ -214,9 +235,6 @@ function confirmTransition(action: 'publish' | 'withdraw'): void {
       >
         <ExamParticipants :exam-id="exam.id" :audience="exam.audience_type" :status="exam.status" />
       </section>
-      <p class="delivery-note muted">
-        <AppIcon name="info" :size="15" />学生考试列表和作答功能尚未开放。
-      </p>
     </template>
     <NModal
       v-model:show="questionVisible"
@@ -234,9 +252,47 @@ function confirmTransition(action: 'publish' | 'withdraw'): void {
         </div>
       </form></NModal
     >
+    <NModal
+      v-model:show="cancelVisible"
+      preset="card"
+      title="取消整场考试"
+      class="responsive-modal"
+      :mask-closable="false"
+      :closable="!saving"
+      :close-on-esc="!saving"
+    >
+      <NAlert type="error">取消后全部作答将废弃，考试无法恢复。</NAlert>
+      <form class="cancel-exam-form" @submit.prevent="confirmCancel">
+        <label class="field"
+          >取消考试原因<textarea
+            v-model="cancelReason"
+            aria-label="取消考试原因"
+            required
+            maxlength="2000"
+            rows="3"
+            :disabled="saving"
+          />
+        </label>
+        <div class="editor-actions">
+          <NButton :disabled="saving" @click="cancelVisible = false">保留考试</NButton
+          ><NButton
+            attr-type="submit"
+            type="error"
+            :disabled="!cancelReason.trim() || conflict"
+            :loading="saving"
+            >确认取消整场考试</NButton
+          >
+        </div>
+      </form>
+    </NModal>
   </div>
 </template>
 <style scoped>
+.cancel-exam-form {
+  display: grid;
+  gap: 20px;
+  margin-top: 20px;
+}
 .detail-back {
   margin-bottom: -12px;
 }

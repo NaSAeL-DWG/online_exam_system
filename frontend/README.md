@@ -13,7 +13,7 @@
 - `src/composables/usePagedList.ts`：列表页的分页、加载、失败及请求竞争处理；筛选条件和 API 调用仍由所属业务提供。
 - `src/api/` 与 `src/stores/`：公开通信契约和身份状态，视觉组件不直接处理 Cookie、刷新凭据或原始 fetch。
 
-新增后续业务时，先实现对应 API 与业务模块，在 `router.ts` 声明路由及访问条件，再在 `navigation/modules.ts` 登记实际可用的入口。导航隐藏不能替代路由和后端权限检查。尚未交付的作答、阅卷和成绩模块不显示可点击空入口。
+新增后续业务时，先实现对应 API 与业务模块，在 `router.ts` 声明路由及访问条件，再在 `navigation/modules.ts` 登记实际可用的入口。导航隐藏不能替代路由和后端权限检查。学生作答已实现；尚未交付的阅卷和成绩模块不显示可点击空入口。
 
 页面采用一个明确的 `h1`；详情页优先突出当前对象名称，状态用徽标表达。主操作放在标题区，筛选和辅助操作使用次级强调。编辑表单保留可访问标签和失败反馈，长表格局部滚动，小屏不能通过固定页面最小宽度处理。
 
@@ -58,3 +58,21 @@ npm run test:e2e
 原有 4 条注册、拒绝重申、教师首次改密、教学班维护流程继续使用真实服务。`server-pagination.spec.ts` 通过公开 API 创建 21 名教师，验证账号 20+1 分页、跨页关联和再次编辑，不替换真实业务响应。
 
 `pagination.spec.ts` 在 HTTP 边界提供确定分页数据，验证筛选、搜索复位、候选保留和列表故障重试。`auth-reliability.spec.ts` 连接真实认证及写入，只在 HTTP 交付边界注入待清理响应头、连接中断、损坏 JSON 和 503；通过用户界面及公开 API 核对结果，不 mock 内部模块或查询数据库。测试会创建独立账号及班级，建议使用本地测试环境。截图输出到 `test-results/visual/`。
+
+## 学生作答扩展
+
+学生考试列表、详情和作答分别由 `StudentExamsView`、`StudentExamDetailView`、`StudentAttemptView` 组合。`api/studentExams.ts` 对齐[迭代 3 接口契约](../docs/迭代3接口契约.md)，详情不读取题目，主动开始才使用机会。最新提交只显示收据；提交后清空题目界面，不提前开放回看或成绩。
+
+`features/attempts/` 按实际职责拆分：`AttemptQuestion.vue` 展示四类题和保存状态；`useAttemptWorkspace.ts` 编排读取、逐题保存、冲突反馈和交卷；`pageLease.ts` 持有按用户与作答命名的 Web Lock，通过 BroadcastChannel 协调主动接管；`answerDrafts.ts` 管理答案空值、草稿与版本；`examAvailability.ts` 提供时间和资格反馈。
+
+页面实例标识每次加载重新生成，不放进可复制的 sessionStorage。普通刷新保留原令牌，取得浏览器写锁后恢复；复制标签页即使复制了令牌也只能只读。新浏览器或设备没有原令牌时，已激活的答卷默认只读，必须主动接管；首次自动激活携带 `expected_generation: 0`，由服务端锁内比较防止两台新设备同时抢到初始权限。主动接管释放旧页面写锁，并使用服务端新令牌代次；先读取服务器答案，放弃陈旧草稿。离开页面会停止写入，浏览器返回缓存页面时重新取得锁并确认令牌。每次加载和权限变更递增前端代次，在途响应不能修改下一代页面状态或草稿。
+
+本地草稿以用户、考试、作答命名，并记录逐题已确认答案版本、最新输入，以及响应不确定时已发出的值与版本。重试和刷新先通过 HTTP 核对服务器版本，仍在截止前才保存；用户改回旧值或清空也保留最新意图。倒计时使用服务器 `server_now`、固定 `deadline_at` 和浏览器单调时钟展示，设备时间变化不能延长作答。交卷先同步防抖和在途保存，再列出空题确认；到期只显示服务端自动交卷事实，未上传草稿不能补传。待检查标记仅作为当前作答辅助，保存在页面会话中。
+
+`student-attempt.spec.ts` 连接真实 PostgreSQL、Redis、API 和 worker，覆盖开始、四类答案、刷新、固定截止时间、防抖交卷、空题确认、复制页接管、响应丢失及离线恢复、截止拒绝、版本冲突、资格撤销和整场取消。故障只在浏览器网络或公开 HTTP 交付边界注入。保持单 worker，并指定独立输出目录，避免多个测试进程争用产物：
+
+```bash
+PLAYWRIGHT_EXTERNAL_SERVER=1 npm run test:e2e -- tests/e2e/student-attempt.spec.ts --workers=1 --output=../.local/iteration3-frontend/check --reporter=list
+```
+
+运行前按上文从 `.local/e2e.env` 加载私有凭据，不将凭据或本地报告提交到仓库。

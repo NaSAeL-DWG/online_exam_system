@@ -17,6 +17,18 @@ const everyone: UserRole[] = ['STUDENT', 'TEACHER', 'ADMIN']
 export const navigationModules: NavigationModule[] = [
   { path: '/home', label: '工作台', icon: 'home', group: 'workspace', roles: everyone },
   {
+    path: '/student/exams',
+    label: '我的考试',
+    icon: 'exam',
+    group: 'workspace',
+    roles: ['STUDENT'],
+    entry: {
+      title: '参加限时考试',
+      description: '阅读考试说明，开始或恢复自己的作答。',
+      action: '查看我的考试',
+    },
+  },
+  {
     path: '/student/application',
     label: '审核状态',
     icon: 'check-circle',
