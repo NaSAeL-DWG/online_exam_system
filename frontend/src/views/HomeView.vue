@@ -38,8 +38,14 @@ const account = computed(() =>
     ></PageHeader>
     <section v-if="workspace.length" class="home-section">
       <header class="home-section-heading">
-        <h2>考试作答</h2>
-        <p>查看开放时间与作答机会</p>
+        <h2>{{ auth.user?.user_type === 'STUDENT' ? '考试作答' : '人工阅卷' }}</h2>
+        <p>
+          {{
+            auth.user?.user_type === 'STUDENT'
+              ? '查看开放时间与作答机会'
+              : '整卷首阅、评分复核与任务处理'
+          }}
+        </p>
       </header>
       <div class="home-task-list">
         <RouterLink v-for="item in workspace" :key="item.path" :to="item.path" class="home-task">

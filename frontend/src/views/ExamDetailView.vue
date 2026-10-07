@@ -12,6 +12,9 @@ import AppIcon from '../components/ui/AppIcon.vue'
 import ExamSettings from '../features/exams/ExamSettings.vue'
 import SnapshotQuestions from '../features/exams/SnapshotQuestions.vue'
 import { useExamDraft } from '../features/exams/useExamDraft'
+import ExamGradingPanel from '../features/grading/ExamGradingPanel.vue'
+import StandardCorrection from '../features/grading/StandardCorrection.vue'
+import WithdrawResults from '../features/grading/WithdrawResults.vue'
 const route = useRoute()
 const router = useRouter()
 const dialog = useDialog()
@@ -44,6 +47,17 @@ const {
 const activeTab = ref(0)
 const cancelVisible = ref(false)
 const cancelReason = ref('')
+const correctionIndex = ref<number | null>(null)
+const correctionSuccess = ref('')
+const withdrawResultsVisible = ref(false)
+function standardSaved(): void {
+  correctionSuccess.value = '评分依据已更新，受影响的答卷将按当前依据重判。'
+  void load()
+}
+function resultsWithdrawn(): void {
+  correctionSuccess.value = '已撤回公布结果，可继续更正评分。'
+  void load()
+}
 function openCancel(): void {
   cancelReason.value = ''
   cancelVisible.value = true
@@ -55,6 +69,7 @@ const tabs = [
   { label: '考试设置', icon: 'clock', id: 'exam-settings' },
   { label: '题目快照', icon: 'paper', id: 'exam-questions' },
   { label: '参考资格', icon: 'users', id: 'exam-eligibility' },
+  { label: '答卷与成绩', icon: 'check-circle', id: 'exam-grading' },
 ]
 const tabButtons = ref<HTMLButtonElement[]>([])
 function activateTab(index: number): void {
@@ -120,6 +135,11 @@ function confirmTransition(action: 'publish' | 'withdraw'): void {
           @click="confirmTransition('withdraw')"
           >撤回考试发布</NButton
         ><NButton
+          v-if="exam?.status === 'RESULTS_PUBLISHED'"
+          :disabled="saving"
+          @click="withdrawResultsVisible = true"
+          >撤回已公布结果</NButton
+        ><NButton
           v-if="exam && exam.status !== 'CANCELLED'"
           type="error"
           secondary
@@ -136,6 +156,7 @@ function confirmTransition(action: 'publish' | 'withdraw'): void {
       }}</NButton></NAlert
     >
     <NAlert v-if="success" type="success">{{ success }}</NAlert>
+    <NAlert v-if="correctionSuccess" type="success">{{ correctionSuccess }}</NAlert>
     <NAlert v-if="exam?.status === 'CANCELLED'" type="error"
       ><strong>本场考试已取消，无法恢复。</strong>
       <p v-if="exam.cancelled_reason">{{ exam.cancelled_reason }}</p></NAlert
@@ -221,9 +242,11 @@ function confirmTransition(action: 'publish' | 'withdraw'): void {
             ><SnapshotQuestions
               v-model="form.questions"
               :disabled="!isDraft || saving"
+              :allow-correction="exam.status === 'RELEASED' || exam.status === 'RESULTS_PUBLISHED'"
               @move="move"
               @edit="editQuestion"
               @add="addQuestion"
+              @correct="correctionIndex = $event"
           /></SurfacePanel>
         </section>
       </form>
@@ -235,7 +258,30 @@ function confirmTransition(action: 'publish' | 'withdraw'): void {
       >
         <ExamParticipants :exam-id="exam.id" :audience="exam.audience_type" :status="exam.status" />
       </section>
+      <section
+        v-if="activeTab === 3"
+        id="exam-grading"
+        role="tabpanel"
+        aria-labelledby="exam-grading-tab"
+      >
+        <ExamGradingPanel :exam-id="exam.id" :cancelled="exam.status === 'CANCELLED'" />
+      </section>
     </template>
+    <StandardCorrection
+      v-if="exam && correctionIndex !== null"
+      :exam="exam"
+      :question-index="correctionIndex"
+      @close="correctionIndex = null"
+      @saved="standardSaved"
+      @refreshed="load"
+    />
+    <WithdrawResults
+      v-if="exam && withdrawResultsVisible"
+      :exam="exam"
+      @close="withdrawResultsVisible = false"
+      @saved="resultsWithdrawn"
+      @refresh="load"
+    />
     <NModal
       v-model:show="questionVisible"
       preset="card"
@@ -393,12 +439,13 @@ function confirmTransition(action: 'publish' | 'withdraw'): void {
     gap: 16px;
   }
   .exam-tabs {
-    gap: 0;
-    justify-content: space-between;
+    gap: 18px;
+    overflow-x: auto;
   }
   .exam-tabs button {
     font-size: 13px;
     gap: 6px;
+    flex-shrink: 0;
   }
   .exam-overview strong {
     font-size: 18px;

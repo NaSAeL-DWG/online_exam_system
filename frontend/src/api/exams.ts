@@ -10,6 +10,7 @@ export interface SnapshotQuestion extends QuestionInput {
   source_question_id: string | null
   order_no?: number
   score: string
+  grading_revision?: number
 }
 export interface ExamConfiguration {
   title: string
@@ -84,6 +85,28 @@ export const examsApi = {
   },
   cancel(id: string, version: number, reason: string): Promise<Exam> {
     return request(`/staff/exams/${id}/cancel`, {
+      method: 'POST',
+      body: JSON.stringify({ version, reason }),
+    })
+  },
+  correctStandard(
+    id: string,
+    questionId: string,
+    input: {
+      version: number
+      grading_revision: number
+      standard_answer: QuestionInput['standard_answer']
+      explanation: string | null
+      reason: string
+    },
+  ): Promise<Exam> {
+    return request(`/staff/exams/${id}/questions/${questionId}/correct-standard`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    })
+  },
+  withdrawResults(id: string, version: number, reason: string): Promise<Exam> {
+    return request(`/staff/exams/${id}/withdraw-results`, {
       method: 'POST',
       body: JSON.stringify({ version, reason }),
     })

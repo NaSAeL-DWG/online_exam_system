@@ -52,7 +52,7 @@ export interface AttemptDetail {
   submitted_at: string | null
   effective_submitted_at: string | null
   submission_type: 'MANUAL' | 'TIMEOUT' | null
-  grading_status: 'PENDING'
+  grading_status: 'PENDING' | 'GRADING' | 'GRADED'
   server_now: string
   version: number
   token_generation: number

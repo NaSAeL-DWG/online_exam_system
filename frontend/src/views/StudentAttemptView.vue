@@ -117,6 +117,15 @@ function confirmReload(): void {
             {{ attempt.submission_type === 'TIMEOUT' ? '时间到，系统已自动交卷' : '手动交卷成功' }}
           </h3>
           <p>第 {{ attempt.attempt_no }} 次作答已提交，答案无法再修改。</p>
+          <p>
+            {{
+              attempt.grading_status === 'GRADED'
+                ? '本次答卷已完成批改，成绩将在整场结果公布后开放。'
+                : attempt.grading_status === 'GRADING'
+                  ? '本次答卷正在等待人工阅卷，成绩将在整场结果公布后开放。'
+                  : '本次答卷等待判分，成绩将在整场结果公布后开放。'
+            }}
+          </p>
           <p v-if="attempt.effective_submitted_at">
             有效提交时间：{{ examTime(attempt.effective_submitted_at) }}（上海）
           </p>

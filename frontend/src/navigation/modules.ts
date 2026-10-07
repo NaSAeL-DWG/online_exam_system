@@ -17,6 +17,18 @@ const everyone: UserRole[] = ['STUDENT', 'TEACHER', 'ADMIN']
 export const navigationModules: NavigationModule[] = [
   { path: '/home', label: '工作台', icon: 'home', group: 'workspace', roles: everyone },
   {
+    path: '/staff/grading-tasks',
+    label: '阅卷工作台',
+    icon: 'check-circle',
+    group: 'workspace',
+    roles: staff,
+    entry: {
+      title: '处理人工阅卷',
+      description: '完成整卷首阅，核对评分历史与后续更正。',
+      action: '进入阅卷工作台',
+    },
+  },
+  {
     path: '/student/exams',
     label: '我的考试',
     icon: 'exam',

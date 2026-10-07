@@ -13,7 +13,7 @@
 - `src/composables/usePagedList.ts`：列表页的分页、加载、失败及请求竞争处理；筛选条件和 API 调用仍由所属业务提供。
 - `src/api/` 与 `src/stores/`：公开通信契约和身份状态，视觉组件不直接处理 Cookie、刷新凭据或原始 fetch。
 
-新增后续业务时，先实现对应 API 与业务模块，在 `router.ts` 声明路由及访问条件，再在 `navigation/modules.ts` 登记实际可用的入口。导航隐藏不能替代路由和后端权限检查。学生作答已实现；尚未交付的阅卷和成绩模块不显示可点击空入口。
+新增后续业务时，先实现对应 API 与业务模块，在 `router.ts` 声明路由及访问条件，再在 `navigation/modules.ts` 登记实际可用的入口。导航隐藏不能替代路由和后端权限检查。学生作答与工作人员阅卷已实现；学生成绩回看、结果公布和分析仍按后续迭代交付，不显示可点击空入口。
 
 页面采用一个明确的 `h1`；详情页优先突出当前对象名称，状态用徽标表达。主操作放在标题区，筛选和辅助操作使用次级强调。编辑表单保留可访问标签和失败反馈，长表格局部滚动，小屏不能通过固定页面最小宽度处理。
 
@@ -61,7 +61,7 @@ npm run test:e2e
 
 ## 学生作答扩展
 
-学生考试列表、详情和作答分别由 `StudentExamsView`、`StudentExamDetailView`、`StudentAttemptView` 组合。`api/studentExams.ts` 对齐[迭代 3 接口契约](../docs/迭代3接口契约.md)，详情不读取题目，主动开始才使用机会。最新提交只显示收据；提交后清空题目界面，不提前开放回看或成绩。
+学生考试列表、详情和作答分别由 `StudentExamsView`、`StudentExamDetailView`、`StudentAttemptView` 组合。`api/studentExams.ts` 对齐[迭代 3 接口契约](../docs/迭代3接口契约.md)，详情不读取题目，主动开始才使用机会。最新提交只显示收据与待判分／人工阅卷／已批改状态；提交后清空题目界面，已批改也不提前开放回看或成绩。
 
 `features/attempts/` 按实际职责拆分：`AttemptQuestion.vue` 展示四类题和保存状态；`useAttemptWorkspace.ts` 编排读取、逐题保存、冲突反馈和交卷；`pageLease.ts` 持有按用户与作答命名的 Web Lock，通过 BroadcastChannel 协调主动接管；`answerDrafts.ts` 管理答案空值、草稿与版本；`examAvailability.ts` 提供时间和资格反馈。
 
@@ -76,3 +76,13 @@ PLAYWRIGHT_EXTERNAL_SERVER=1 npm run test:e2e -- tests/e2e/student-attempt.spec.
 ```
 
 运行前按上文从 `.local/e2e.env` 加载私有凭据，不将凭据或本地报告提交到仓库。
+
+## 自动判分与人工阅卷
+
+`api/grading.ts` 对齐[迭代 4 接口契约](../docs/迭代4接口契约.md)，集中定义答卷、任务、单题评分、历史和最终成绩的类型。`GradingTasksView` 提供我的任务、待指派、完成与全部任务；管理员默认待指派，教师默认自己的任务。考试详情中的答卷与成绩区域按需挂载 `ExamAttemptList` 或 `ExamFinalResults`，保留服务端分页与学生搜索。最终成绩先选择最后一次有效提交；该次待批改时不展示此前成绩。
+
+`StaffAttemptView` 组合整卷概览、题目导航、答案与评分表单。`features/grading/useGradingWorkspace.ts` 编排整卷读取和逐题保存；评分成功以服务端完整答卷更新单题、任务、权限与总分。`GradeForm` 只处理分值、评语、改分原因和未保存状态；首次整卷完成前的指定教师权限直接使用 API 的 `can_grade`。版本冲突保留输入并阻止旧版本重试，明确确认后重新读取。纯客观题或全空简答不显示首阅限制。
+
+`GradingHistory` 按需读取单题历史；`ReassignTask` 为管理员提供分页激活教师候选和必填改派原因。`StandardCorrection` 仅编辑标准答案、简答依据、解析与更正原因，题干、选项和分值仍锁定；重判中的旧题分清楚标注为旧依据评分。`WithdrawResults` 对已公布考试提供先撤回再更正的实际入口，本轮不新增结果公布操作。
+
+`grading-workspace.spec.ts` 通过真实公开 HTTP 创建独立教师、学生、快照与提交，浏览器验证整卷首阅、后续改分、并发冲突、历史、停用改派、依据更正、最终成绩和学生收据可见性。测试不访问数据库或 mock 内部模块，后台正常运行；本地证据统一输出到 `.local/iteration4-frontend/`，不提交凭据与运行产物。

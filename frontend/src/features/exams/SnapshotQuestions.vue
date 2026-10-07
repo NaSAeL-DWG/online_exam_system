@@ -6,11 +6,12 @@ import SafeMarkdown from '../../components/SafeMarkdown.vue'
 import QuestionPicker from '../../components/QuestionPicker.vue'
 import type { Question } from '../../api/questions'
 const model = defineModel<SnapshotQuestion[]>({ required: true })
-defineProps<{ disabled: boolean }>()
+defineProps<{ disabled: boolean; allowCorrection?: boolean }>()
 const emit = defineEmits<{
   move: [index: number, direction: number]
   edit: [index: number]
   add: [question: Question]
+  correct: [index: number]
 }>()
 </script>
 <template>
@@ -63,6 +64,13 @@ const emit = defineEmits<{
               >下移</NButton
             ><NButton size="small" @click="model.splice(index, 1)">移出</NButton>
           </div>
+          <NButton
+            v-if="allowCorrection"
+            size="small"
+            :aria-label="`更正第 ${index + 1} 题评分依据`"
+            @click="emit('correct', index)"
+            >更正评分依据</NButton
+          >
         </div>
       </article>
     </section>
