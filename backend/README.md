@@ -1,8 +1,8 @@
 # 后端维护说明
 
-业务模块位于 `app/modules/identity`、`auth`、`teaching_class`。HTTP 路由负责参数、依赖和 Cookie；顶层业务用例持有事务；CRUD 负责 ORM 读写、锁刷新、分页和聚合。`app/models.py` 仅注册 Alembic 元数据，`app/config.py`、`app/db.py` 保留已有基础设施导入兼容入口。被替换的旧文件归档在项目 `.deletedfiles/backend-round1/`。
+业务按模块组织于 `app/modules/`，身份、认证、教学班以及题库、试卷、考试、作答和阅卷各自维护职责。HTTP 路由负责参数、依赖和 Cookie；顶层业务用例持有事务；CRUD 负责 ORM 读写、锁刷新、分页和聚合。`app/models.py` 仅注册 Alembic 元数据，`app/config.py`、`app/db.py` 保留已有基础设施导入兼容入口。被替换的旧文件归档在项目 `.deletedfiles/backend-round1/`。
 
-身份依赖使用独立只读 Session，输出包含公开资料和认证版本的不可变快照。写用例用新 Session 事务重读身份，并在 `FOR UPDATE + populate_existing` 后检查状态、角色和版本。CLI 的前置读取明确 rollback，随后复用同一密码重置用例。下级组合操作不提交事务；业务数据、认证版本和审计一起提交。
+身份依赖使用独立只读 Session，输出包含公开资料和认证版本的不可变快照。写用例用新 Session 事务重读身份，按用例取得共享或排他锁并使用 `populate_existing` 后检查状态、角色和版本。CLI 的前置读取明确 rollback，随后复用同一密码重置用例。下级组合操作不提交事务；业务数据、认证版本和审计一起提交。
 
 列表统一接受 `page`（默认 1）、`page_size`（默认 20，最大 100）、`q`，返回 `items/total/page/page_size`。原角色、状态过滤保持不变。教学班列表只聚合学生人数，批量读取教师；详情才读取学生。带教师的 1 班与 4 班列表均为 6 次 SELECT（含认证身份读取），响应映射不执行查询。班级详情成员暂不分页。
 
@@ -29,6 +29,8 @@ Refresh Token 单次使用：CAS 竞争仅一个请求成功，旧凭据重放�
 
 ## 验证
 
+按变更范围选择相关测试文件，不要求每次执行全部测试。完整测试入口及静态检查如下：
+
 ```bash
 set -a
 source ../.local/backend-test.env
@@ -39,3 +41,20 @@ uv run ruff format --check app tests migrations
 ```
 
 测试依赖真实 PostgreSQL/Redis；`--tb=short` 避免失败时展示包含连接配置的 fixture 局部变量。保留迭代 1 的 18 项 HTTP 验收；本轮另有响应白名单/OpenAPI、依赖方向、分页 SQL 数量、提交后故障和 CLI 重试、刷新数据库故障/重放/竞态、先认证再并发重置或停用的用例。各次真实红绿结果由项目 `docs/` 统一记录。
+
+## 作答、判分与人工阅卷
+
+`attempt` 负责固定截止、单页面写权限、答案版本和可靠提交；`grading` 负责自动题分、整卷任务、人工改分、不可变历史和最终成绩查询。HTTP 与独立 `workers` 复用公开业务用例，跨模块通过服务能力组合，数据库作为业务状态依据。完整契约见[迭代 3](../docs/迭代3接口契约.md)与[迭代 4](../docs/迭代4接口契约.md)。
+
+交卷后投递包含评分修订的任务，持久扫描补偿队列失败。考试结束且有效作答提交／自动判分完成后才均分人工任务；`grading_assignment_pending` 使每轮扫描只读取待办。更正单题只使该题失效，保留无关题分和首次整卷完成事实，当前任务完成状态与新修订的答卷汇总一致。最后有效提交尚未判完时最终成绩为空。
+
+API 与 worker 分进程启动，迁移到 `0014` 后运行：
+
+```bash
+uv run python -m app.workers worker
+# 队列不可用时，按顺序补交、补判；命令仅依赖 PostgreSQL 业务状态。
+uv run python -m app.workers recover-attempts --limit 100
+uv run python -m app.workers recover-grading --limit 100
+```
+
+详细运行配置、恢复输出和最终验证范围见[本地运行](../docs/本地运行.md)及[迭代 4 验证记录](../docs/迭代4验证记录.md)。学生收据只展示提交／判分进度；完整公布、学生成绩和回看仍属于后续迭代。
