@@ -34,6 +34,30 @@ const routes: RouteRecordRaw[] = [
         meta: { roles: ['TEACHER', 'ADMIN'], active: true },
       },
       {
+        path: 'student/mistakes',
+        name: 'student-mistakes',
+        component: () => import('./views/StudentMistakesView.vue'),
+        meta: { roles: ['STUDENT'], active: true },
+      },
+      {
+        path: 'student/mistakes/:id',
+        name: 'student-mistake-detail',
+        component: () => import('./views/StudentMistakeDetailView.vue'),
+        meta: { roles: ['STUDENT'], active: true },
+      },
+      {
+        path: 'student/results',
+        name: 'student-results',
+        component: () => import('./views/StudentResultsView.vue'),
+        meta: { roles: ['STUDENT'], active: true },
+      },
+      {
+        path: 'student/results/:id',
+        name: 'student-result-detail',
+        component: () => import('./views/StudentResultDetailView.vue'),
+        meta: { roles: ['STUDENT'], active: true },
+      },
+      {
         path: 'student/exams',
         name: 'student-exams',
         component: () => import('./views/StudentExamsView.vue'),
@@ -43,6 +67,12 @@ const routes: RouteRecordRaw[] = [
         path: 'student/exams/:id',
         name: 'student-exam-detail',
         component: () => import('./views/StudentExamDetailView.vue'),
+        meta: { roles: ['STUDENT'], active: true },
+      },
+      {
+        path: 'student/attempts/:id/review',
+        name: 'student-review',
+        component: () => import('./views/StudentReviewView.vue'),
         meta: { roles: ['STUDENT'], active: true },
       },
       {

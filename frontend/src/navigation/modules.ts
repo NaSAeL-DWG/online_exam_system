@@ -41,6 +41,30 @@ export const navigationModules: NavigationModule[] = [
     },
   },
   {
+    path: '/student/results',
+    label: '考试历史',
+    icon: 'paper',
+    group: 'workspace',
+    roles: ['STUDENT'],
+    entry: {
+      title: '查看考试结果',
+      description: '查看各次得分、最终成绩与开放回看的答卷。',
+      action: '进入考试历史',
+    },
+  },
+  {
+    path: '/student/mistakes',
+    label: '我的错题',
+    icon: 'book',
+    group: 'workspace',
+    roles: ['STUDENT'],
+    entry: {
+      title: '复习错题记录',
+      description: '按科目、题型与知识点筛选，记录学习备注和掌握状态。',
+      action: '进入我的错题',
+    },
+  },
+  {
     path: '/student/application',
     label: '审核状态',
     icon: 'check-circle',

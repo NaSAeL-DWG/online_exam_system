@@ -112,6 +112,11 @@ onMounted(load)
         </ul>
         <div class="detail-start">
           <NButton
+            v-if="exam.used_attempts > 0 || exam.status === 'RESULTS_PUBLISHED'"
+            @click="router.push(`/student/results/${exam.id}`)"
+            >查看本场结果</NButton
+          >
+          <NButton
             v-if="exam.can_start"
             type="primary"
             :loading="starting"

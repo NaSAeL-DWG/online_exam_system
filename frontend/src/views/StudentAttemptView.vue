@@ -135,6 +135,11 @@ function confirmReload(): void {
           <RouterLink :to="`/student/exams/${attempt.exam_id}`"
             >返回考试详情查看剩余机会 →</RouterLink
           >
+          <p>
+            <RouterLink :to="`/student/results/${attempt.exam_id}`"
+              >查看本场结果公布状态 →</RouterLink
+            >
+          </p>
         </div>
       </div>
     </SurfacePanel>

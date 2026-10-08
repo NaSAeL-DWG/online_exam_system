@@ -1,0 +1,88 @@
+.metric-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 24px;
+  margin: 0;
+}
+.metric-grid > div {
+  min-width: 0;
+}
+.metric-grid dt {
+  color: var(--color-muted);
+  font-size: 12px;
+  margin: 0 0 9px;
+}
+.metric-grid dd {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+.metric-grid dd.metric-empty {
+  font-size: 16px;
+  color: var(--color-muted);
+  font-weight: 500;
+}
+.metric-grid small {
+  font-size: 12px;
+  color: var(--color-muted);
+  font-weight: 400;
+}
+.analytics-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+}
+.analytics-note {
+  font-size: 12px;
+  color: var(--color-muted);
+  margin: 16px 0 0;
+}
+.analytics-notes {
+  margin: 0;
+  padding-left: 20px;
+  font-size: 13px;
+  color: var(--color-muted);
+  line-height: 1.9;
+}
+.analytics-data {
+  margin-top: 18px;
+  font-size: 12px;
+  color: var(--color-muted);
+}
+.analytics-data summary {
+  cursor: pointer;
+  padding: 8px 0;
+}
+.analytics-data table {
+  margin-top: 10px;
+}
+.rate-track {
+  display: block;
+  width: 90px;
+  max-width: 100%;
+  height: 4px;
+  border-radius: 4px;
+  background: var(--color-bg);
+  margin-top: 8px;
+  overflow: hidden;
+}
+.rate-track span {
+  display: block;
+  height: 100%;
+  background: var(--color-primary);
+}
+@media (max-width: 900px) {
+  .analytics-grid {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 600px) {
+  .metric-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 22px 18px;
+  }
+  .metric-grid dd {
+    font-size: 21px;
+  }
+}

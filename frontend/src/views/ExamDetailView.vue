@@ -15,6 +15,8 @@ import { useExamDraft } from '../features/exams/useExamDraft'
 import ExamGradingPanel from '../features/grading/ExamGradingPanel.vue'
 import StandardCorrection from '../features/grading/StandardCorrection.vue'
 import WithdrawResults from '../features/grading/WithdrawResults.vue'
+import PublishResults from '../features/results/PublishResults.vue'
+import TeacherAnalyticsPanel from '../features/analytics/TeacherAnalyticsPanel.vue'
 const route = useRoute()
 const router = useRouter()
 const dialog = useDialog()
@@ -50,6 +52,11 @@ const cancelReason = ref('')
 const correctionIndex = ref<number | null>(null)
 const correctionSuccess = ref('')
 const withdrawResultsVisible = ref(false)
+const publishResultsVisible = ref(false)
+function resultsPublished(): void {
+  correctionSuccess.value = '整场结果已公布，学生可查看本人各次得分与最终成绩。'
+  void load()
+}
 function standardSaved(): void {
   correctionSuccess.value = '评分依据已更新，受影响的答卷将按当前依据重判。'
   void load()
@@ -70,6 +77,7 @@ const tabs = [
   { label: '题目快照', icon: 'paper', id: 'exam-questions' },
   { label: '参考资格', icon: 'users', id: 'exam-eligibility' },
   { label: '答卷与成绩', icon: 'check-circle', id: 'exam-grading' },
+  { label: '统计分析', icon: 'paper', id: 'exam-analytics' },
 ]
 const tabButtons = ref<HTMLButtonElement[]>([])
 function activateTab(index: number): void {
@@ -134,6 +142,12 @@ function confirmTransition(action: 'publish' | 'withdraw'): void {
           :loading="saving"
           @click="confirmTransition('withdraw')"
           >撤回考试发布</NButton
+        ><NButton
+          v-if="exam?.status === 'RELEASED'"
+          type="primary"
+          :disabled="saving || conflict"
+          @click="publishResultsVisible = true"
+          >公布整场结果</NButton
         ><NButton
           v-if="exam?.status === 'RESULTS_PUBLISHED'"
           :disabled="saving"
@@ -266,6 +280,14 @@ function confirmTransition(action: 'publish' | 'withdraw'): void {
       >
         <ExamGradingPanel :exam-id="exam.id" :cancelled="exam.status === 'CANCELLED'" />
       </section>
+      <section
+        v-if="activeTab === 4"
+        id="exam-analytics"
+        role="tabpanel"
+        aria-labelledby="exam-analytics-tab"
+      >
+        <TeacherAnalyticsPanel :key="exam.version" :exam-id="exam.id" />
+      </section>
     </template>
     <StandardCorrection
       v-if="exam && correctionIndex !== null"
@@ -280,6 +302,13 @@ function confirmTransition(action: 'publish' | 'withdraw'): void {
       :exam="exam"
       @close="withdrawResultsVisible = false"
       @saved="resultsWithdrawn"
+      @refresh="load"
+    />
+    <PublishResults
+      v-if="exam && publishResultsVisible"
+      :exam="exam"
+      @close="publishResultsVisible = false"
+      @saved="resultsPublished"
       @refresh="load"
     />
     <NModal

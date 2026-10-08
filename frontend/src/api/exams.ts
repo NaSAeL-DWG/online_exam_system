@@ -111,4 +111,10 @@ export const examsApi = {
       body: JSON.stringify({ version, reason }),
     })
   },
+  publishResults(id: string, version: number): Promise<Exam> {
+    return request(`/staff/exams/${id}/publish-results`, {
+      method: 'POST',
+      body: JSON.stringify({ version }),
+    })
+  },
 }

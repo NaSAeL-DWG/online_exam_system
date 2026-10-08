@@ -140,7 +140,7 @@ export async function gradingFixture(page: Page, browser: Browser, endsInSeconds
 export async function submitAttempt(
   request: APIRequestContext,
   examId: string,
-  values: (string | boolean | null)[],
+  values: (string | boolean | string[] | null)[],
 ) {
   const attempt = await apiWrite(request, `/student/exams/${examId}/attempts`, {})
   const active = await apiWrite(request, `/student/attempts/${attempt.id}/activate`, {
