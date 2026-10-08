@@ -4,6 +4,7 @@ from uuid import uuid4
 
 from app.core.errors import BusinessError
 from app.modules.exam import student_assets
+from app.modules.results import review as result_review
 from app.modules.identity import service as identity_service
 from app.modules.identity.types import UserType
 from . import crud, storage
@@ -44,7 +45,10 @@ async def read(session, identity, settings, asset_id):
             session, identity, UserType.ADMIN, UserType.TEACHER, UserType.STUDENT
         )
         if identity.user.user_type == UserType.STUDENT:
-            if not await student_assets.can_read_asset(session, identity.user.id, asset_id):
+            if not (
+                await student_assets.can_read_asset(session, identity.user.id, asset_id)
+                or await result_review.can_read_asset(session, identity.user.id, asset_id)
+            ):
                 raise BusinessError("FORBIDDEN", "当前作答无权读取该图片")
         item = await crud.by_id(session, asset_id)
         if item is None:

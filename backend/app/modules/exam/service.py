@@ -645,7 +645,7 @@ async def correct_grading_standard(session, identity, exam, question_id, payload
 
 
 async def withdraw_results(session, identity, exam_id, payload):
-    """更正前撤回既有公布结果；完整公布与学生成绩入口留给迭代5。"""
+    """更正前撤回既有公布结果，学生后续查询实时隐藏成绩与回看内容。"""
     async with session.begin():
         await identity_service.validate_content_actor(session, identity)
         exam = await require_exam(session, exam_id, lock=True)

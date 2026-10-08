@@ -16,6 +16,9 @@ from .modules.paper import router as paper
 from .modules.exam import router as exam
 from .modules.attempt import router as attempt
 from .modules.grading import router as grading
+from .modules.results import router as results
+from .modules.mistake import router as mistake
+from .modules.analytics import router as analytics
 from .core.errors import BusinessError, STATUS_CODES
 from .core.contracts import HealthResponse
 from sqlalchemy.exc import OperationalError, InterfaceError
@@ -90,6 +93,9 @@ def create_app(settings_override: Settings | None = None) -> FastAPI:
     app.include_router(exam.student_router)
     app.include_router(attempt.router)
     app.include_router(grading.router)
+    app.include_router(results.router)
+    app.include_router(mistake.router)
+    app.include_router(analytics.router)
     return app
 
 

@@ -5,7 +5,7 @@ from app.core.contracts import Page, Pagination
 from app.deps import Identity, get_session, require_csrf, roles
 from app.modules.identity.types import UserType
 from app.modules.question.schemas import VersionRequest
-from . import service
+from . import service, publication
 from .schemas import (
     ExamCreate,
     ExamDetail,
@@ -23,6 +23,19 @@ router = APIRouter(prefix="/api/staff/exams", tags=["考试组织"])
 staff = roles(UserType.ADMIN, UserType.TEACHER)
 student_router = APIRouter(prefix="/api/student/exams", tags=["学生考试"])
 student = roles(UserType.STUDENT)
+
+
+@router.post(
+    "/{exam_id}/publish-results", response_model=ExamDetail, dependencies=[Depends(require_csrf)]
+)
+async def publish_results(
+    exam_id: UUID,
+    payload: VersionRequest,
+    identity: Identity = Depends(staff),
+    session=Depends(get_session),
+):
+    """考试结束且全部有效作答与人工任务按当前依据判完后统一公布结果。"""
+    return await publication.publish_results(session, identity, exam_id, payload)
 
 
 @student_router.get("", response_model=Page[StudentExamSummary])

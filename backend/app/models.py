@@ -9,3 +9,4 @@ from app.modules.paper.models import Paper, PaperQuestion  # noqa: F401
 from app.modules.exam.models import Exam, ExamGrader, ExamParticipant, ExamQuestion  # noqa: F401
 from app.modules.attempt.models import AttemptQuestionOrder, ExamAttempt, StudentAnswer  # noqa: F401
 from app.modules.grading.models import GradingHistory, GradingTask  # noqa: F401
+from app.modules.mistake.models import MistakeAnnotation  # noqa: F401
