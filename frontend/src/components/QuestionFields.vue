@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, useId, watch } from 'vue'
 import { NAlert } from 'naive-ui'
 import { questionsApi, type QuestionInput } from '../api/questions'
 import { errorMessage } from '../api/client'
@@ -7,10 +7,24 @@ import SafeMarkdown from './SafeMarkdown.vue'
 import QuestionClassification from '../features/questions/QuestionClassification.vue'
 import QuestionAnswerFields from '../features/questions/QuestionAnswerFields.vue'
 import { changeQuestionType } from '../features/questions/questionDraft'
+import { useContentValidation } from '../features/contentValidation'
+import { questionErrors } from '../features/questions/questionValidation'
 const model = defineModel<QuestionInput>({ required: true })
 const emit = defineEmits<{ uploading: [value: boolean] }>()
 const uploading = ref(false)
 const uploadFailure = ref('')
+const fieldsRoot = ref<HTMLElement | null>(null)
+const errorPrefix = useId()
+const {
+  errors,
+  validate: validateFields,
+  resetValidation,
+} = useContentValidation(() => questionErrors(model.value))
+function validate(focus = true): boolean {
+  return validateFields(fieldsRoot.value, focus)
+}
+watch(model, resetValidation)
+defineExpose({ validate, resetValidation })
 async function upload(event: Event, field: 'content' | 'explanation'): Promise<void> {
   const input = event.target as HTMLInputElement
   const file = input.files?.[0]
@@ -33,8 +47,12 @@ async function upload(event: Event, field: 'content' | 'explanation'): Promise<v
 }
 </script>
 <template>
-  <div class="question-fields">
-    <QuestionClassification v-model="model" @type-change="changeQuestionType(model)" />
+  <div ref="fieldsRoot" class="question-fields">
+    <QuestionClassification
+      v-model="model"
+      :errors="errors"
+      @type-change="changeQuestionType(model)"
+    />
     <NAlert v-if="uploadFailure" type="error">{{ uploadFailure }}</NAlert>
     <p v-if="uploading" role="status">正在上传图片，请等待完成后保存。</p>
     <div class="content-workspace">
@@ -48,9 +66,19 @@ async function upload(event: Event, field: 'content' | 'explanation'): Promise<v
             v-model="model.content"
             aria-label="题干"
             required
+            maxlength="100000"
+            :aria-invalid="!!errors.content"
+            :aria-describedby="errors.content ? `${errorPrefix}-content-error` : undefined"
             rows="7"
             placeholder="输入题干；行内公式使用 $…$，独立公式使用 $$…$$"
           />
+          <span
+            v-if="errors.content"
+            :id="`${errorPrefix}-content-error`"
+            class="field-error"
+            role="alert"
+            >{{ errors.content }}</span
+          >
         </label>
         <div class="upload-field">
           <label class="upload-trigger"
@@ -63,7 +91,7 @@ async function upload(event: Event, field: 'content' | 'explanation'): Promise<v
               @change="upload($event, 'content')" /></label
           ><span class="muted">PNG / JPEG / WebP，最大 5 MiB</span>
         </div>
-        <QuestionAnswerFields v-model="model" />
+        <QuestionAnswerFields v-model="model" :errors="errors" />
         <section aria-label="解题说明编辑区">
           <h3 id="explanation-title">答案解析</h3>
           <label class="field"
@@ -71,8 +99,20 @@ async function upload(event: Event, field: 'content' | 'explanation'): Promise<v
               v-model="model.explanation"
               aria-label="解析"
               rows="4"
+              maxlength="100000"
+              :aria-invalid="!!errors.explanation"
+              :aria-describedby="
+                errors.explanation ? `${errorPrefix}-explanation-error` : undefined
+              "
               placeholder="补充解题过程或评分说明"
             />
+            <span
+              v-if="errors.explanation"
+              :id="`${errorPrefix}-explanation-error`"
+              class="field-error"
+              role="alert"
+              >{{ errors.explanation }}</span
+            >
           </label>
           <div class="upload-field explanation-upload">
             <label class="upload-trigger"
@@ -113,6 +153,10 @@ async function upload(event: Event, field: 'content' | 'explanation'): Promise<v
   display: grid;
   gap: 24px;
   min-width: 0;
+}
+.field-error {
+  color: #b42318;
+  font-size: 12px;
 }
 .content-workspace {
   display: grid;

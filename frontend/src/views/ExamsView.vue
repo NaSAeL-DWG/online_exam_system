@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, useId } from 'vue'
 import { useRouter } from 'vue-router'
 import { NAlert, NButton, NModal } from 'naive-ui'
 import { examsApi, examStatusLabels, type AudienceType } from '../api/exams'
@@ -12,6 +12,11 @@ import AppIcon from '../components/ui/AppIcon.vue'
 import SourcePaperPicker from '../features/exams/SourcePaperPicker.vue'
 import { displayShanghaiTime } from '../features/exams/useExamDraft'
 import { usePagedList } from '../composables/usePagedList'
+import {
+  textError,
+  useContentValidation,
+  type ContentFieldErrors,
+} from '../features/contentValidation'
 const router = useRouter()
 const { items, page, total, query, failure, loading, load, changePage } = usePagedList(
   examsApi.list,
@@ -23,7 +28,19 @@ const title = ref('')
 const description = ref('')
 const audience = ref<AudienceType>('RESTRICTED')
 const paperId = ref('')
+const formRoot = ref<HTMLFormElement | null>(null)
+const errorPrefix = useId()
+const { errors, validate, resetValidation } = useContentValidation(() => {
+  const errors: ContentFieldErrors = {}
+  const titleIssue = textError(title.value, '考试名称', 200, true)
+  const descriptionIssue = textError(description.value, '考试说明', 100000)
+  if (titleIssue) errors.title = titleIssue
+  if (descriptionIssue) errors.description = descriptionIssue
+  if (!paperId.value) errors.source_paper_id = '请选择来源试卷。'
+  return errors
+})
 function create(): void {
+  resetValidation()
   title.value = ''
   description.value = ''
   audience.value = 'RESTRICTED'
@@ -32,7 +49,7 @@ function create(): void {
   visible.value = true
 }
 async function save(): Promise<void> {
-  if (saving.value) return
+  if (saving.value || !validate(formRoot.value)) return
   saving.value = true
   editorFailure.value = ''
   try {
@@ -144,14 +161,24 @@ async function save(): Promise<void> {
       :closable="!saving"
       :close-on-esc="!saving"
       ><NAlert v-if="editorFailure" class="form-alert" type="error">{{ editorFailure }}</NAlert>
-      <form class="exam-create-form" @submit.prevent="save">
+      <form ref="formRoot" class="exam-create-form" novalidate @submit.prevent="save">
         <div class="form-grid two-columns">
           <label class="field"
             >考试名称<input
               v-model="title"
               aria-label="考试名称"
               required
-              placeholder="例如：第一章单元测验" /></label
+              maxlength="200"
+              :aria-invalid="!!errors.title"
+              :aria-describedby="errors.title ? `${errorPrefix}-title-error` : undefined"
+              placeholder="例如：第一章单元测验"
+            /><span
+              v-if="errors.title"
+              :id="`${errorPrefix}-title-error`"
+              class="field-error"
+              role="alert"
+              >{{ errors.title }}</span
+            ></label
           ><label class="field"
             >参考范围<select v-model="audience" aria-label="参考范围">
               <option value="RESTRICTED">限定名单</option>
@@ -162,11 +189,23 @@ async function save(): Promise<void> {
               v-model="description"
               aria-label="考试说明"
               rows="2"
+              maxlength="100000"
+              :aria-invalid="!!errors.description"
+              :aria-describedby="
+                errors.description ? `${errorPrefix}-description-error` : undefined
+              "
               placeholder="考试要求与作答说明（可选）"
             />
+            <span
+              v-if="errors.description"
+              :id="`${errorPrefix}-description-error`"
+              class="field-error"
+              role="alert"
+              >{{ errors.description }}</span
+            >
           </label>
         </div>
-        <SourcePaperPicker v-if="visible" v-model="paperId" />
+        <SourcePaperPicker v-if="visible" v-model="paperId" :error="errors.source_paper_id" />
         <div class="editor-actions">
           <NButton attr-type="submit" type="primary" :loading="saving">建立考试快照</NButton>
         </div>
@@ -175,6 +214,10 @@ async function save(): Promise<void> {
   </div>
 </template>
 <style scoped>
+.field-error {
+  color: #b42318;
+  font-size: 12px;
+}
 .exam-search {
   flex: 1;
   min-width: 0;

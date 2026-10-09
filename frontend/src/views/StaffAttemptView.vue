@@ -11,11 +11,13 @@ import GradeForm from '../features/grading/GradeForm.vue'
 import GradingHistory from '../features/grading/GradingHistory.vue'
 import ReassignTask from '../features/grading/ReassignTask.vue'
 import { useGradingWorkspace } from '../features/grading/useGradingWorkspace'
+import { useUnsavedChanges } from '../composables/useUnsavedChanges'
 const route = useRoute()
 const dialog = useDialog()
 const { attempt, loading, saving, failure, success, needsReload, load, grade } =
   useGradingWorkspace(() => String(route.params.id))
 const dirty = ref(false)
+useUnsavedChanges(() => dirty.value)
 const historyAnswerId = ref<string | null>(null)
 const reassignmentVisible = ref(false)
 function taskReassigned(detail: StaffAttemptDetail): void {

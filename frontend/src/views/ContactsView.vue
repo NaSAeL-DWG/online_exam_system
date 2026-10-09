@@ -1,12 +1,15 @@
 <script setup lang="ts">
 import { reactive, ref } from 'vue'
-import { NAlert, NButton, NForm, NFormItem, NInput, useMessage } from 'naive-ui'
+import { NAlert, NButton, NForm, NInput, useMessage } from 'naive-ui'
 import PageHeader from '../components/ui/PageHeader.vue'
 import SurfacePanel from '../components/ui/SurfacePanel.vue'
 import AppIcon from '../components/ui/AppIcon.vue'
 import { errorMessage, isWriteResultUnknown } from '../api/client'
 import { authApi } from '../api/auth'
 import { useAuthStore } from '../stores/auth'
+import FormField from '../components/ui/FormField.vue'
+import { useFormValidation } from '../composables/useFormValidation'
+import { textRule, emailRule, credentialRule } from '../features/identity/formRules'
 
 const auth = useAuthStore()
 const message = useMessage()
@@ -18,6 +21,15 @@ const form = reactive({
 const failure = ref('')
 const loading = ref(false)
 const uncertain = ref(false)
+const validation = useFormValidation(
+  () => form,
+  {
+    email: emailRule,
+    phone_number: textRule('手机号', 5, 32),
+    current_password: credentialRule(),
+  },
+  'contacts',
+)
 
 async function reloadContacts(): Promise<void> {
   loading.value = true
@@ -29,6 +41,7 @@ async function reloadContacts(): Promise<void> {
     form.current_password = ''
     uncertain.value = false
     failure.value = ''
+    validation.clear()
     message.success('已读取最新联系方式，请核对保存结果')
   } catch (error) {
     failure.value = errorMessage(error)
@@ -38,16 +51,22 @@ async function reloadContacts(): Promise<void> {
 }
 async function submit(): Promise<void> {
   if (loading.value || uncertain.value) return
-  loading.value = true
   failure.value = ''
+  if (!validation.validate()) {
+    failure.value = '请检查标出的填写内容'
+    return
+  }
+  loading.value = true
   try {
     const result = await authApi.changeContacts(form)
     auth.user = result.data.user
     form.current_password = ''
+    validation.clear()
     message.success(
       result.cleanupPending ? '联系方式已更新，安全校验记录正在清理' : '联系方式已更新',
     )
   } catch (error) {
+    validation.applyServerError(error)
     uncertain.value = isWriteResultUnknown(error)
     failure.value = errorMessage(error)
   } finally {
@@ -66,25 +85,39 @@ async function submit(): Promise<void> {
             >重新读取资料</NButton
           ></NAlert
         >
-        <NForm :model="form" class="settings-form" label-placement="top" @submit.prevent="submit">
-          <NFormItem label="邮箱"
+        <NForm
+          :model="form"
+          class="settings-form"
+          label-placement="top"
+          novalidate
+          @submit.prevent="submit"
+        >
+          <FormField v-slot="{ inputProps }" :validation="validation" field="email" label="邮箱"
             ><NInput
               v-model:value="form.email"
-              :input-props="{ 'aria-label': '邮箱', autocomplete: 'email' }"
+              :input-props="{ ...inputProps, autocomplete: 'email' }"
               placeholder="name@example.com"
-          /></NFormItem>
-          <NFormItem label="手机号"
+          /></FormField>
+          <FormField
+            v-slot="{ inputProps }"
+            :validation="validation"
+            field="phone_number"
+            label="手机号"
             ><NInput
               v-model:value="form.phone_number"
-              :input-props="{ 'aria-label': '手机号', autocomplete: 'tel' }"
-          /></NFormItem>
-          <NFormItem label="当前密码"
+              :input-props="{ ...inputProps, autocomplete: 'tel' }"
+          /></FormField>
+          <FormField
+            v-slot="{ inputProps }"
+            :validation="validation"
+            field="current_password"
+            label="当前密码"
             ><NInput
               v-model:value="form.current_password"
-              :input-props="{ 'aria-label': '当前密码', autocomplete: 'current-password' }"
+              :input-props="{ ...inputProps, autocomplete: 'current-password' }"
               type="password"
               show-password-on="click"
-          /></NFormItem>
+          /></FormField>
           <div class="editor-actions">
             <NButton attr-type="submit" type="primary" :loading="loading" :disabled="uncertain"
               >保存联系方式</NButton

@@ -79,8 +79,8 @@
 .auth-switch {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  justify-content: flex-end;
+  gap: 8px;
   padding-top: 24px;
   border-top: 1px solid var(--color-border);
   margin: 28px 0 0;

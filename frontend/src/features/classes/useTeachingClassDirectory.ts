@@ -4,6 +4,8 @@ import { errorMessage } from '../../api/client'
 import { teachingClassesApi } from '../../api/teachingClasses'
 import { useAuthStore } from '../../stores/auth'
 import type { TeachingClass, UserSummary } from '../../types'
+import { useFormValidation } from '../../composables/useFormValidation'
+import { textRule } from '../identity/formRules'
 
 export function useTeachingClassDirectory() {
   const auth = useAuthStore()
@@ -30,6 +32,12 @@ export function useTeachingClassDirectory() {
     teacher_ids: [],
   })
   const isAdmin = computed(() => auth.user?.user_type === 'ADMIN')
+  const editorFailure = ref('')
+  const validation = useFormValidation(
+    () => form,
+    { name: textRule('教学班名称', 1, 200) },
+    'class',
+  )
   const editingClass = computed(() => items.value.find((item) => item.id === editingId.value))
 
   async function load(): Promise<void> {
@@ -58,12 +66,16 @@ export function useTeachingClassDirectory() {
     void load()
   }
   function openCreate(): void {
+    validation.clear()
+    editorFailure.value = ''
     editingId.value = null
     selectedTeachers.value = []
     Object.assign(form, { name: '', description: '', teacher_ids: [] })
     editorVisible.value = true
   }
   function openEdit(row: TeachingClass): void {
+    validation.clear()
+    editorFailure.value = ''
     editingId.value = row.id
     // 已关联教师独立于当前候选页保留，搜索或翻页不会丢失选择。
     selectedTeachers.value = row.teachers
@@ -76,6 +88,11 @@ export function useTeachingClassDirectory() {
   }
   async function saveClass(): Promise<void> {
     if (saving.value) return
+    editorFailure.value = ''
+    if (!validation.validate()) {
+      editorFailure.value = '请检查标出的填写内容'
+      return
+    }
     saving.value = true
     try {
       if (editingId.value) await teachingClassesApi.update(editingId.value, form)
@@ -84,7 +101,8 @@ export function useTeachingClassDirectory() {
       message.success(editingId.value ? '教学班已更新' : '教学班已创建')
       await load()
     } catch (error) {
-      message.error(errorMessage(error))
+      validation.applyServerError(error)
+      editorFailure.value = errorMessage(error)
     } finally {
       saving.value = false
     }
@@ -172,6 +190,8 @@ export function useTeachingClassDirectory() {
     editingId,
     editingClass,
     form,
+    validation,
+    editorFailure,
     isAdmin,
     load,
     changePage,

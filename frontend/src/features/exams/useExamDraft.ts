@@ -94,7 +94,8 @@ export function useExamDraft(examId: () => string) {
           audience_type: value.audience_type,
           start_at: start.value ? `${start.value}:00+08:00` : null,
           end_at: end.value ? `${end.value}:00+08:00` : null,
-          duration_seconds: duration.value ? Number(duration.value) * 60 : null,
+          // 分钟输入已在设置表单校验为整秒，消除单位换算的浮点尾差。
+          duration_seconds: duration.value ? Math.round(Number(duration.value) * 60) : null,
           max_attempts: Number(value.max_attempts),
           allow_review: value.allow_review,
           shuffle_questions: value.shuffle_questions,

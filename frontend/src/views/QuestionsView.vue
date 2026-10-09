@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { reactive } from 'vue'
+import { reactive, ref, watch } from 'vue'
 import { NAlert, NButton, NModal, useDialog } from 'naive-ui'
 import { questionsApi, questionTypeLabels } from '../api/questions'
 import ListPager from '../components/ListPager.vue'
@@ -9,6 +9,7 @@ import SurfacePanel from '../components/ui/SurfacePanel.vue'
 import StatusBadge from '../components/ui/StatusBadge.vue'
 import AppIcon from '../components/ui/AppIcon.vue'
 import { usePagedList } from '../composables/usePagedList'
+import { useUnsavedChanges } from '../composables/useUnsavedChanges'
 import { useQuestionEditor } from '../features/questions/useQuestionEditor'
 import { difficultyLabels, questionSummary } from '../features/questions/questionDraft'
 
@@ -24,15 +25,25 @@ const {
   uploading,
   failure: editorFailure,
   conflict,
+  dirty,
   create,
   edit,
   persist,
 } = useQuestionEditor(load)
+const questionFields = ref<InstanceType<typeof QuestionFields> | null>(null)
+watch(visible, () => questionFields.value?.resetValidation())
+async function saveQuestion(): Promise<void> {
+  if (questionFields.value?.validate()) await persist()
+}
+const { confirmDiscard } = useUnsavedChanges(() => dirty.value)
+async function closeEditor(): Promise<void> {
+  if (!saving.value && !uploading.value && (await confirmDiscard())) visible.value = false
+}
 const dialog = useDialog()
 function closeQuestion(): void {
   dialog.warning({
     title: '关闭题目',
-    content: '关闭后不能新增组卷，已有试卷和考试仍保留题目。',
+    content: `关闭后不能新增组卷，已有试卷和考试仍保留题目。${dirty.value ? '尚未保存的修改不会应用到题目。' : ''}`,
     positiveText: '确认关闭',
     negativeText: '取消',
     onPositiveClick: () => persist('close'),
@@ -163,7 +174,8 @@ function resetFilters(): void {
       />
     </SurfacePanel>
     <NModal
-      v-model:show="visible"
+      :show="visible"
+      @update:show="closeEditor"
       preset="card"
       :title="selected ? '编辑题目' : '新建题目'"
       class="responsive-modal responsive-modal--editor"
@@ -177,8 +189,8 @@ function resetFilters(): void {
           >重新加载最新题目</NButton
         ></NAlert
       >
-      <form class="question-form" @submit.prevent="persist()">
-        <QuestionFields v-model="form" @uploading="uploading = $event" />
+      <form class="question-form" novalidate @submit.prevent="saveQuestion">
+        <QuestionFields ref="questionFields" v-model="form" @uploading="uploading = $event" />
         <div class="editor-actions">
           <span class="muted">{{
             selected ? '修改将更新共享题库；既有考试快照保持不变。' : '保存后可用于手动组卷。'

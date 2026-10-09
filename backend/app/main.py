@@ -21,6 +21,7 @@ from .modules.mistake import router as mistake
 from .modules.analytics import router as analytics
 from .core.errors import BusinessError, STATUS_CODES
 from .core.contracts import HealthResponse
+from .core.validation_errors import validation_fields
 from sqlalchemy.exc import OperationalError, InterfaceError
 
 
@@ -52,11 +53,17 @@ def create_app(settings_override: Settings | None = None) -> FastAPI:
 
     @app.exception_handler(RequestValidationError)
     async def validation_error_handler(_, exc: RequestValidationError):
-        fields = {".".join(str(p) for p in error["loc"]): error["msg"] for error in exc.errors()}
+        """返回中文字段原因；不回显密码、原始资料或 Pydantic 英文诊断。"""
+
+        fields = validation_fields(exc.errors())
         return JSONResponse(
             status_code=422,
             content={
-                "detail": {"code": "VALIDATION_ERROR", "message": "请求参数无效", "fields": fields}
+                "detail": {
+                    "code": "VALIDATION_ERROR",
+                    "message": "请检查填写内容",
+                    "fields": fields,
+                }
             },
         )
 

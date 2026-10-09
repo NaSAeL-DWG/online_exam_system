@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { h, onMounted, ref } from 'vue'
+import { h, onMounted, ref, useId } from 'vue'
 import { NAlert, NButton, NDataTable, NModal, type DataTableColumns } from 'naive-ui'
 import { examParticipantsApi, type Participant } from '../api/examParticipants'
 import { ApiError, errorMessage } from '../api/client'
@@ -10,6 +10,11 @@ import SurfacePanel from './ui/SurfacePanel.vue'
 import StatusBadge from './ui/StatusBadge.vue'
 import AppIcon from './ui/AppIcon.vue'
 import ClassAudiencePicker from '../features/exams/ClassAudiencePicker.vue'
+import {
+  textError,
+  useContentValidation,
+  type ContentFieldErrors,
+} from '../features/contentValidation'
 
 const props = defineProps<{ examId: string; audience: AudienceType; status: ExamStatus }>()
 const items = ref<Participant[]>([])
@@ -32,6 +37,12 @@ const reason = ref('')
 const changeFailure = ref('')
 const changeConflict = ref(false)
 const changeVisible = ref(false)
+const changeForm = ref<HTMLFormElement | null>(null)
+const reasonErrorId = `${useId()}-qualification-error`
+const { errors, validate, resetValidation } = useContentValidation((): ContentFieldErrors => {
+  const issue = textError(reason.value, '资格变更原因', 2000, true)
+  return issue ? { reason: issue } : {}
+})
 const columns: DataTableColumns<Participant> = [
   {
     title: '学生',
@@ -106,6 +117,10 @@ function changePage(value: number): void {
 }
 async function add(): Promise<void> {
   if (saving.value) return
+  if (selectedClassIds.value.length > 100 || selectedStudentIds.value.length > 1000) {
+    addFailure.value = '每次最多选择 100 个教学班和 1000 位单独补入的学生，请分批补入。'
+    return
+  }
   saving.value = true
   addFailure.value = ''
   success.value = ''
@@ -130,6 +145,7 @@ async function add(): Promise<void> {
   }
 }
 function openChange(participant: Participant): void {
+  resetValidation()
   selected.value = participant
   action.value = participant.status === 'ASSIGNED' ? 'cancel' : 'restore'
   reason.value = ''
@@ -138,7 +154,7 @@ function openChange(participant: Participant): void {
   changeVisible.value = true
 }
 async function change(): Promise<void> {
-  if (!selected.value || saving.value) return
+  if (!selected.value || saving.value || !validate(changeForm.value)) return
   saving.value = true
   changeFailure.value = ''
   success.value = ''
@@ -287,9 +303,20 @@ onMounted(() => {
       <p v-if="selected" class="change-student">
         {{ selected.user.real_name }}<span class="muted">（{{ selected.user.login_name }}）</span>
       </p>
-      <form class="reason-form" @submit.prevent="change">
+      <form ref="changeForm" class="reason-form" novalidate @submit.prevent="change">
         <label class="field"
-          >资格变更原因<textarea v-model="reason" aria-label="资格变更原因" required rows="3" />
+          >资格变更原因<textarea
+            v-model="reason"
+            aria-label="资格变更原因"
+            required
+            maxlength="2000"
+            rows="3"
+            :aria-invalid="!!errors.reason"
+            :aria-describedby="errors.reason ? reasonErrorId : undefined"
+          />
+          <span v-if="errors.reason" :id="reasonErrorId" class="field-error" role="alert">{{
+            errors.reason
+          }}</span>
         </label>
         <div class="editor-actions">
           <NButton :disabled="saving" @click="changeVisible = false">取消</NButton
@@ -307,6 +334,10 @@ onMounted(() => {
 </template>
 
 <style scoped>
+.field-error {
+  color: #b42318;
+  font-size: 12px;
+}
 .participant-workspace {
   display: grid;
   grid-template-columns: minmax(0, 1fr);

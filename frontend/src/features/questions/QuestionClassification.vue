@@ -1,7 +1,12 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, useId, watch } from 'vue'
 import { questionTypeLabels, type QuestionInput } from '../../api/questions'
+import type { ContentFieldErrors } from '../contentValidation'
 const model = defineModel<QuestionInput>({ required: true })
+defineProps<{ errors?: ContentFieldErrors }>()
+const tagErrorId = `${useId()}-tags-error`
+const tagHintId = `${useId()}-tags-hint`
+const subjectErrorId = `${useId()}-subject-error`
 const emit = defineEmits<{ typeChange: [] }>()
 const tagText = ref(model.value.knowledge_tags.join(', '))
 watch(
@@ -42,8 +47,13 @@ function changeTags(): void {
           aria-label="科目"
           required
           maxlength="100"
+          :aria-invalid="!!errors?.subject"
+          :aria-describedby="errors?.subject ? subjectErrorId : undefined"
           placeholder="例如：高等数学"
-      /></label>
+        /><span v-if="errors?.subject" :id="subjectErrorId" class="field-error" role="alert">{{
+          errors.subject
+        }}</span></label
+      >
       <label class="field"
         >难度<select v-model="model.difficulty" aria-label="难度">
           <option value="EASY">简单</option>
@@ -56,8 +66,14 @@ function changeTags(): void {
           v-model="tagText"
           aria-label="知识点标签"
           placeholder="用逗号分隔"
+          :aria-invalid="!!errors?.knowledge_tags"
+          :aria-describedby="`${tagHintId}${errors?.knowledge_tags ? ` ${tagErrorId}` : ''}`"
           @input="changeTags"
-      /></label>
+        /><span :id="tagHintId" class="muted">最多 30 个，每个 1—100 个字符。</span>
+        <span v-if="errors?.knowledge_tags" :id="tagErrorId" class="field-error" role="alert">{{
+          errors.knowledge_tags
+        }}</span>
+      </label>
     </div>
   </section>
 </template>
@@ -65,6 +81,10 @@ function changeTags(): void {
 <style scoped>
 .section-heading {
   margin-bottom: 14px;
+}
+.field-error {
+  color: #b42318;
+  font-size: 12px;
 }
 h3,
 p {

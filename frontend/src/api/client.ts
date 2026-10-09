@@ -1,3 +1,5 @@
+import { chineseReason, fieldErrorSummary } from './fieldProblems'
+
 export interface ApiProblem {
   code: string
   message: string
@@ -39,8 +41,10 @@ async function parseProblem(response: Response): Promise<ApiProblem> {
   const fallback = response.status >= 500 ? '服务暂时不可用，请稍后重试' : '请求未能完成'
   try {
     const body = (await response.json()) as { detail?: ApiProblem | string }
-    if (typeof body.detail === 'string') return { code: 'REQUEST_FAILED', message: body.detail }
-    if (body.detail?.message) return body.detail
+    if (typeof body.detail === 'string')
+      return { code: 'REQUEST_FAILED', message: chineseReason(body.detail, fallback) }
+    if (body.detail?.message)
+      return { ...body.detail, message: chineseReason(body.detail.message, fallback) }
   } catch {
     // 非 JSON 响应统一转为用户可理解的错误。
   }
@@ -181,6 +185,8 @@ export async function request<T>(path: string, init: RequestInit = {}): Promise<
 
 export function errorMessage(error: unknown): string {
   if (!(error instanceof ApiError)) return '发生未知错误，请重试'
-  const reasons = [...new Set(Object.values(error.problem.fields ?? {}).flat())]
-  return reasons.length ? `${error.message}：${reasons.join('；')}` : error.message
+  const fields = fieldErrorSummary(error.problem.fields)
+  return fields
+    ? `${error.message}：${fields}`
+    : chineseReason(error.message, '请求未能完成，请重试')
 }

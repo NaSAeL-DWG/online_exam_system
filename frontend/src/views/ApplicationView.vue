@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
-import { NAlert, NButton, NForm, NFormItem, NInput, NSpin, useMessage } from 'naive-ui'
+import { NAlert, NButton, NForm, NInput, NSpin, useMessage } from 'naive-ui'
 import { errorMessage } from '../api/client'
 import { identityApi } from '../api/identity'
 import { useAuthStore } from '../stores/auth'
@@ -8,6 +8,9 @@ import type { StudentApplication } from '../types'
 import PageHeader from '../components/ui/PageHeader.vue'
 import SurfacePanel from '../components/ui/SurfacePanel.vue'
 import AppIcon from '../components/ui/AppIcon.vue'
+import FormField from '../components/ui/FormField.vue'
+import { useFormValidation } from '../composables/useFormValidation'
+import { profileRules } from '../features/identity/formRules'
 
 const auth = useAuthStore()
 const application = ref<StudentApplication | null>(null)
@@ -16,6 +19,7 @@ const saving = ref(false)
 const failure = ref('')
 const message = useMessage()
 const form = reactive({ student_no: '', real_name: '', email: '', phone_number: '' })
+const validation = useFormValidation(() => form, profileRules, 'application')
 
 async function load(): Promise<void> {
   loading.value = true
@@ -23,6 +27,7 @@ async function load(): Promise<void> {
   try {
     application.value = (await identityApi.application()).application
     Object.assign(form, application.value.submitted_profile)
+    validation.clear()
   } catch (error) {
     failure.value = errorMessage(error)
   } finally {
@@ -30,13 +35,19 @@ async function load(): Promise<void> {
   }
 }
 async function resubmit(): Promise<void> {
-  saving.value = true
+  if (saving.value) return
   failure.value = ''
+  if (!validation.validate()) {
+    failure.value = '请检查标出的填写内容'
+    return
+  }
+  saving.value = true
   try {
     application.value = (await identityApi.resubmitApplication(form)).application
     await auth.restore()
     message.success('申请已重新提交')
   } catch (error) {
+    validation.applyServerError(error)
     failure.value = errorMessage(error)
   } finally {
     saving.value = false
@@ -55,7 +66,8 @@ onMounted(load)
     <NSpin :show="loading">
       <div class="page-stack">
         <NAlert v-if="failure" type="error"
-          >{{ failure }} <NButton size="small" @click="load">重试加载</NButton></NAlert
+          >{{ failure }}
+          <NButton v-if="!application" size="small" @click="load">重试加载</NButton></NAlert
         >
         <section
           v-if="application"
@@ -105,22 +117,32 @@ onMounted(load)
           title="更正后重新提交"
           description="请根据拒绝原因核对下列资料。重新提交后将再次进入审核流程。"
         >
-          <NForm :model="form" label-placement="top" @submit.prevent="resubmit">
+          <NForm :model="form" label-placement="top" novalidate @submit.prevent="resubmit">
             <div class="form-grid two-columns">
-              <NFormItem label="姓名"
-                ><NInput v-model:value="form.real_name" :input-props="{ 'aria-label': '姓名' }"
-              /></NFormItem>
-              <NFormItem label="学号"
-                ><NInput v-model:value="form.student_no" :input-props="{ 'aria-label': '学号' }"
-              /></NFormItem>
-              <NFormItem label="邮箱"
-                ><NInput v-model:value="form.email" :input-props="{ 'aria-label': '邮箱' }"
-              /></NFormItem>
-              <NFormItem label="手机号"
-                ><NInput
-                  v-model:value="form.phone_number"
-                  :input-props="{ 'aria-label': '手机号' }"
-              /></NFormItem>
+              <FormField
+                v-slot="{ inputProps }"
+                :validation="validation"
+                field="real_name"
+                label="姓名"
+                ><NInput v-model:value="form.real_name" :input-props="inputProps"
+              /></FormField>
+              <FormField
+                v-slot="{ inputProps }"
+                :validation="validation"
+                field="student_no"
+                label="学号"
+                ><NInput v-model:value="form.student_no" :input-props="inputProps"
+              /></FormField>
+              <FormField v-slot="{ inputProps }" :validation="validation" field="email" label="邮箱"
+                ><NInput v-model:value="form.email" :input-props="inputProps"
+              /></FormField>
+              <FormField
+                v-slot="{ inputProps }"
+                :validation="validation"
+                field="phone_number"
+                label="手机号"
+                ><NInput v-model:value="form.phone_number" :input-props="inputProps"
+              /></FormField>
             </div>
             <div class="editor-actions">
               <NButton attr-type="submit" type="primary" :loading="saving">重新提交审核</NButton>

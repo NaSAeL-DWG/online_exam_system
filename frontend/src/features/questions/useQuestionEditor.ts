@@ -1,4 +1,4 @@
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { ApiError, errorMessage } from '../../api/client'
 import { questionsApi, type Question, type QuestionInput } from '../../api/questions'
 import { blankQuestion } from './questionDraft'
@@ -11,10 +11,13 @@ export function useQuestionEditor(onSaved: () => Promise<void>) {
   const uploading = ref(false)
   const failure = ref('')
   const conflict = ref(false)
+  const baseline = ref('')
+  const dirty = computed(() => visible.value && JSON.stringify(form.value) !== baseline.value)
 
   function create(): void {
     selected.value = null
     form.value = blankQuestion()
+    baseline.value = JSON.stringify(form.value)
     failure.value = ''
     conflict.value = false
     visible.value = true
@@ -25,6 +28,7 @@ export function useQuestionEditor(onSaved: () => Promise<void>) {
       const question = await questionsApi.get(row.id)
       selected.value = question
       form.value = structuredClone(question)
+      baseline.value = JSON.stringify(form.value)
       conflict.value = false
       visible.value = true
     } catch (error) {
@@ -50,5 +54,17 @@ export function useQuestionEditor(onSaved: () => Promise<void>) {
       saving.value = false
     }
   }
-  return { visible, selected, form, saving, uploading, failure, conflict, create, edit, persist }
+  return {
+    visible,
+    selected,
+    form,
+    saving,
+    uploading,
+    failure,
+    conflict,
+    dirty,
+    create,
+    edit,
+    persist,
+  }
 }

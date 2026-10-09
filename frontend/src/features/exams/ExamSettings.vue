@@ -1,20 +1,83 @@
 <script setup lang="ts">
+import { ref, useId, watch } from 'vue'
 import type { Exam } from '../../api/exams'
 import MemberPicker from '../../components/MemberPicker.vue'
 import SurfacePanel from '../../components/ui/SurfacePanel.vue'
+import {
+  numberError,
+  textError,
+  useContentValidation,
+  type ContentFieldErrors,
+} from '../contentValidation'
 const model = defineModel<Exam>({ required: true })
 const start = defineModel<string>('start', { required: true })
 const end = defineModel<string>('end', { required: true })
 const duration = defineModel<number | null>('duration', { required: true })
 defineProps<{ disabled: boolean; savedExam: Exam }>()
+const settingsRoot = ref<HTMLElement | null>(null)
+const errorPrefix = useId()
+const {
+  errors,
+  validate: validateFields,
+  resetValidation,
+} = useContentValidation(() => {
+  const errors: ContentFieldErrors = {}
+  const titleIssue = textError(model.value.title, '考试名称', 200, true)
+  const descriptionIssue = textError(model.value.description, '考试说明', 100000)
+  if (titleIssue) errors.title = titleIssue
+  if (descriptionIssue) errors.description = descriptionIssue
+  if (start.value && end.value && start.value >= end.value)
+    errors.start = '开始时间须早于结束时间。'
+  // 草稿允许暂不填写时间；有值的分钟数换算后须符合后端整秒契约。
+  if (String(duration.value ?? '').trim()) {
+    const minutes = Number(duration.value)
+    const seconds = minutes * 60
+    if (!Number.isFinite(minutes) || minutes <= 0) errors.duration = '作答时长须大于 0。'
+    else if (minutes > 10080) errors.duration = '作答时长不能超过 10080 分钟。'
+    else if (seconds < 1 || Math.abs(seconds - Math.round(seconds)) > 0.000001)
+      errors.duration = '作答时长须为整秒，最少 1 秒。'
+  }
+  const attemptsIssue = numberError(model.value.max_attempts, '最多作答次数', {
+    minimum: 1,
+    maximum: 100,
+    decimalPlaces: 0,
+  })
+  const passIssue = numberError(model.value.pass_percentage, '及格百分比', {
+    minimum: 0,
+    maximum: 100,
+    decimalPlaces: 2,
+  })
+  if (attemptsIssue) errors.max_attempts = attemptsIssue
+  if (passIssue) errors.pass_percentage = passIssue
+  if (model.value.grader_ids.length > 100) errors.grader_ids = '最多指定 100 位阅卷教师。'
+  return errors
+})
+function validate(focus = true): boolean {
+  return validateFields(settingsRoot.value, focus)
+}
+watch(model, resetValidation)
+defineExpose({ validate, resetValidation })
 </script>
 
 <template>
-  <div class="settings-grid">
+  <div ref="settingsRoot" class="settings-grid">
     <SurfacePanel title="基本信息"
       ><fieldset :disabled="disabled" class="settings-fields">
         <label class="field"
-          >考试名称<input v-model="model.title" aria-label="考试名称" required /></label
+          >考试名称<input
+            v-model="model.title"
+            aria-label="考试名称"
+            required
+            maxlength="200"
+            :aria-invalid="!!errors.title"
+            :aria-describedby="errors.title ? `${errorPrefix}-title-error` : undefined"
+          /><span
+            v-if="errors.title"
+            :id="`${errorPrefix}-title-error`"
+            class="field-error"
+            role="alert"
+            >{{ errors.title }}</span
+          ></label
         ><label class="field"
           >参考范围<select v-model="model.audience_type" aria-label="参考范围">
             <option value="RESTRICTED">限定名单</option>
@@ -25,17 +88,37 @@ defineProps<{ disabled: boolean; savedExam: Exam }>()
             v-model="model.description"
             aria-label="考试说明"
             rows="3"
+            maxlength="100000"
+            :aria-invalid="!!errors.description"
+            :aria-describedby="errors.description ? `${errorPrefix}-description-error` : undefined"
             placeholder="考试要求与作答说明（可选）"
           />
-        </label></fieldset
-    ></SurfacePanel>
+          <span
+            v-if="errors.description"
+            :id="`${errorPrefix}-description-error`"
+            class="field-error"
+            role="alert"
+            >{{ errors.description }}</span
+          >
+        </label>
+      </fieldset></SurfacePanel
+    >
     <SurfacePanel title="时间与作答"
       ><fieldset :disabled="disabled" class="settings-fields">
         <label class="field"
           >开始时间（上海）<input
             v-model="start"
             aria-label="开始时间（上海）"
-            type="datetime-local" /></label
+            type="datetime-local"
+            :aria-invalid="!!errors.start"
+            :aria-describedby="errors.start ? `${errorPrefix}-start-error` : undefined"
+          /><span
+            v-if="errors.start"
+            :id="`${errorPrefix}-start-error`"
+            class="field-error"
+            role="alert"
+            >{{ errors.start }}</span
+          ></label
         ><label class="field"
           >结束时间（上海）<input
             v-model="end"
@@ -46,17 +129,41 @@ defineProps<{ disabled: boolean; savedExam: Exam }>()
             v-model.number="duration"
             aria-label="作答时长（分钟）"
             type="number"
-            min="1"
-            step="1" /></label
+            min="0.016666666666666666"
+            max="10080"
+            step="0.016666666666666666"
+            :aria-invalid="!!errors.duration"
+            :aria-describedby="
+              errors.duration ? `${errorPrefix}-duration-error` : `${errorPrefix}-duration-hint`
+            "
+          /><span :id="`${errorPrefix}-duration-hint`" class="muted"
+            >可暂不填写；有值时须为整秒，最多 10080 分钟。</span
+          ><span
+            v-if="errors.duration"
+            :id="`${errorPrefix}-duration-error`"
+            class="field-error"
+            role="alert"
+            >{{ errors.duration }}</span
+          ></label
         ><label class="field"
           >最多作答次数<input
             v-model.number="model.max_attempts"
             aria-label="最多作答次数"
             type="number"
             min="1"
+            max="100"
             step="1"
             required
-        /></label>
+            :aria-invalid="!!errors.max_attempts"
+            :aria-describedby="errors.max_attempts ? `${errorPrefix}-attempts-error` : undefined"
+          /><span
+            v-if="errors.max_attempts"
+            :id="`${errorPrefix}-attempts-error`"
+            class="field-error"
+            role="alert"
+            >{{ errors.max_attempts }}</span
+          ></label
+        >
       </fieldset>
       <p class="settings-note muted">每次作答的截止时间不晚于全场结束时间。</p></SurfacePanel
     >
@@ -76,7 +183,16 @@ defineProps<{ disabled: boolean; savedExam: Exam }>()
             max="100"
             step="0.01"
             required
-        /></label>
+            :aria-invalid="!!errors.pass_percentage"
+            :aria-describedby="errors.pass_percentage ? `${errorPrefix}-pass-error` : undefined"
+          /><span
+            v-if="errors.pass_percentage"
+            :id="`${errorPrefix}-pass-error`"
+            class="field-error"
+            role="alert"
+            >{{ errors.pass_percentage }}</span
+          ></label
+        >
         <div class="check-options full-width">
           <label
             ><input v-model="model.shuffle_questions" type="checkbox" aria-label="题目乱序" /><span
@@ -95,14 +211,29 @@ defineProps<{ disabled: boolean; savedExam: Exam }>()
       </fieldset></SurfacePanel
     >
     <SurfacePanel title="指定阅卷教师" description="含简答题时，发布前至少指定一位激活教师。"
-      ><MemberPicker
+      ><div
         v-if="savedExam.status === 'DRAFT'"
-        v-model="model.grader_ids"
-        kind="teacher"
-        staff-teachers
-        :disabled="disabled"
-        :selected-members="savedExam.graders"
-      />
+        tabindex="-1"
+        :aria-invalid="!!errors.grader_ids"
+        :aria-describedby="errors.grader_ids ? `${errorPrefix}-graders-error` : undefined"
+      >
+        <MemberPicker
+          v-if="savedExam.status === 'DRAFT'"
+          v-model="model.grader_ids"
+          kind="teacher"
+          staff-teachers
+          :disabled="disabled"
+          :selected-members="savedExam.graders"
+        />
+        <p
+          v-if="errors.grader_ids"
+          :id="`${errorPrefix}-graders-error`"
+          class="field-error"
+          role="alert"
+        >
+          {{ errors.grader_ids }}
+        </p>
+      </div>
       <p v-else class="grader-summary">
         {{ savedExam.graders.map((teacher) => teacher.real_name).join('、') || '未指定阅卷教师' }}
       </p></SurfacePanel
@@ -110,6 +241,10 @@ defineProps<{ disabled: boolean; savedExam: Exam }>()
   </div>
 </template>
 <style scoped>
+.field-error {
+  color: #b42318;
+  font-size: 12px;
+}
 .settings-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

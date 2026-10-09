@@ -1,16 +1,45 @@
 <script setup lang="ts">
+import { ref, useId, watch } from 'vue'
 import { NButton } from 'naive-ui'
 import { questionTypeLabels } from '../../api/questions'
 import SafeMarkdown from '../../components/SafeMarkdown.vue'
 import StatusBadge from '../../components/ui/StatusBadge.vue'
 import type { SelectedPaperQuestion } from './usePaperEditor'
+import { scoreCollectionErrors, useContentValidation } from '../contentValidation'
 const model = defineModel<SelectedPaperQuestion[]>({ required: true })
 defineProps<{ disabled: boolean }>()
 const emit = defineEmits<{ move: [index: number, direction: number] }>()
+const listRoot = ref<HTMLElement | null>(null)
+const errorPrefix = useId()
+const {
+  errors,
+  validate: validateFields,
+  resetValidation,
+} = useContentValidation(() => scoreCollectionErrors(model.value.map((item) => item.score)))
+function validate(focus = true): boolean {
+  return validateFields(listRoot.value, focus)
+}
+watch(model, resetValidation)
+defineExpose({ validate, resetValidation })
 </script>
 
 <template>
-  <section data-testid="selected-questions" class="selected-questions" aria-label="已选题目">
+  <section
+    ref="listRoot"
+    data-testid="selected-questions"
+    class="selected-questions"
+    aria-label="已选题目"
+  >
+    <p
+      v-if="errors.questions"
+      :id="`${errorPrefix}-questions-error`"
+      class="field-error"
+      role="alert"
+      tabindex="-1"
+      aria-invalid="true"
+    >
+      {{ errors.questions }}
+    </p>
     <p v-if="!model.length" class="empty-selection">从题库加入题目，再安排顺序与分值。</p>
     <article v-for="(item, index) in model" :key="item.question.id" class="selected-question">
       <div class="question-heading">
@@ -25,18 +54,35 @@ const emit = defineEmits<{ move: [index: number, direction: number] }>()
       </div>
       <SafeMarkdown :content="item.question.content" />
       <div class="question-controls">
-        <label class="score-field"
-          >分值<input
-            v-model="item.score"
-            class="form-control"
-            :aria-label="`第 ${index + 1} 题分值`"
-            type="number"
-            min="0.1"
-            step="0.1"
-            required
-            :disabled="disabled"
-          /><span class="muted">分</span></label
-        >
+        <div class="score-control">
+          <label class="score-field"
+            >分值<input
+              v-model="item.score"
+              class="form-control"
+              :aria-label="`第 ${index + 1} 题分值`"
+              type="number"
+              min="0.1"
+              max="999999999.9"
+              step="0.1"
+              required
+              :aria-invalid="!!errors[`score.${index}`] || !!errors.questions"
+              :aria-describedby="
+                errors[`score.${index}`]
+                  ? `${errorPrefix}-${index}-error`
+                  : errors.questions
+                    ? `${errorPrefix}-questions-error`
+                    : undefined
+              "
+              :disabled="disabled"
+            /><span class="muted">分</span></label
+          ><span
+            v-if="errors[`score.${index}`]"
+            :id="`${errorPrefix}-${index}-error`"
+            class="field-error"
+            role="alert"
+            >{{ errors[`score.${index}`] }}</span
+          >
+        </div>
         <div class="order-actions">
           <NButton
             size="small"
@@ -64,6 +110,14 @@ const emit = defineEmits<{ move: [index: number, direction: number] }>()
   max-height: 490px;
   overflow-y: auto;
   padding-right: 4px;
+}
+.score-control {
+  display: grid;
+  gap: 6px;
+}
+.field-error {
+  color: #b42318;
+  font-size: 12px;
 }
 .selected-question {
   border: 1px solid var(--color-border);

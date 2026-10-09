@@ -123,6 +123,9 @@ const account = computed(() =>
           <p v-if="auth.user?.user_type === 'STUDENT'" class="home-account-note">
             仅在点击开始作答后使用考试机会；关闭页面和断网不会暂停计时。
           </p>
+          <p v-else-if="auth.user?.user_type === 'ADMIN'" class="home-account-note">
+            身份资料可在账号管理中核验更正；管理员密码遗失时，请联系系统维护人员通过本地运维恢复。
+          </p>
           <p v-else class="home-account-note">姓名或登录账号需要更正时，请由管理员核验后处理。</p>
         </div>
       </section>

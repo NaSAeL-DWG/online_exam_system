@@ -14,6 +14,7 @@ import PageHeader from '../components/ui/PageHeader.vue'
 import SurfacePanel from '../components/ui/SurfacePanel.vue'
 import StatusBadge from '../components/ui/StatusBadge.vue'
 import AppIcon from '../components/ui/AppIcon.vue'
+import FormField from '../components/ui/FormField.vue'
 import { useRegistrationReviews } from '../features/identity/useRegistrationReviews'
 import type { StudentReview } from '../types'
 
@@ -29,6 +30,8 @@ const {
   selected,
   rejectVisible,
   reason,
+  rejectValidation,
+  rejectFailure,
   load,
   changePage,
   decide,
@@ -161,15 +164,19 @@ const columns: DataTableColumns<StudentReview> = [
           <p>{{ selected?.submitted_profile.student_no }}</p>
         </div>
       </div>
-      <label class="field"
-        ><span>拒绝原因</span
+      <NAlert v-if="rejectFailure" type="error" class="form-alert">{{ rejectFailure }}</NAlert>
+      <FormField
+        v-slot="{ inputProps }"
+        :validation="rejectValidation"
+        field="reason"
+        label="拒绝原因"
         ><NInput
           v-model:value="reason"
           type="textarea"
-          :input-props="{ 'aria-label': '拒绝原因' }"
+          :input-props="inputProps"
           placeholder="说明资料中需要更正的内容"
           :autosize="{ minRows: 4 }"
-      /></label>
+      /></FormField>
       <p class="muted">学生将看到此说明，并可更正资料后重新提交。</p>
       <template #footer
         ><div class="editor-actions">

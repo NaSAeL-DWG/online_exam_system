@@ -3,6 +3,8 @@ import { useDialog, useMessage } from 'naive-ui'
 import { errorMessage } from '../../api/client'
 import { identityApi } from '../../api/identity'
 import type { User, UserRole, UserStatus } from '../../types'
+import { useFormValidation } from '../../composables/useFormValidation'
+import { textRule, emailRule, passwordRule } from './formRules'
 
 export function useAccountDirectory() {
   const users = ref<User[]>([])
@@ -32,6 +34,35 @@ export function useAccountDirectory() {
     status: 'ACTIVATED',
   })
   const temporaryPassword = ref('')
+  const teacherValidation = useFormValidation(
+    () => teacher,
+    {
+      teacher_no: textRule('工号', 1, 100),
+      real_name: textRule('姓名', 1, 100),
+      email: emailRule,
+      phone_number: textRule('手机号', 5, 32),
+      temporary_password: passwordRule('临时密码'),
+    },
+    'teacher',
+  )
+  const editValidation = useFormValidation(
+    () => edit,
+    {
+      login_name: textRule('登录账号', 1, 100),
+      real_name: textRule('姓名', 1, 100),
+    },
+    'account-edit',
+  )
+  const resetValidation = useFormValidation(
+    () => ({ temporary_password: temporaryPassword.value }),
+    {
+      temporary_password: passwordRule('新临时密码'),
+    },
+    'reset',
+  )
+  const teacherFailure = ref('')
+  const editFailure = ref('')
+  const resetFailure = ref('')
   const message = useMessage()
   const dialog = useDialog()
   const statusOptions = computed(() =>
@@ -81,10 +112,16 @@ export function useAccountDirectory() {
 
   async function createTeacher(): Promise<void> {
     if (saving.value) return
+    teacherFailure.value = ''
+    if (!teacherValidation.validate()) {
+      teacherFailure.value = '请检查标出的填写内容'
+      return
+    }
     saving.value = true
     try {
       await identityApi.createTeacher(teacher)
       createVisible.value = false
+      teacherValidation.clear()
       Object.assign(teacher, {
         teacher_no: '',
         real_name: '',
@@ -95,12 +132,15 @@ export function useAccountDirectory() {
       message.success('教师账号已创建')
       await load()
     } catch (error) {
-      message.error(errorMessage(error))
+      teacherValidation.applyServerError(error)
+      teacherFailure.value = errorMessage(error)
     } finally {
       saving.value = false
     }
   }
   function openEdit(row: User): void {
+    editValidation.clear()
+    editFailure.value = ''
     selected.value = row
     Object.assign(edit, {
       login_name: row.login_name,
@@ -111,6 +151,7 @@ export function useAccountDirectory() {
   }
   async function saveEdit(): Promise<void> {
     if (!selected.value || saving.value) return
+    if (!editValidation.validate()) return
     saving.value = true
     try {
       const payload: {
@@ -128,18 +169,26 @@ export function useAccountDirectory() {
       )
       await load()
     } catch (error) {
-      message.error(errorMessage(error))
+      editValidation.applyServerError(error)
+      editFailure.value = errorMessage(error)
     } finally {
       saving.value = false
     }
   }
   function openReset(row: User): void {
+    resetValidation.clear()
+    resetFailure.value = ''
     selected.value = row
     temporaryPassword.value = ''
     resetVisible.value = true
   }
   async function resetPassword(): Promise<void> {
     if (!selected.value || saving.value) return
+    resetFailure.value = ''
+    if (!resetValidation.validate()) {
+      resetFailure.value = '请检查标出的填写内容'
+      return
+    }
     saving.value = true
     try {
       const result = await identityApi.resetPassword(selected.value.id, temporaryPassword.value)
@@ -148,13 +197,19 @@ export function useAccountDirectory() {
         result.cleanupPending ? '密码已重置，旧登录状态正在清理' : '已重置密码并撤销旧会话',
       )
     } catch (error) {
-      message.error(errorMessage(error))
+      resetValidation.applyServerError(error)
+      resetFailure.value = errorMessage(error)
     } finally {
       saving.value = false
     }
   }
   function confirmStatus(): void {
     if (!selected.value) return
+    editFailure.value = ''
+    if (!editValidation.validate()) {
+      editFailure.value = '请检查标出的填写内容'
+      return
+    }
     const unchanged = edit.status === selected.value.status
     dialog.warning({
       title: unchanged
@@ -190,6 +245,12 @@ export function useAccountDirectory() {
     teacher,
     edit,
     temporaryPassword,
+    teacherValidation,
+    teacherFailure,
+    editValidation,
+    editFailure,
+    resetValidation,
+    resetFailure,
     statusOptions,
     load,
     changePage,

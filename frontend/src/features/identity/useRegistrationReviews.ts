@@ -3,6 +3,8 @@ import { useMessage } from 'naive-ui'
 import { errorMessage } from '../../api/client'
 import { identityApi } from '../../api/identity'
 import type { StudentReview } from '../../types'
+import { useFormValidation } from '../../composables/useFormValidation'
+import { textRule } from './formRules'
 
 export function useRegistrationReviews() {
   const items = ref<StudentReview[]>([])
@@ -17,6 +19,14 @@ export function useRegistrationReviews() {
   const selected = ref<StudentReview | null>(null)
   const rejectVisible = ref(false)
   const reason = ref('')
+  const rejectFailure = ref('')
+  const rejectValidation = useFormValidation(
+    () => ({ reason: reason.value }),
+    {
+      reason: textRule('拒绝原因'),
+    },
+    'review',
+  )
   const message = useMessage()
 
   async function load(): Promise<void> {
@@ -46,8 +56,9 @@ export function useRegistrationReviews() {
   }
   async function decide(row: StudentReview, decision: 'APPROVED' | 'REJECTED'): Promise<void> {
     if (saving.value) return
-    if (decision === 'REJECTED' && !reason.value.trim()) {
-      message.warning('请填写拒绝原因')
+    rejectFailure.value = ''
+    if (decision === 'REJECTED' && !rejectValidation.validate()) {
+      rejectFailure.value = '请检查标出的填写内容'
       return
     }
     saving.value = true
@@ -62,12 +73,17 @@ export function useRegistrationReviews() {
       reason.value = ''
       await load()
     } catch (error) {
-      message.error(errorMessage(error))
+      if (decision === 'REJECTED') {
+        rejectValidation.applyServerError(error)
+        rejectFailure.value = errorMessage(error)
+      } else message.error(errorMessage(error))
     } finally {
       saving.value = false
     }
   }
   function openReject(row: StudentReview): void {
+    rejectValidation.clear()
+    rejectFailure.value = ''
     selected.value = row
     reason.value = ''
     rejectVisible.value = true
@@ -85,6 +101,8 @@ export function useRegistrationReviews() {
     selected,
     rejectVisible,
     reason,
+    rejectValidation,
+    rejectFailure,
     load,
     changePage,
     decide,

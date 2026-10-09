@@ -17,6 +17,15 @@ export function usePaperEditor(onSaved: () => Promise<void>) {
   const saving = ref(false)
   const failure = ref('')
   const conflict = ref(false)
+  const baseline = ref('')
+  const draftContent = computed(() =>
+    JSON.stringify({
+      title: title.value,
+      description: description.value,
+      questions: questions.value.map((item) => ({ id: item.question.id, score: item.score })),
+    }),
+  )
+  const dirty = computed(() => visible.value && draftContent.value !== baseline.value)
   const archived = computed(() => selected.value?.status === 'ARCHIVED')
   // 以十分为整数累计，避免 0.1 + 0.2 的浮点显示误差；传输仍使用分数字符串。
   const draftTotal = computed(() =>
@@ -30,6 +39,7 @@ export function usePaperEditor(onSaved: () => Promise<void>) {
     title.value = ''
     description.value = ''
     questions.value = []
+    baseline.value = draftContent.value
     failure.value = ''
     conflict.value = false
     visible.value = true
@@ -46,6 +56,7 @@ export function usePaperEditor(onSaved: () => Promise<void>) {
         question: item.question,
         score: item.score,
       }))
+      baseline.value = draftContent.value
       conflict.value = false
       visible.value = true
     } catch (error) {
@@ -95,6 +106,7 @@ export function usePaperEditor(onSaved: () => Promise<void>) {
     saving,
     failure,
     conflict,
+    dirty,
     archived,
     draftTotal,
     create,

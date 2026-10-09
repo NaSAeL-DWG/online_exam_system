@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { nextTick, ref } from 'vue'
+import { nextTick, ref, useId } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { NAlert, NButton, NModal, useDialog } from 'naive-ui'
 import { examStatusLabels } from '../api/exams'
@@ -17,6 +17,12 @@ import StandardCorrection from '../features/grading/StandardCorrection.vue'
 import WithdrawResults from '../features/grading/WithdrawResults.vue'
 import PublishResults from '../features/results/PublishResults.vue'
 import TeacherAnalyticsPanel from '../features/analytics/TeacherAnalyticsPanel.vue'
+import { useUnsavedChanges } from '../composables/useUnsavedChanges'
+import {
+  textError,
+  useContentValidation,
+  type ContentFieldErrors,
+} from '../features/contentValidation'
 const route = useRoute()
 const router = useRouter()
 const dialog = useDialog()
@@ -46,9 +52,38 @@ const {
   editQuestion,
   applyQuestion,
 } = useExamDraft(() => String(route.params.id))
+useUnsavedChanges(() => isDraft.value && dirty.value)
 const activeTab = ref(0)
+const settingsFields = ref<InstanceType<typeof ExamSettings> | null>(null)
+const snapshotFields = ref<InstanceType<typeof SnapshotQuestions> | null>(null)
+const questionFields = ref<InstanceType<typeof QuestionFields> | null>(null)
+async function saveDraft(): Promise<void> {
+  const settingsValid = settingsFields.value?.validate(false) ?? true
+  const snapshotsValid = snapshotFields.value?.validate(false) ?? true
+  if (!settingsValid || !snapshotsValid) {
+    activeTab.value = settingsValid ? 1 : 0
+    await nextTick()
+    if (settingsValid) snapshotFields.value?.validate()
+    else settingsFields.value?.validate()
+    return
+  }
+  await save()
+}
+function applyQuestionChanges(): void {
+  if (questionFields.value?.validate()) applyQuestion()
+}
 const cancelVisible = ref(false)
 const cancelReason = ref('')
+const cancelForm = ref<HTMLFormElement | null>(null)
+const cancelErrorId = `${useId()}-cancel-error`
+const {
+  errors: cancelErrors,
+  validate: validateCancel,
+  resetValidation: resetCancelValidation,
+} = useContentValidation((): ContentFieldErrors => {
+  const issue = textError(cancelReason.value, '取消考试原因', 2000, true)
+  return issue ? { reason: issue } : {}
+})
 const correctionIndex = ref<number | null>(null)
 const correctionSuccess = ref('')
 const withdrawResultsVisible = ref(false)
@@ -67,9 +102,11 @@ function resultsWithdrawn(): void {
 }
 function openCancel(): void {
   cancelReason.value = ''
+  resetCancelValidation()
   cancelVisible.value = true
 }
 async function confirmCancel(): Promise<void> {
+  if (!validateCancel(cancelForm.value)) return
   if (await cancel(cancelReason.value)) cancelVisible.value = false
 }
 const tabs = [
@@ -83,19 +120,6 @@ const tabButtons = ref<HTMLButtonElement[]>([])
 function activateTab(index: number): void {
   activeTab.value = (index + tabs.length) % tabs.length
   tabButtons.value[activeTab.value]?.focus()
-}
-function revealInvalidField(event: Event): void {
-  const field = event.target as HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
-  const panelId = field.closest('[role="tabpanel"]')?.id
-  const index = tabs.findIndex((tab) => tab.id === panelId)
-  if (index < 0 || index === activeTab.value) return
-  // 隐藏分区仍参与整份草稿校验；先显示字段，再由浏览器提供就近的必填提示。
-  event.preventDefault()
-  activeTab.value = index
-  void nextTick(() => {
-    field.focus()
-    field.reportValidity()
-  })
 }
 function confirmTransition(action: 'publish' | 'withdraw'): void {
   dialog.warning({
@@ -221,12 +245,7 @@ function confirmTransition(action: 'publish' | 'withdraw'): void {
           <AppIcon :name="tab.icon" :size="17" />{{ tab.label }}
         </button>
       </div>
-      <form
-        id="exam-draft-form"
-        class="exam-form"
-        @submit.prevent="save"
-        @invalid.capture="revealInvalidField"
-      >
+      <form id="exam-draft-form" class="exam-form" novalidate @submit.prevent="saveDraft">
         <section
           v-show="activeTab === 0"
           id="exam-settings"
@@ -236,6 +255,7 @@ function confirmTransition(action: 'publish' | 'withdraw'): void {
           <NAlert v-if="!isDraft && exam.status !== 'CANCELLED'" class="form-alert" type="info"
             >已发布配置已锁定。尚无人开始时可撤回发布后修改。</NAlert
           ><ExamSettings
+            ref="settingsFields"
             v-model="form"
             v-model:start="start"
             v-model:end="end"
@@ -254,6 +274,7 @@ function confirmTransition(action: 'publish' | 'withdraw'): void {
             title="独立题目快照"
             description="调整只影响本场考试；来源题库和试卷的后续修改不会改变此快照。"
             ><SnapshotQuestions
+              ref="snapshotFields"
               v-model="form.questions"
               :disabled="!isDraft || saving"
               :allow-correction="exam.status === 'RELEASED' || exam.status === 'RESULTS_PUBLISHED'"
@@ -319,8 +340,17 @@ function confirmTransition(action: 'publish' | 'withdraw'): void {
       :mask-closable="false"
       :closable="!uploading"
       :close-on-esc="!uploading"
-      ><form v-if="editingQuestion" class="snapshot-editor" @submit.prevent="applyQuestion">
-        <QuestionFields v-model="editingQuestion" @uploading="uploading = $event" />
+      ><form
+        v-if="editingQuestion"
+        class="snapshot-editor"
+        novalidate
+        @submit.prevent="applyQuestionChanges"
+      >
+        <QuestionFields
+          ref="questionFields"
+          v-model="editingQuestion"
+          @uploading="uploading = $event"
+        />
         <div class="editor-actions">
           <span class="muted">应用后还需保存考试草稿。</span
           ><NButton attr-type="submit" type="primary" :disabled="uploading">应用题目修改</NButton>
@@ -337,24 +367,25 @@ function confirmTransition(action: 'publish' | 'withdraw'): void {
       :close-on-esc="!saving"
     >
       <NAlert type="error">取消后全部作答将废弃，考试无法恢复。</NAlert>
-      <form class="cancel-exam-form" @submit.prevent="confirmCancel">
+      <form ref="cancelForm" class="cancel-exam-form" novalidate @submit.prevent="confirmCancel">
         <label class="field"
           >取消考试原因<textarea
             v-model="cancelReason"
             aria-label="取消考试原因"
             required
             maxlength="2000"
+            :aria-invalid="!!cancelErrors.reason"
+            :aria-describedby="cancelErrors.reason ? cancelErrorId : undefined"
             rows="3"
             :disabled="saving"
           />
+          <span v-if="cancelErrors.reason" :id="cancelErrorId" class="field-error" role="alert">{{
+            cancelErrors.reason
+          }}</span>
         </label>
         <div class="editor-actions">
           <NButton :disabled="saving" @click="cancelVisible = false">保留考试</NButton
-          ><NButton
-            attr-type="submit"
-            type="error"
-            :disabled="!cancelReason.trim() || conflict"
-            :loading="saving"
+          ><NButton attr-type="submit" type="error" :disabled="conflict" :loading="saving"
             >确认取消整场考试</NButton
           >
         </div>
@@ -363,6 +394,10 @@ function confirmTransition(action: 'publish' | 'withdraw'): void {
   </div>
 </template>
 <style scoped>
+.field-error {
+  color: #b42318;
+  font-size: 12px;
+}
 .cancel-exam-form {
   display: grid;
   gap: 20px;

@@ -1,8 +1,11 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, useId } from 'vue'
 import { NButton } from 'naive-ui'
 import type { QuestionInput } from '../../api/questions'
+import type { ContentFieldErrors } from '../contentValidation'
 const model = defineModel<QuestionInput>({ required: true })
+defineProps<{ errors?: ContentFieldErrors }>()
+const errorPrefix = useId()
 const isChoice = computed(() => ['SINGLE_CHOICE', 'MULTIPLE_CHOICE'].includes(model.value.type))
 function selectAnswer(id: string, checked: boolean): void {
   if (model.value.type === 'SINGLE_CHOICE') {
@@ -48,6 +51,8 @@ function addOption(): void {
             :checked="
               Array.isArray(model.standard_answer) && model.standard_answer.includes(option.id)
             "
+            :aria-invalid="!!errors?.standard_answer"
+            :aria-describedby="errors?.standard_answer ? `${errorPrefix}-answer-error` : undefined"
             @change="selectAnswer(option.id, ($event.target as HTMLInputElement).checked)"
           /><span>{{ String.fromCharCode(65 + index) }}</span></label
         >
@@ -58,11 +63,31 @@ function addOption(): void {
             :aria-label="`选项 ${index + 1}`"
             :placeholder="`选项 ${index + 1} 的内容`"
             required
-        /></label>
+            maxlength="20000"
+            :aria-invalid="!!errors?.[`option.${option.id}`]"
+            :aria-describedby="
+              errors?.[`option.${option.id}`] ? `${errorPrefix}-${option.id}-error` : undefined
+            "
+          /><span
+            v-if="errors?.[`option.${option.id}`]"
+            :id="`${errorPrefix}-${option.id}-error`"
+            class="field-error"
+            role="alert"
+            >{{ errors[`option.${option.id}`] }}</span
+          ></label
+        >
         <NButton size="small" :disabled="model.options.length <= 2" @click="removeOption(option.id)"
           >移除</NButton
         >
       </div>
+      <p
+        v-if="errors?.standard_answer"
+        :id="`${errorPrefix}-answer-error`"
+        class="field-error"
+        role="alert"
+      >
+        {{ errors.standard_answer }}
+      </p>
       <NButton :disabled="model.options.length >= 8" @click="addOption">增加选项</NButton>
     </div>
     <label v-else-if="model.type === 'TRUE_FALSE'" class="field"
@@ -85,6 +110,10 @@ function addOption(): void {
 <style scoped>
 .section-heading {
   margin-bottom: 14px;
+}
+.field-error {
+  color: #b42318;
+  font-size: 12px;
 }
 h3,
 p {

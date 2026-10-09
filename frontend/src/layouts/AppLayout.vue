@@ -59,7 +59,13 @@ async function logout(): Promise<void> {
         <span class="sidebar-product">在线限时考试系统</span>
       </div>
       <AppNavigation :modules="modules" />
-      <div class="sidebar-footer"><strong>账号协助</strong>身份资料或登录问题，请联系管理员。</div>
+      <div class="sidebar-footer">
+        <strong>账号协助</strong>
+        <template v-if="auth.user?.user_type === 'ADMIN'"
+          >管理员密码需由本地运维恢复，请联系系统维护人员。</template
+        >
+        <template v-else>身份资料或登录问题，请联系管理员。</template>
+      </div>
     </aside>
     <div class="app-main">
       <header class="topbar">

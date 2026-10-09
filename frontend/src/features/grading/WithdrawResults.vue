@@ -1,20 +1,27 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, useId } from 'vue'
 import { NAlert, NButton, NModal } from 'naive-ui'
 import { examsApi, type Exam } from '../../api/exams'
 import { ApiError, errorMessage, isWriteResultUnknown } from '../../api/client'
+import { textError, useContentValidation, type ContentFieldErrors } from '../contentValidation'
 const props = defineProps<{ exam: Exam }>()
 const emit = defineEmits<{ close: []; saved: []; refresh: [] }>()
 const reason = ref('')
 const saving = ref(false)
 const failure = ref('')
 const needsReload = ref(false)
+const formRoot = ref<HTMLFormElement | null>(null)
+const errorId = `${useId()}-withdraw-error`
+const { errors, validate } = useContentValidation((): ContentFieldErrors => {
+  const issue = textError(reason.value, '撤回结果原因', 2000, true)
+  return issue ? { reason: issue } : {}
+})
 function refresh(): void {
   emit('refresh')
   emit('close')
 }
 async function save(): Promise<void> {
-  if (saving.value || needsReload.value || !reason.value.trim()) return
+  if (saving.value || needsReload.value || !validate(formRoot.value)) return
   saving.value = true
   failure.value = ''
   try {
@@ -49,7 +56,7 @@ async function save(): Promise<void> {
       >{{ failure }}
       <NButton v-if="needsReload" size="small" @click="refresh">核对最新考试状态</NButton></NAlert
     >
-    <form class="withdraw-form" @submit.prevent="save">
+    <form ref="formRoot" class="withdraw-form" novalidate @submit.prevent="save">
       <label class="field"
         >撤回结果原因<textarea
           v-model="reason"
@@ -57,16 +64,17 @@ async function save(): Promise<void> {
           rows="3"
           maxlength="2000"
           required
+          :aria-invalid="!!errors.reason"
+          :aria-describedby="errors.reason ? errorId : undefined"
           :disabled="saving || needsReload"
         />
+        <span v-if="errors.reason" :id="errorId" class="field-error" role="alert">{{
+          errors.reason
+        }}</span>
       </label>
       <div class="editor-actions">
         <NButton :disabled="saving" @click="emit('close')">保留公布结果</NButton
-        ><NButton
-          type="primary"
-          attr-type="submit"
-          :loading="saving"
-          :disabled="!reason.trim() || needsReload"
+        ><NButton type="primary" attr-type="submit" :loading="saving" :disabled="needsReload"
           >确认撤回结果</NButton
         >
       </div>
@@ -74,6 +82,10 @@ async function save(): Promise<void> {
   </NModal>
 </template>
 <style scoped>
+.field-error {
+  color: #b42318;
+  font-size: 12px;
+}
 .withdraw-form {
   display: grid;
   gap: 20px;

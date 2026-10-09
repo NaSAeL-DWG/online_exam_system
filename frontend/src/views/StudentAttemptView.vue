@@ -6,7 +6,11 @@ import { useAuthStore } from '../stores/auth'
 import PageHeader from '../components/ui/PageHeader.vue'
 import SurfacePanel from '../components/ui/SurfacePanel.vue'
 import AttemptQuestion from '../features/attempts/AttemptQuestion.vue'
-import { useAttemptWorkspace } from '../features/attempts/useAttemptWorkspace'
+import {
+  useAttemptWorkspace,
+  type AnswerRow,
+  type SaveState,
+} from '../features/attempts/useAttemptWorkspace'
 import { isUnanswered } from '../features/attempts/answerDrafts'
 import { examTime } from '../features/attempts/examAvailability'
 
@@ -50,6 +54,21 @@ const canTakeover = computed(
     remaining.value > 0 &&
     readonlyReason.value.includes('另一页面'),
 )
+const navigationSaveStates: Record<SaveState, string> = {
+  saved: '已保存',
+  unsaved: '尚未上传，待保存',
+  saving: '正在保存',
+  failed: '保存失败，待重试',
+  conflict: '版本冲突，尚未保存',
+}
+/** 状态作为可访问描述更新，题号名称和当前位置语义保持稳定。 */
+function navigationDescription(row: AnswerRow): string {
+  return [
+    isUnanswered(row.value) ? '未作答' : '已作答',
+    navigationSaveStates[row.state],
+    ...(row.marked ? ['待检查'] : []),
+  ].join('，')
+}
 async function beginSubmission(): Promise<void> {
   if (await prepareSubmission()) confirmation.value = true
 }
@@ -165,6 +184,7 @@ function confirmReload(): void {
                 :key="row.question.id"
                 type="button"
                 :aria-label="`第 ${index + 1} 题`"
+                :aria-describedby="`question-state-${row.question.id}`"
                 :aria-current="currentIndex === index ? 'step' : undefined"
                 :class="{
                   current: currentIndex === index,
@@ -179,6 +199,9 @@ function confirmReload(): void {
                 ><span v-if="row.state !== 'saved'" class="navigation-pending" aria-hidden="true"
                   >•</span
                 >
+                <span :id="`question-state-${row.question.id}`" class="sr-only">{{
+                  navigationDescription(row)
+                }}</span>
               </button>
             </nav>
             <div class="navigation-key">
@@ -249,6 +272,13 @@ function confirmReload(): void {
 </template>
 
 <style scoped>
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
 .deadline-clock {
   text-align: right;
   display: grid;

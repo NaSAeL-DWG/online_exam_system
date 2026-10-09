@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, useId } from 'vue'
 import { NAlert, NButton, NModal } from 'naive-ui'
 import { gradingApi, type StaffAttemptDetail } from '../../api/grading'
 import { identityApi } from '../../api/identity'
@@ -7,6 +7,7 @@ import { ApiError, errorMessage, isWriteResultUnknown } from '../../api/client'
 import { usePagedList } from '../../composables/usePagedList'
 import ListPager from '../../components/ListPager.vue'
 import type { UserSummary } from '../../types'
+import { textError, useContentValidation, type ContentFieldErrors } from '../contentValidation'
 const props = defineProps<{ attempt: StaffAttemptDetail }>()
 const emit = defineEmits<{
   close: []
@@ -30,6 +31,15 @@ const reason = ref('')
 const saving = ref(false)
 const failure = ref('')
 const needsReload = ref(false)
+const formRoot = ref<HTMLFormElement | null>(null)
+const errorPrefix = useId()
+const { errors, validate } = useContentValidation(() => {
+  const errors: ContentFieldErrors = {}
+  if (!teacherId.value) errors.teacher_id = '请选择阅卷教师。'
+  const reasonIssue = textError(reason.value, '改派原因', 2000, true)
+  if (reasonIssue) errors.reason = reasonIssue
+  return errors
+})
 const options = computed(() => {
   const users = new Map(items.value.map((teacher) => [teacher.id, teacher]))
   if (selected.value) users.set(selected.value.id, selected.value)
@@ -40,14 +50,7 @@ function select(value: string): void {
   selected.value = options.value.find((teacher) => teacher.id === value) || null
 }
 async function save(): Promise<void> {
-  if (
-    saving.value ||
-    needsReload.value ||
-    !teacherId.value ||
-    !reason.value.trim() ||
-    !props.attempt.task
-  )
-    return
+  if (saving.value || needsReload.value || !props.attempt.task || !validate(formRoot.value)) return
   saving.value = true
   failure.value = ''
   try {
@@ -100,7 +103,7 @@ async function reloadTask(): Promise<void> {
         >重新读取任务</NButton
       ></NAlert
     >
-    <form class="reassignment-form" @submit.prevent="save">
+    <form ref="formRoot" class="reassignment-form" novalidate @submit.prevent="save">
       <div class="toolbar">
         <input
           v-model="query"
@@ -121,14 +124,22 @@ async function reloadTask(): Promise<void> {
           :value="teacherId"
           aria-label="选择阅卷教师"
           required
+          :aria-invalid="!!errors.teacher_id"
+          :aria-describedby="errors.teacher_id ? `${errorPrefix}-teacher-error` : undefined"
           :disabled="loading || saving || needsReload"
           @change="select(($event.target as HTMLSelectElement).value)"
         >
           <option value="">请选择激活教师</option>
           <option v-for="teacher in options" :key="teacher.id" :value="teacher.id">
             {{ teacher.real_name }}（{{ teacher.login_name }}）
-          </option>
-        </select></label
+          </option></select
+        ><span
+          v-if="errors.teacher_id"
+          :id="`${errorPrefix}-teacher-error`"
+          class="field-error"
+          role="alert"
+          >{{ errors.teacher_id }}</span
+        ></label
       >
       <ListPager
         label="阅卷教师候选"
@@ -145,16 +156,21 @@ async function reloadTask(): Promise<void> {
           required
           rows="3"
           maxlength="2000"
+          :aria-invalid="!!errors.reason"
+          :aria-describedby="errors.reason ? `${errorPrefix}-reason-error` : undefined"
           :disabled="saving || needsReload"
         />
+        <span
+          v-if="errors.reason"
+          :id="`${errorPrefix}-reason-error`"
+          class="field-error"
+          role="alert"
+          >{{ errors.reason }}</span
+        >
       </label>
       <div class="editor-actions">
         <NButton :disabled="saving" @click="emit('close')">取消改派</NButton
-        ><NButton
-          type="primary"
-          attr-type="submit"
-          :loading="saving"
-          :disabled="!teacherId || !reason.trim() || needsReload"
+        ><NButton type="primary" attr-type="submit" :loading="saving" :disabled="needsReload"
           >确认改派</NButton
         >
       </div>
@@ -162,6 +178,10 @@ async function reloadTask(): Promise<void> {
   </NModal>
 </template>
 <style scoped>
+.field-error {
+  color: #b42318;
+  font-size: 12px;
+}
 .reassignment-form {
   display: grid;
   gap: 20px;

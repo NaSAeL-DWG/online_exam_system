@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, useId } from 'vue'
 import { NAlert, NButton, NModal, useDialog } from 'naive-ui'
 import { examsApi, type Exam } from '../../api/exams'
 import { ApiError, errorMessage, isWriteResultUnknown } from '../../api/client'
 import type { QuestionInput } from '../../api/questions'
 import SafeMarkdown from '../../components/SafeMarkdown.vue'
+import { textError, useContentValidation, type ContentFieldErrors } from '../contentValidation'
+import { choiceAnswerError } from '../questions/questionValidation'
 const props = defineProps<{ exam: Exam; questionIndex: number }>()
 const emit = defineEmits<{ close: []; saved: [exam: Exam]; refreshed: [exam: Exam] }>()
 const dialog = useDialog()
@@ -19,6 +21,18 @@ const reason = ref('')
 const saving = ref(false)
 const failure = ref('')
 const needsReload = ref(false)
+const formRoot = ref<HTMLFormElement | null>(null)
+const errorPrefix = useId()
+const { errors, validate } = useContentValidation(() => {
+  const errors: ContentFieldErrors = {}
+  const answerIssue = choiceAnswerError({ ...question.value, standard_answer: standard.value })
+  const explanationIssue = textError(explanation.value, '解析与评分说明', 100000)
+  const reasonIssue = textError(reason.value, '更正原因', 2000, true)
+  if (answerIssue) errors.standard_answer = answerIssue
+  if (explanationIssue) errors.explanation = explanationIssue
+  if (reasonIssue) errors.reason = reasonIssue
+  return errors
+})
 function selectOption(id: string, checked: boolean): void {
   if (question.value.type === 'SINGLE_CHOICE') {
     standard.value = [id]
@@ -28,7 +42,7 @@ function selectOption(id: string, checked: boolean): void {
   standard.value = checked ? [...values, id] : values.filter((value) => value !== id)
 }
 async function save(): Promise<void> {
-  if (saving.value || needsReload.value || !reason.value.trim()) return
+  if (saving.value || needsReload.value || !validate(formRoot.value)) return
   saving.value = true
   failure.value = ''
   try {
@@ -92,7 +106,7 @@ function reload(): void {
       >{{ failure }}
       <NButton v-if="needsReload" size="small" @click="reload">重新读取评分依据</NButton></NAlert
     >
-    <form class="correction-form" @submit.prevent="save">
+    <form ref="formRoot" class="correction-form" novalidate @submit.prevent="save">
       <div class="correction-question">
         <strong>第 {{ questionIndex + 1 }} 题</strong><SafeMarkdown :content="question.content" />
       </div>
@@ -109,10 +123,20 @@ function reload(): void {
             :aria-label="`更正正确选项 ${index + 1}`"
             :checked="Array.isArray(standard) && standard.includes(option.id)"
             :disabled="saving || needsReload"
+            :aria-invalid="!!errors.standard_answer"
+            :aria-describedby="errors.standard_answer ? `${errorPrefix}-answer-error` : undefined"
             @change="selectOption(option.id, ($event.target as HTMLInputElement).checked)" /><span
             >{{ String.fromCharCode(65 + index) }}.</span
           ><SafeMarkdown :content="option.content"
         /></label>
+        <p
+          v-if="errors.standard_answer"
+          :id="`${errorPrefix}-answer-error`"
+          class="field-error"
+          role="alert"
+        >
+          {{ errors.standard_answer }}
+        </p>
       </div>
       <label v-else-if="question.type === 'TRUE_FALSE'" class="field"
         >判断标准答案<select
@@ -138,8 +162,18 @@ function reload(): void {
           v-model="explanation"
           aria-label="更正解析与评分说明"
           rows="3"
+          maxlength="100000"
+          :aria-invalid="!!errors.explanation"
+          :aria-describedby="errors.explanation ? `${errorPrefix}-explanation-error` : undefined"
           :disabled="saving || needsReload"
         />
+        <span
+          v-if="errors.explanation"
+          :id="`${errorPrefix}-explanation-error`"
+          class="field-error"
+          role="alert"
+          >{{ errors.explanation }}</span
+        >
       </label>
       <label class="field"
         >更正原因<textarea
@@ -148,8 +182,17 @@ function reload(): void {
           rows="3"
           required
           maxlength="2000"
+          :aria-invalid="!!errors.reason"
+          :aria-describedby="errors.reason ? `${errorPrefix}-reason-error` : undefined"
           :disabled="saving || needsReload"
         />
+        <span
+          v-if="errors.reason"
+          :id="`${errorPrefix}-reason-error`"
+          class="field-error"
+          role="alert"
+          >{{ errors.reason }}</span
+        >
       </label>
       <div class="editor-actions">
         <NButton :disabled="saving" @click="emit('close')">取消更正</NButton
@@ -157,7 +200,7 @@ function reload(): void {
           type="primary"
           attr-type="submit"
           :loading="saving"
-          :disabled="!reason.trim() || needsReload || exam.status !== 'RELEASED'"
+          :disabled="needsReload || exam.status !== 'RELEASED'"
           >保存依据并重判</NButton
         >
       </div>
@@ -165,6 +208,10 @@ function reload(): void {
   </NModal>
 </template>
 <style scoped>
+.field-error {
+  color: #b42318;
+  font-size: 12px;
+}
 .correction-form {
   display: grid;
   gap: 20px;

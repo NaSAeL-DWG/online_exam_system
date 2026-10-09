@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { ref, useId, watch } from 'vue'
 import { NAlert, NButton, NModal, useDialog } from 'naive-ui'
 import { papersApi } from '../api/papers'
 import QuestionPicker from '../components/QuestionPicker.vue'
@@ -10,6 +11,12 @@ import AppIcon from '../components/ui/AppIcon.vue'
 import PaperQuestionList from '../features/papers/PaperQuestionList.vue'
 import { usePaperEditor } from '../features/papers/usePaperEditor'
 import { usePagedList } from '../composables/usePagedList'
+import { useUnsavedChanges } from '../composables/useUnsavedChanges'
+import {
+  textError,
+  useContentValidation,
+  type ContentFieldErrors,
+} from '../features/contentValidation'
 const { items, page, total, query, loading, failure, load, changePage } = usePagedList(
   papersApi.list,
 )
@@ -22,6 +29,7 @@ const {
   saving,
   failure: editorFailure,
   conflict,
+  dirty,
   archived,
   draftTotal,
   create,
@@ -29,11 +37,35 @@ const {
   move,
   persist,
 } = usePaperEditor(load)
+const formRoot = ref<HTMLFormElement | null>(null)
+const questionList = ref<InstanceType<typeof PaperQuestionList> | null>(null)
+const errorPrefix = useId()
+const { errors, validate, resetValidation } = useContentValidation(() => {
+  const errors: ContentFieldErrors = {}
+  const titleIssue = textError(title.value, '试卷名称', 200, true)
+  const descriptionIssue = textError(description.value, '试卷说明', 100000)
+  if (titleIssue) errors.title = titleIssue
+  if (descriptionIssue) errors.description = descriptionIssue
+  return errors
+})
+watch(visible, () => {
+  resetValidation()
+  questionList.value?.resetValidation()
+})
+async function savePaper(): Promise<void> {
+  const basicsValid = validate(formRoot.value)
+  const scoresValid = questionList.value?.validate(basicsValid) ?? true
+  if (basicsValid && scoresValid) await persist('save')
+}
+const { confirmDiscard } = useUnsavedChanges(() => dirty.value)
+async function closeEditor(): Promise<void> {
+  if (!saving.value && (await confirmDiscard())) visible.value = false
+}
 const dialog = useDialog()
 function archive(): void {
   dialog.warning({
     title: '归档试卷',
-    content: '归档后不能再用于创建新考试，已有考试快照保持不变。',
+    content: `归档后不能再用于创建新考试，已有考试快照保持不变。${dirty.value ? '尚未保存的修改不会应用到试卷。' : ''}`,
     positiveText: '确认归档',
     negativeText: '取消',
     onPositiveClick: () => persist('archive'),
@@ -113,7 +145,8 @@ function archive(): void {
       />
     </SurfacePanel>
     <NModal
-      v-model:show="visible"
+      :show="visible"
+      @update:show="closeEditor"
       preset="card"
       :title="selected ? '编辑试卷' : '新建试卷'"
       class="responsive-modal responsive-modal--composer"
@@ -129,21 +162,49 @@ function archive(): void {
         ></NAlert
       >
       <NAlert v-if="archived" class="form-alert" type="info">此试卷已归档，保留内容供追溯。</NAlert>
-      <form id="paper-editor-form" class="paper-form" @submit.prevent="persist('save')">
+      <form
+        ref="formRoot"
+        id="paper-editor-form"
+        class="paper-form"
+        novalidate
+        @submit.prevent="savePaper"
+      >
         <fieldset :disabled="saving || archived" class="paper-basics">
           <label class="field"
             >试卷名称<input
               v-model="title"
               aria-label="试卷名称"
               required
-              placeholder="为试卷取一个便于查找的名称" /></label
+              maxlength="200"
+              :aria-invalid="!!errors.title"
+              :aria-describedby="errors.title ? `${errorPrefix}-title-error` : undefined"
+              placeholder="为试卷取一个便于查找的名称"
+            /><span
+              v-if="errors.title"
+              :id="`${errorPrefix}-title-error`"
+              class="field-error"
+              role="alert"
+              >{{ errors.title }}</span
+            ></label
           ><label class="field"
             >试卷说明<textarea
               v-model="description"
               aria-label="试卷说明"
               rows="2"
+              maxlength="100000"
+              :aria-invalid="!!errors.description"
+              :aria-describedby="
+                errors.description ? `${errorPrefix}-description-error` : undefined
+              "
               placeholder="适用范围或使用说明（可选）"
             />
+            <span
+              v-if="errors.description"
+              :id="`${errorPrefix}-description-error`"
+              class="field-error"
+              role="alert"
+              >{{ errors.description }}</span
+            >
           </label>
         </fieldset>
         <div class="composer-workspace" :class="{ 'composer-workspace--archived': archived }">
@@ -159,7 +220,12 @@ function archive(): void {
                 {{ questions.length }} 道题 · 总分 {{ draftTotal }} 分
               </p>
             </header>
-            <PaperQuestionList v-model="questions" :disabled="archived || saving" @move="move" />
+            <PaperQuestionList
+              ref="questionList"
+              v-model="questions"
+              :disabled="archived || saving"
+              @move="move"
+            />
           </section>
         </div>
       </form>
@@ -184,6 +250,10 @@ function archive(): void {
   </div>
 </template>
 <style scoped>
+.field-error {
+  color: #b42318;
+  font-size: 12px;
+}
 .paper-search {
   flex: 1;
   min-width: 0;

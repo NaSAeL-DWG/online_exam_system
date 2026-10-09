@@ -17,6 +17,7 @@ import PageHeader from '../components/ui/PageHeader.vue'
 import SurfacePanel from '../components/ui/SurfacePanel.vue'
 import StatusBadge from '../components/ui/StatusBadge.vue'
 import AppIcon from '../components/ui/AppIcon.vue'
+import FormField from '../components/ui/FormField.vue'
 import { useTeachingClassDirectory } from '../features/classes/useTeachingClassDirectory'
 import type { TeachingClass, UserSummary } from '../types'
 
@@ -37,6 +38,8 @@ const {
   editingId,
   editingClass,
   form,
+  validation,
+  editorFailure,
   isAdmin,
   load,
   changePage,
@@ -183,13 +186,14 @@ const studentColumns: DataTableColumns<UserSummary> = [
       class="responsive-modal"
     >
       <p class="modal-intro">先定义教学班，再关联负责教师。学生成员通过“成员管理”维护。</p>
+      <NAlert v-if="editorFailure" type="error" class="form-alert">{{ editorFailure }}</NAlert>
       <NForm :model="form" label-placement="top">
-        <NFormItem label="教学班名称"
+        <FormField v-slot="{ inputProps }" :validation="validation" field="name" label="教学班名称"
           ><NInput
             v-model:value="form.name"
-            :input-props="{ 'aria-label': '教学班名称' }"
+            :input-props="inputProps"
             placeholder="例如：软件工程 2026"
-        /></NFormItem>
+        /></FormField>
         <NFormItem label="说明"
           ><NInput
             v-model:value="form.description"

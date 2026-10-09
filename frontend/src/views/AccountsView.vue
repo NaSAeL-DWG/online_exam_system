@@ -19,6 +19,8 @@ import PageHeader from '../components/ui/PageHeader.vue'
 import SurfacePanel from '../components/ui/SurfacePanel.vue'
 import StatusBadge from '../components/ui/StatusBadge.vue'
 import AppIcon from '../components/ui/AppIcon.vue'
+import FormField from '../components/ui/FormField.vue'
+import PasswordIndicator from '../components/ui/PasswordIndicator.vue'
 import { useAccountDirectory } from '../features/identity/useAccountDirectory'
 import { roleLabels } from '../navigation/modules'
 import type { User } from '../types'
@@ -40,6 +42,12 @@ const {
   teacher,
   edit,
   temporaryPassword,
+  teacherValidation,
+  teacherFailure,
+  editValidation,
+  editFailure,
+  resetValidation,
+  resetFailure,
   statusOptions,
   load,
   changePage,
@@ -171,34 +179,57 @@ const columns: DataTableColumns<User> = [
       class="responsive-modal"
     >
       <p class="modal-intro">教师账号创建后直接激活，首次登录必须修改临时密码。</p>
+      <NAlert v-if="teacherFailure" type="error" class="form-alert">{{ teacherFailure }}</NAlert>
       <NForm :model="teacher" label-placement="top">
         <div class="form-grid two-columns">
-          <NFormItem label="工号"
+          <FormField
+            v-slot="{ inputProps }"
+            :validation="teacherValidation"
+            field="teacher_no"
+            label="工号"
             ><NInput
               v-model:value="teacher.teacher_no"
-              :input-props="{ 'aria-label': '工号' }"
+              :input-props="inputProps"
               placeholder="教师登录账号"
-          /></NFormItem>
-          <NFormItem label="姓名"
+          /></FormField>
+          <FormField
+            v-slot="{ inputProps }"
+            :validation="teacherValidation"
+            field="real_name"
+            label="姓名"
             ><NInput
               v-model:value="teacher.real_name"
-              :input-props="{ 'aria-label': '姓名' }"
+              :input-props="inputProps"
               placeholder="真实姓名"
-          /></NFormItem>
-          <NFormItem label="邮箱"
-            ><NInput v-model:value="teacher.email" :input-props="{ 'aria-label': '邮箱' }"
-          /></NFormItem>
-          <NFormItem label="手机号"
-            ><NInput v-model:value="teacher.phone_number" :input-props="{ 'aria-label': '手机号' }"
-          /></NFormItem>
+          /></FormField>
+          <FormField
+            v-slot="{ inputProps }"
+            :validation="teacherValidation"
+            field="email"
+            label="邮箱"
+            ><NInput v-model:value="teacher.email" :input-props="inputProps"
+          /></FormField>
+          <FormField
+            v-slot="{ inputProps }"
+            :validation="teacherValidation"
+            field="phone_number"
+            label="手机号"
+            ><NInput v-model:value="teacher.phone_number" :input-props="inputProps"
+          /></FormField>
         </div>
-        <NFormItem label="临时密码"
-          ><NInput
-            v-model:value="teacher.temporary_password"
-            :input-props="{ 'aria-label': '临时密码', autocomplete: 'new-password' }"
-            type="password"
-            show-password-on="click"
-        /></NFormItem>
+        <FormField
+          v-slot="{ inputProps }"
+          :validation="teacherValidation"
+          field="temporary_password"
+          label="临时密码"
+          ><div class="form-control-stack">
+            <NInput
+              v-model:value="teacher.temporary_password"
+              :input-props="{ ...inputProps, autocomplete: 'new-password' }"
+              type="password"
+              show-password-on="click"
+            /><PasswordIndicator :password="teacher.temporary_password" /></div
+        ></FormField>
       </NForm>
       <template #footer
         ><div class="editor-actions">
@@ -217,12 +248,21 @@ const columns: DataTableColumns<User> = [
         核验后更正 {{ selected?.real_name }} 的身份资料。停用会撤销现有登录会话。
       </p>
       <NForm :model="edit" label-placement="top">
-        <NFormItem label="登录账号"
-          ><NInput v-model:value="edit.login_name" :input-props="{ 'aria-label': '登录账号' }"
-        /></NFormItem>
-        <NFormItem label="姓名"
-          ><NInput v-model:value="edit.real_name" :input-props="{ 'aria-label': '姓名' }"
-        /></NFormItem>
+        <NAlert v-if="editFailure" type="error" class="form-alert">{{ editFailure }}</NAlert>
+        <FormField
+          v-slot="{ inputProps }"
+          :validation="editValidation"
+          field="login_name"
+          label="登录账号"
+          ><NInput v-model:value="edit.login_name" :input-props="inputProps"
+        /></FormField>
+        <FormField
+          v-slot="{ inputProps }"
+          :validation="editValidation"
+          field="real_name"
+          label="姓名"
+          ><NInput v-model:value="edit.real_name" :input-props="inputProps"
+        /></FormField>
         <NFormItem label="账号状态"
           ><NSelect v-model:value="edit.status" aria-label="账号状态" :options="statusOptions"
         /></NFormItem>
@@ -248,13 +288,21 @@ const columns: DataTableColumns<User> = [
         </div>
       </div>
       <NAlert type="warning">重置后旧会话立即失效，用户下次登录必须修改临时密码。</NAlert>
-      <NFormItem label="新临时密码" class="modal-field"
-        ><NInput
-          v-model:value="temporaryPassword"
-          :input-props="{ 'aria-label': '新临时密码', autocomplete: 'new-password' }"
-          type="password"
-          show-password-on="click"
-      /></NFormItem>
+      <NAlert v-if="resetFailure" type="error" class="form-alert">{{ resetFailure }}</NAlert>
+      <FormField
+        v-slot="{ inputProps }"
+        :validation="resetValidation"
+        field="temporary_password"
+        label="新临时密码"
+        class="modal-field"
+        ><div class="form-control-stack">
+          <NInput
+            v-model:value="temporaryPassword"
+            :input-props="{ ...inputProps, autocomplete: 'new-password' }"
+            type="password"
+            show-password-on="click"
+          /><PasswordIndicator :password="temporaryPassword" /></div
+      ></FormField>
       <template #footer
         ><div class="editor-actions">
           <NButton @click="resetVisible = false">取消</NButton

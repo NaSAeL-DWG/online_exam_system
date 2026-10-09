@@ -1,10 +1,12 @@
 <script setup lang="ts">
+import { ref, useId, watch } from 'vue'
 import { NButton } from 'naive-ui'
 import type { SnapshotQuestion } from '../../api/exams'
 import { questionTypeLabels } from '../../api/questions'
 import SafeMarkdown from '../../components/SafeMarkdown.vue'
 import QuestionPicker from '../../components/QuestionPicker.vue'
 import type { Question } from '../../api/questions'
+import { scoreCollectionErrors, useContentValidation } from '../contentValidation'
 const model = defineModel<SnapshotQuestion[]>({ required: true })
 defineProps<{ disabled: boolean; allowCorrection?: boolean }>()
 const emit = defineEmits<{
@@ -13,10 +15,36 @@ const emit = defineEmits<{
   add: [question: Question]
   correct: [index: number]
 }>()
+const snapshotRoot = ref<HTMLElement | null>(null)
+const errorPrefix = useId()
+const {
+  errors,
+  validate: validateFields,
+  resetValidation,
+} = useContentValidation(() => scoreCollectionErrors(model.value.map((question) => question.score)))
+function validate(focus = true): boolean {
+  return validateFields(snapshotRoot.value, focus)
+}
+watch(model, resetValidation)
+defineExpose({ validate, resetValidation })
 </script>
 <template>
-  <div class="snapshot-workspace" :class="{ 'snapshot-workspace--locked': disabled }">
+  <div
+    ref="snapshotRoot"
+    class="snapshot-workspace"
+    :class="{ 'snapshot-workspace--locked': disabled }"
+  >
     <section data-testid="exam-snapshot" class="snapshot-list" aria-label="考试题目快照">
+      <p
+        v-if="errors.questions"
+        :id="`${errorPrefix}-questions-error`"
+        class="field-error"
+        role="alert"
+        tabindex="-1"
+        aria-invalid="true"
+      >
+        {{ errors.questions }}
+      </p>
       <p v-if="!model.length" class="snapshot-empty">当前没有题目，请从题库加入题目后保存。</p>
       <article
         v-for="(question, index) in model"
@@ -32,18 +60,35 @@ const emit = defineEmits<{
         </header>
         <SafeMarkdown :content="question.content" />
         <div class="question-controls">
-          <label class="score-field"
-            >分值<input
-              v-model="question.score"
-              class="form-control"
-              :aria-label="`快照第 ${index + 1} 题分值`"
-              type="number"
-              min="0.1"
-              step="0.1"
-              required
-              :disabled="disabled"
-            /><span class="muted">分</span></label
-          >
+          <div class="score-control">
+            <label class="score-field"
+              >分值<input
+                v-model="question.score"
+                class="form-control"
+                :aria-label="`快照第 ${index + 1} 题分值`"
+                type="number"
+                min="0.1"
+                max="999999999.9"
+                step="0.1"
+                required
+                :aria-invalid="!!errors[`score.${index}`] || !!errors.questions"
+                :aria-describedby="
+                  errors[`score.${index}`]
+                    ? `${errorPrefix}-${index}-error`
+                    : errors.questions
+                      ? `${errorPrefix}-questions-error`
+                      : undefined
+                "
+                :disabled="disabled"
+              /><span class="muted">分</span></label
+            ><span
+              v-if="errors[`score.${index}`]"
+              :id="`${errorPrefix}-${index}-error`"
+              class="field-error"
+              role="alert"
+              >{{ errors[`score.${index}`] }}</span
+            >
+          </div>
           <div v-if="!disabled" class="question-actions">
             <NButton
               size="small"
@@ -87,6 +132,14 @@ const emit = defineEmits<{
   </div>
 </template>
 <style scoped>
+.score-control {
+  display: grid;
+  gap: 6px;
+}
+.field-error {
+  color: #b42318;
+  font-size: 12px;
+}
 .snapshot-workspace {
   display: grid;
   grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);

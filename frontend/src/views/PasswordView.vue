@@ -1,13 +1,17 @@
 <script setup lang="ts">
 import { reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { NAlert, NButton, NForm, NFormItem, NInput } from 'naive-ui'
+import { NAlert, NButton, NForm, NInput } from 'naive-ui'
 import PageHeader from '../components/ui/PageHeader.vue'
 import SurfacePanel from '../components/ui/SurfacePanel.vue'
 import AppIcon from '../components/ui/AppIcon.vue'
 import { errorMessage, isWriteResultUnknown } from '../api/client'
 import { authApi } from '../api/auth'
 import { useAuthStore } from '../stores/auth'
+import FormField from '../components/ui/FormField.vue'
+import PasswordIndicator from '../components/ui/PasswordIndicator.vue'
+import { useFormValidation } from '../composables/useFormValidation'
+import { credentialRule, passwordRule, confirmationRule } from '../features/identity/formRules'
 
 const auth = useAuthStore()
 const router = useRouter()
@@ -15,6 +19,15 @@ const form = reactive({ current_password: '', new_password: '', confirmPassword:
 const failure = ref('')
 const loading = ref(false)
 const uncertain = ref(false)
+const validation = useFormValidation(
+  () => form,
+  {
+    current_password: credentialRule(),
+    new_password: passwordRule('新密码'),
+    confirmPassword: confirmationRule('new_password', '确认新密码'),
+  },
+  'password',
+)
 
 async function confirmByLogin(): Promise<void> {
   auth.clear()
@@ -24,8 +37,8 @@ async function confirmByLogin(): Promise<void> {
 async function submit(): Promise<void> {
   if (loading.value || uncertain.value) return
   failure.value = ''
-  if (form.new_password !== form.confirmPassword) {
-    failure.value = '两次输入的新密码不一致'
+  if (!validation.validate()) {
+    failure.value = '请检查标出的填写内容'
     return
   }
   loading.value = true
@@ -37,6 +50,7 @@ async function submit(): Promise<void> {
       : '密码修改成功，请使用新密码重新登录'
     await router.push('/login')
   } catch (error) {
+    validation.applyServerError(error)
     uncertain.value = isWriteResultUnknown(error)
     failure.value = uncertain.value
       ? '密码修改结果尚未确认，请使用新密码尝试登录；不要直接重复提交。'
@@ -62,28 +76,54 @@ async function submit(): Promise<void> {
           >{{ failure
           }}<NButton v-if="uncertain" @click="confirmByLogin">重新登录确认</NButton></NAlert
         >
-        <NForm :model="form" class="settings-form" label-placement="top" @submit.prevent="submit">
-          <NFormItem label="当前密码"
+        <NForm
+          :model="form"
+          class="settings-form"
+          label-placement="top"
+          novalidate
+          @submit.prevent="submit"
+        >
+          <FormField
+            v-slot="{ inputProps }"
+            :validation="validation"
+            field="current_password"
+            label="当前密码"
             ><NInput
               v-model:value="form.current_password"
-              :input-props="{ 'aria-label': '当前密码', autocomplete: 'current-password' }"
+              :input-props="{ ...inputProps, autocomplete: 'current-password' }"
               type="password"
               show-password-on="click"
-          /></NFormItem>
-          <NFormItem label="新密码"
-            ><NInput
-              v-model:value="form.new_password"
-              :input-props="{ 'aria-label': '新密码', autocomplete: 'new-password' }"
-              type="password"
-              show-password-on="click"
-          /></NFormItem>
-          <NFormItem label="确认新密码"
-            ><NInput
-              v-model:value="form.confirmPassword"
-              :input-props="{ 'aria-label': '确认新密码', autocomplete: 'new-password' }"
-              type="password"
-              show-password-on="click"
-          /></NFormItem>
+          /></FormField>
+          <FormField
+            v-slot="{ inputProps }"
+            :validation="validation"
+            field="new_password"
+            label="新密码"
+            ><div class="form-control-stack">
+              <NInput
+                v-model:value="form.new_password"
+                :input-props="{ ...inputProps, autocomplete: 'new-password' }"
+                type="password"
+                show-password-on="click"
+              /><PasswordIndicator :password="form.new_password" /></div
+          ></FormField>
+          <FormField
+            v-slot="{ inputProps }"
+            :validation="validation"
+            field="confirmPassword"
+            label="确认新密码"
+            ><div class="form-control-stack">
+              <NInput
+                v-model:value="form.confirmPassword"
+                :input-props="{ ...inputProps, autocomplete: 'new-password' }"
+                type="password"
+                show-password-on="click"
+              /><PasswordIndicator
+                mode="match"
+                :password="form.new_password"
+                :confirmation="form.confirmPassword"
+              /></div
+          ></FormField>
           <div class="editor-actions">
             <NButton attr-type="submit" type="primary" :loading="loading" :disabled="uncertain"
               >保存新密码</NButton

@@ -8,6 +8,7 @@ import PageHeader from '../components/ui/PageHeader.vue'
 import SurfacePanel from '../components/ui/SurfacePanel.vue'
 import SnapshotReviewQuestion from '../features/results/SnapshotReviewQuestion.vue'
 import { usePrivateResource } from '../features/results/usePrivateResource'
+import { useUnsavedChanges } from '../composables/useUnsavedChanges'
 import '../features/results/results.css'
 
 const route = useRoute()
@@ -21,22 +22,48 @@ const saving = ref(false)
 const saveFailure = ref('')
 const success = ref('')
 const needsReload = ref(false)
-const dirty = computed(
+const baseline = ref<{ answerId: string; note: string; mastered: boolean } | null>(null)
+const draftChanged = computed(
   () =>
-    !!data.value &&
-    (note.value !== (data.value.note ?? '') || mastered.value !== data.value.mastered),
+    !!baseline.value &&
+    (note.value !== baseline.value.note || mastered.value !== baseline.value.mastered),
 )
+const dirty = computed(() => !!data.value && draftChanged.value)
+const { confirmDiscard } = useUnsavedChanges(() => draftChanged.value)
 watch(
   data,
   (record) => {
-    note.value = record?.note ?? ''
-    mastered.value = record?.mastered ?? false
+    if (!record) return
+    // 焦点刷新仍先清空敏感题目；同一错题重新获得授权后保留本页尚未保存的输入。
+    const preserveDraft = baseline.value?.answerId === record.answer_id && draftChanged.value
+    baseline.value = {
+      answerId: record.answer_id,
+      note: record.note ?? '',
+      mastered: record.mastered,
+    }
+    if (!preserveDraft) {
+      note.value = baseline.value.note
+      mastered.value = baseline.value.mastered
+    }
     saveFailure.value = ''
     success.value = ''
     needsReload.value = false
   },
   { flush: 'sync' },
 )
+watch([loading, failure], () => {
+  if (!loading.value && !data.value) {
+    // 已不能读取时不保留可恢复到界面的旧草稿，撤回和资格失效优先于编辑便利。
+    baseline.value = null
+    note.value = ''
+    mastered.value = false
+  }
+})
+async function reload(): Promise<void> {
+  if (!(await confirmDiscard('刷新'))) return
+  baseline.value = null
+  await load()
+}
 async function save(): Promise<void> {
   const record = data.value
   if (!record || saving.value || needsReload.value || !dirty.value) return
@@ -73,7 +100,7 @@ async function save(): Promise<void> {
       :description="data ? `${data.exam_title} · 第 ${data.attempt_no} 次作答` : undefined"
     >
       <template #actions
-        ><NButton :loading="loading" :disabled="saving" @click="load">刷新错题</NButton></template
+        ><NButton :loading="loading" :disabled="saving" @click="reload">刷新错题</NButton></template
       >
     </PageHeader>
     <NAlert v-if="failure" type="error">{{ failure }}</NAlert>
@@ -85,7 +112,7 @@ async function save(): Promise<void> {
       <SurfacePanel title="学习标记" description="备注与掌握状态独立保存，不改变本次分数。">
         <NAlert v-if="saveFailure" class="form-alert" type="error"
           >{{ saveFailure
-          }}<NButton v-if="needsReload" size="small" @click="load">核对最新标记</NButton></NAlert
+          }}<NButton v-if="needsReload" size="small" @click="reload">核对最新标记</NButton></NAlert
         >
         <NAlert v-if="success" class="form-alert" type="success">{{ success }}</NAlert>
         <form class="annotation-form" @submit.prevent="save">

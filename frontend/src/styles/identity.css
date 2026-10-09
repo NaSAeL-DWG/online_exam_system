@@ -6,6 +6,10 @@
   gap: 18px;
   padding-bottom: 22px;
 }
+.form-control-stack {
+  width: 100%;
+  min-width: 0;
+}
 .directory-search {
   display: flex;
   align-items: center;
