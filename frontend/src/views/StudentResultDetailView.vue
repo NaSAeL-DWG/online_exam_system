@@ -49,9 +49,9 @@ const { data, loading, failure, load } = usePrivateResource(
             <thead>
               <tr>
                 <th>作答</th>
-                <th>提交时间</th>
-                <th>状态</th>
                 <th>本次得分</th>
+                <th>状态</th>
+                <th>提交时间</th>
                 <th>答卷</th>
               </tr>
             </thead>
@@ -61,7 +61,11 @@ const { data, loading, failure, load } = usePrivateResource(
                   第 {{ attempt.attempt_no }} 次
                   <span v-if="attempt.id === data.final_attempt_id" class="muted">（最终）</span>
                 </td>
-                <td>{{ examTime(attempt.submitted_at) }}</td>
+                <td>
+                  {{
+                    data.result_state === 'PUBLISHED' ? (attempt.final_score ?? '待批改') : '未开放'
+                  }}
+                </td>
                 <td>
                   {{
                     attempt.status === 'IN_PROGRESS'
@@ -69,11 +73,7 @@ const { data, loading, failure, load } = usePrivateResource(
                       : gradingStatusLabels[attempt.grading_status]
                   }}
                 </td>
-                <td>
-                  {{
-                    data.result_state === 'PUBLISHED' ? (attempt.final_score ?? '待批改') : '未开放'
-                  }}
-                </td>
+                <td>{{ examTime(attempt.submitted_at) }}</td>
                 <td>
                   <RouterLink
                     v-if="attempt.can_review"

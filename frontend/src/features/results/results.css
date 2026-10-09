@@ -60,6 +60,10 @@
   text-align: left;
   font-size: 13px;
 }
+.table-wrap {
+  width: 100%;
+  overflow-x: auto;
+}
 .result-table th {
   font-weight: 500;
   color: var(--color-muted);

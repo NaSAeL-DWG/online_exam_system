@@ -41,8 +41,35 @@ export interface TeacherAnalytics {
   question_rates: QuestionRate[]
   notes: string[]
 }
+export interface StudentResultTrend {
+  exam_id: string
+  title: string
+  end_at: string | null
+  submitted_at: string | null
+  final_score: string
+  total_score: string
+  score_rate: string
+}
+export interface StudentTypePerformance {
+  type: QuestionType
+  answer_count: number
+  score_sum: string
+  full_score_sum: string
+  score_rate: string
+}
+export interface StudentAnalytics {
+  sample_exam_count: number
+  review_exam_count: number
+  trend: StudentResultTrend[]
+  type_performance: StudentTypePerformance[]
+  knowledge_mistakes: { knowledge_tag: string; count: number }[]
+  knowledge_note: string
+}
 export const analyticsApi = {
   teacher(examId: string, signal?: AbortSignal): Promise<TeacherAnalytics> {
     return request(`/staff/exams/${examId}/analytics`, { signal, cache: 'no-store' })
+  },
+  student(signal?: AbortSignal): Promise<StudentAnalytics> {
+    return request('/student/analytics', { signal, cache: 'no-store' })
   },
 }

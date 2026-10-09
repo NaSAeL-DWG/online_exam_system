@@ -34,6 +34,12 @@ const routes: RouteRecordRaw[] = [
         meta: { roles: ['TEACHER', 'ADMIN'], active: true },
       },
       {
+        path: 'student/analytics',
+        name: 'student-analytics',
+        component: () => import('./views/StudentAnalyticsView.vue'),
+        meta: { roles: ['STUDENT'], active: true },
+      },
+      {
         path: 'student/mistakes',
         name: 'student-mistakes',
         component: () => import('./views/StudentMistakesView.vue'),

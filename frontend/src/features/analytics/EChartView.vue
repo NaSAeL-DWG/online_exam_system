@@ -3,7 +3,7 @@ import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type { EChartsOption } from 'echarts'
 import type { EChartsType } from 'echarts/core'
 
-const props = defineProps<{ option: EChartsOption; label: string }>()
+const props = defineProps<{ option: EChartsOption; label: string; kind?: 'bar' | 'line' }>()
 const element = ref<HTMLDivElement | null>(null)
 const failure = ref(false)
 let chart: EChartsType | null = null
@@ -19,7 +19,8 @@ function renderChart(): void {
 
 onMounted(async () => {
   try {
-    const { createChart } = await import('./chartRuntime')
+    const { createChart, registerChart } = await import('./chartRuntime')
+    await registerChart(props.kind ?? 'bar')
     if (disposed || !element.value) return
     chart = createChart(element.value)
     renderChart()

@@ -58,3 +58,54 @@ export function barOption(
     ],
   }
 }
+
+export function trendOption(labels: string[], values: number[], titles: string[]): EChartsOption {
+  const theme = chartTheme()
+  return {
+    color: [theme.primary],
+    animationDuration: 300,
+    tooltip: {
+      trigger: 'axis',
+      renderMode: 'richText',
+      confine: true,
+      formatter: (parameters) => {
+        const point = Array.isArray(parameters) ? parameters[0] : parameters
+        if (!point) return ''
+        const title = (titles[point.dataIndex] ?? point.name).replace(/(.{18})/gu, '$1\n')
+        return `${title}\n${point.name} · ${Number(point.value).toFixed(1)}%`
+      },
+      textStyle: { width: 220, lineHeight: 20 },
+    },
+    grid: { left: 48, right: 24, top: 32, bottom: 48 },
+    xAxis: {
+      type: 'category',
+      data: labels,
+      boundaryGap: true,
+      axisLine: { lineStyle: { color: theme.border } },
+      axisLabel: { color: theme.muted, width: 80, overflow: 'truncate' },
+    },
+    yAxis: {
+      type: 'value',
+      min: 0,
+      max: 100,
+      axisLabel: { color: theme.muted, formatter: '{value}%' },
+      splitLine: { lineStyle: { color: theme.border, type: 'dashed' } },
+    },
+    series: [
+      {
+        name: '最终得分率',
+        type: 'line',
+        data: values,
+        symbol: 'circle',
+        symbolSize: 8,
+        lineStyle: { width: 2 },
+        label: {
+          show: values.length <= 6,
+          position: 'top',
+          color: theme.primary,
+          formatter: '{c}%',
+        },
+      },
+    ],
+  }
+}

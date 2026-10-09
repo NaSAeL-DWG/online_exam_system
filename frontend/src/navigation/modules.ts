@@ -65,6 +65,18 @@ export const navigationModules: NavigationModule[] = [
     },
   },
   {
+    path: '/student/analytics',
+    label: '学习分析',
+    icon: 'paper',
+    group: 'workspace',
+    roles: ['STUDENT'],
+    entry: {
+      title: '查看学习表现',
+      description: '查看最终得分率趋势、题型表现与知识点错题分布。',
+      action: '进入学习分析',
+    },
+  },
+  {
     path: '/student/application',
     label: '审核状态',
     icon: 'check-circle',

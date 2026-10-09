@@ -18,9 +18,12 @@ const { data, loading, failure, load } = usePrivateResource(
   (signal) => resultsApi.list({ page: page.value, page_size: 20, q: search.value }, signal),
 )
 function filter(): void {
+  const nextSearch = query.value.trim()
+  const changed = page.value !== 1 || search.value !== nextSearch
   page.value = 1
-  search.value = query.value.trim()
-  void load()
+  search.value = nextSearch
+  // 筛选值变化由 watch 统一读取；相同条件再次提交时才显式刷新。
+  if (!changed) void load()
 }
 </script>
 <template>

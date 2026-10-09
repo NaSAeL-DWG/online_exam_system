@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, type Page, type TestInfo } from '@playwright/test'
 import {
   apiWrite,
   fixturePassword,
@@ -8,6 +8,36 @@ import {
   waitForTask,
 } from './grading-fixtures'
 import { publishFixture, resultsFixture } from './results-fixtures'
+
+/** 在既有业务流程的稳定状态下采集桌面和小屏，数据表允许局部滚动。 */
+async function captureResponsive(page: Page, testInfo: TestInfo, name: string): Promise<void> {
+  const widths = []
+  for (const width of [1280, 390]) {
+    await page.setViewportSize({ width, height: width === 390 ? 844 : 900 })
+    await page.evaluate(async () => {
+      window.scrollTo(0, 0)
+      // 跨两帧等待 ResizeObserver 完成图表尺寸更新，避免采集旧宽度或滚动侧栏。
+      await new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+      )
+    })
+    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth)).toBe(width)
+    widths.push({
+      viewport: width,
+      document: await page.evaluate(() => document.documentElement.scrollWidth),
+    })
+    await page.screenshot({
+      path: testInfo.outputPath(`${name}-${width}.png`),
+      fullPage: true,
+      animations: 'disabled',
+    })
+  }
+  await testInfo.attach(`${name}-widths`, {
+    body: Buffer.from(JSON.stringify(widths)),
+    contentType: 'application/json',
+  })
+  await page.setViewportSize({ width: 1280, height: 900 })
+}
 
 test.beforeEach(async ({ page }) => {
   test.skip(!process.env.E2E_ADMIN_LOGIN || !process.env.E2E_ADMIN_PASSWORD, '需要管理员测试凭据')
@@ -19,7 +49,10 @@ test.beforeEach(async ({ page }) => {
   await page.goto('/home')
 })
 
-test('学生历史保留各次成绩并取最后有效提交，撤回刷新清空成绩', async ({ page, browser }) => {
+test('学生历史保留各次成绩并取最后有效提交，撤回刷新清空成绩', async ({
+  page,
+  browser,
+}, testInfo) => {
   test.setTimeout(60_000)
   const fixture = await resultsFixture(page, browser, { twoAttempts: true })
   const published = await publishFixture(page, fixture)
@@ -33,6 +66,7 @@ test('学生历史保留各次成绩并取最后有效提交，撤回刷新清�
   await expect(studentPage.getByRole('region', { name: '最终成绩' })).toContainText('15.0')
   await expect(studentPage.getByRole('row', { name: /第 1 次.*2.5/ })).toBeVisible()
   await expect(studentPage.getByRole('row', { name: /第 2 次.*15.0/ })).toBeVisible()
+  await captureResponsive(studentPage, testInfo, 'student-result-detail')
   await apiWrite(page.request, `/staff/exams/${fixture.exam.id}/withdraw-results`, {
     version: published.version,
     reason: '复核成绩。',
@@ -67,7 +101,7 @@ test('教师将全部判完结果整场公布并能撤回重新公布', async ({
   await page.getByRole('button', { name: '公布整场结果', exact: true }).click()
   await page.getByRole('button', { name: '确认公布结果', exact: true }).click()
   await expect(page.getByText('结果已公布', { exact: true })).toBeVisible()
-  await page.screenshot({ path: testInfo.outputPath('published-results.png'), fullPage: true })
+  await captureResponsive(page, testInfo, 'published-results')
 })
 
 test('学生回看持久快照与部分得分，撤回刷新不保留答案解析', async ({ page, browser }, testInfo) => {
@@ -92,10 +126,7 @@ test('学生回看持久快照与部分得分，撤回刷新不保留答案解�
   ).toBeVisible()
   await expect(studentPage.getByText('来源新解析', { exact: true })).toHaveCount(0)
   await expect(studentPage.getByRole('region', { name: '答卷得分' })).toContainText('2.5')
-  await studentPage.screenshot({
-    path: testInfo.outputPath('student-review-desktop.png'),
-    fullPage: true,
-  })
+  await captureResponsive(studentPage, testInfo, 'student-review')
   await apiWrite(page.request, `/staff/exams/${fixture.exam.id}/withdraw-results`, {
     version: published.version,
     reason: '检查评分依据。',
@@ -137,7 +168,7 @@ test('错题保留前次部分得分并支持筛选备注与掌握，撤回后�
   await studentPage.getByRole('button', { name: '刷新错题', exact: true }).click()
   await expect(studentPage.getByLabel('学习备注')).toHaveValue('少选有部分分，复习两个正确条件。')
   await expect(studentPage.getByLabel('已掌握本题')).toBeChecked()
-  await studentPage.screenshot({ path: testInfo.outputPath('mistake-desktop.png'), fullPage: true })
+  await captureResponsive(studentPage, testInfo, 'mistake-detail')
   await apiWrite(page.request, `/staff/exams/${fixture.exam.id}/withdraw-results`, {
     version: published.version,
     reason: '复核部分分。',
@@ -168,10 +199,7 @@ test('教师统计按学生去重并仅采用最后提交，公开考试无缺�
   ).toBeVisible()
   await expect(page.getByRole('row', { name: /第 1 题.*100.0%/ })).toBeVisible()
   await expect(page.getByRole('img', { name: '最终成绩分布图' }).locator('svg')).toBeVisible()
-  await page.screenshot({
-    path: testInfo.outputPath('teacher-analytics-desktop.png'),
-    fullPage: true,
-  })
+  await captureResponsive(page, testInfo, 'teacher-analytics')
   const source = await (await page.request.get(`/api/staff/exams/${fixture.exam.id}`)).json()
   const empty = await apiWrite(page.request, '/staff/exams', {
     title: `无样本统计 ${Date.now()}`,
@@ -186,8 +214,7 @@ test('教师统计按学生去重并仅采用最后提交，公开考试无缺�
   await fixture.context.close()
 })
 
-// TODO：用户要求暂停本轮，学生分析页面尚未实现；红证据保存在本地交接目录。
-test.fixme('学生分析使用最终得分率与多标签错题计数，撤回或关闭回看隐藏细节', async ({
+test('学生分析使用最终得分率与多标签错题计数，撤回或关闭回看隐藏细节', async ({
   page,
   browser,
 }, testInfo) => {
@@ -217,10 +244,7 @@ test.fixme('学生分析使用最终得分率与多标签错题计数，撤回�
   await expect(
     studentPage.getByText('一题多标签可分别计入；数量按错误作答记录统计。', { exact: true }),
   ).toBeVisible()
-  await studentPage.screenshot({
-    path: testInfo.outputPath('student-analytics-desktop.png'),
-    fullPage: true,
-  })
+  await captureResponsive(studentPage, testInfo, 'student-analytics')
   await apiWrite(page.request, `/staff/exams/${fixture.exam.id}/withdraw-results`, {
     version: published.version,
     reason: '复核分析来源成绩。',
