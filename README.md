@@ -10,6 +10,8 @@
 
 本地运行无需 Docker。后端使用 Python 3.13 和 uv，前端使用 Node.js 24 和 npm，依赖版本由锁文件确定。管理员与演示账号的密码由运行环境提供，仓库不提供通用登录密码。
 
+Windows 完成首次配置后，可在项目根目录执行 `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\start-local.ps1`，一并启动本地依赖、后端、worker 与前端；详见[快速启动脚本说明](docs/quick-start.md#windows-快速启动)。
+
 ## 文档
 
 - [文档索引](docs/README.md)：按使用者、开发者和运维任务查阅。

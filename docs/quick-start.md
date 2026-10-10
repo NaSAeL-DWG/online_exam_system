@@ -1,6 +1,20 @@
 # 快速启动
 
-所有命令均使用 Bash；Windows 可使用 Git Bash。PostgreSQL、Redis、API、worker 和前端独立运行，不依赖 Docker。
+下方手动安装命令使用 Bash，Windows 可使用 Git Bash；完成首次配置后也可用 PowerShell 快速启动。PostgreSQL、Redis、API、worker 和前端独立运行，不依赖 Docker。
+
+## Windows 快速启动
+
+已经安装依赖、填写 `backend/.env` 并迁移数据库后，在项目根目录执行：
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\start-local.ps1
+```
+
+脚本会检查依赖和迁移版本，按顺序启动 PostgreSQL、Redis、API、worker 和前端，再验证数据库读取、Redis、后端及前端代理。已经运行的服务直接复用，其他应用占用端口时明确报错。成功后访问 `http://127.0.0.1:5173`。
+
+该入口适用于当前 Windows／WSL 本地开发布局：数据库配置使用本机地址，应用端口为 18000／5173。未运行的 PostgreSQL 使用项目 `.local/pgdata`；未运行的 Redis 使用 WSL `Ubuntu-24.04` 和私有 `.local/redis.conf`。这两个目录／文件需提前初始化，脚本不会创建凭据、清库、安装依赖或自动迁移。
+
+PostgreSQL 的 `pg_ctl.exe` 优先从 PATH 查找，当前机器也支持 `D:\postgresql\bin\pg_ctl.exe`；其他安装路径可追加 `-PgCtl 'C:\实际路径\pg_ctl.exe'`。后台进程使用隐藏窗口，日志放在 `.local/services/`，运行记录在 `.local/service-state.json`，不纳入 Git。通过会回收子进程树的自动化终端运行时追加 `-KeepAlive`，让启动宿主保持存活；普通交互式 PowerShell 无需此开关。
 
 ## 1. 准备环境
 
