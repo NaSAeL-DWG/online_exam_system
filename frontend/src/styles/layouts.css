@@ -215,6 +215,13 @@
   overflow: auto;
   flex: 1;
 }
+/* 隐藏侧栏滚动条，保留滚轮、触控与键盘访问底部菜单的能力。 */
+.sidebar .navigation {
+  scrollbar-width: none;
+}
+.sidebar .navigation::-webkit-scrollbar {
+  display: none;
+}
 .navigation-group {
   margin-bottom: 23px;
 }
