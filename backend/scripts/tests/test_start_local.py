@@ -1,6 +1,7 @@
 """通过 PowerShell 命令入口验证本地启动与配置反馈。"""
 
 import os
+import json
 import shutil
 import subprocess
 from pathlib import Path
@@ -41,3 +42,16 @@ def test_running_services_are_reused_and_frontend_proxy_remains_ready():
         assert "STARTED" not in result.stdout
     with urlopen("http://127.0.0.1:5173/api/health", timeout=5) as response:
         assert response.status == 200
+
+
+def test_started_application_services_do_not_write_bypass_log_files():
+    """已通过启动入口运行的应用不能绕过管理员文件开关落盘。"""
+
+    result = invoke(SCRIPT)
+    assert result.returncode == 0, result.stdout + result.stderr
+    state = json.loads((ROOT / ".local/service-state.json").read_text(encoding="utf-8-sig"))
+    log_directory = Path(state["log_directory"])
+    bypass_files = [
+        path.name for role in ("api", "worker") for path in log_directory.glob(f"{role}.*.log")
+    ]
+    assert bypass_files == [], "应用输出不得由启动宿主另存文件：" + str(bypass_files)

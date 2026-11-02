@@ -40,11 +40,20 @@ function Start-ServiceHost([string]$Role) {
     New-Item -ItemType Directory -Force -Path $LogDirectory | Out-Null
     $arguments = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', ('"' + $PSCommandPath + '"'), '-Service', $Role)
     if ($Role -eq 'postgres') { $arguments += @('-PgCtl', ('"' + $PgCtl + '"')) }
-    # 独立隐藏窗口；stdout/stderr 分开，避免 Start-Process 对相同重定向路径的限制。
-    $process = Start-Process powershell.exe -ArgumentList $arguments -WorkingDirectory $ProjectRoot `
-        -WindowStyle Hidden -PassThru `
-        -RedirectStandardOutput (Join-Path $LogDirectory ($Role + '.stdout.log')) `
-        -RedirectStandardError (Join-Path $LogDirectory ($Role + '.stderr.log'))
+    # 应用日志由管理员文件开关控制，宿主不能另外重定向绕过该设置。
+    # 数据库、Redis 和前端开发工具仍保留各自的基础设施诊断输出。
+    $startOptions = @{
+        FilePath = 'powershell.exe'
+        ArgumentList = $arguments
+        WorkingDirectory = $ProjectRoot
+        WindowStyle = 'Hidden'
+        PassThru = $true
+    }
+    if ($Role -notin @('api', 'worker')) {
+        $startOptions.RedirectStandardOutput = Join-Path $LogDirectory ($Role + '.stdout.log')
+        $startOptions.RedirectStandardError = Join-Path $LogDirectory ($Role + '.stderr.log')
+    }
+    $process = Start-Process @startOptions
     $script:Started += $process
     return $process
 }
@@ -56,6 +65,9 @@ function Wait-Ready([string]$Role, [scriptblock]$Check, $Process) {
         if ($Process -and $Process.HasExited) { break }
         Start-Sleep -Milliseconds 500
     } while ((Get-Date) -lt $deadline)
+    if ($Role -in @('api', 'worker')) {
+        throw ($Role + ' 未就绪。应用默认不另存控制台输出，请按 docs/quick-start.md 在前台运行对应命令查看启动错误。')
+    }
     throw ($Role + ' did not become ready; check ' + $LogDirectory)
 }
 
@@ -188,7 +200,7 @@ except Exception as error:
         $process = Start-ServiceHost 'worker'
         Wait-Ready 'worker' { Get-Worker } $process
         Start-Sleep -Seconds 1
-        if ($process.HasExited) { throw ('worker 已退出，请查看日志：' + $LogDirectory) }
+        if ($process.HasExited) { throw 'worker 已退出。请按 docs/quick-start.md 在前台运行 worker 命令查看启动错误。' }
         Write-Host 'STARTED worker'
     }
     if (Test-Port $WebPort) {
@@ -217,7 +229,8 @@ except Exception as error:
     }
     $state | ConvertTo-Json | Set-Content -Encoding UTF8 -LiteralPath $statePath
     Write-Host 'READY http://127.0.0.1:5173'
-    Write-Host ('Logs: ' + $state.log_directory)
+    Write-Host ('Infrastructure logs: ' + $state.log_directory)
+    Write-Host '应用日志：管理员工作台 → 系统日志；文件记录默认关闭。'
     # 自动化终端需要保留启动树；普通交互式 PowerShell 无需此开关。
     if ($KeepAlive) {
         while ((Test-Port $ApiPort) -or (Test-Port $WebPort) -or (Test-Port $config.pg_port) -or (Test-Port $config.redis_port)) { Start-Sleep -Seconds 5 }
