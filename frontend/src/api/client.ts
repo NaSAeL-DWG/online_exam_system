@@ -138,10 +138,7 @@ function reportAuthFailure(path: string, error: ApiError): void {
   }
 }
 
-export async function requestResult<T>(
-  path: string,
-  init: RequestInit = {},
-): Promise<ApiResult<T>> {
+async function requestResponse(path: string, init: RequestInit): Promise<Response> {
   let response: Response
   try {
     response = await rawFetch(path, init)
@@ -166,6 +163,26 @@ export async function requestResult<T>(
     reportAuthFailure(path, error)
     throw error
   }
+  return response
+}
+
+export async function requestBlob(path: string, init: RequestInit = {}): Promise<Blob> {
+  const response = await requestResponse(path, init)
+  try {
+    return await response.blob()
+  } catch {
+    throw new ApiError(0, {
+      code: 'DOWNLOAD_INTERRUPTED',
+      message: '下载传输中断，请重新下载。',
+    })
+  }
+}
+
+export async function requestResult<T>(
+  path: string,
+  init: RequestInit = {},
+): Promise<ApiResult<T>> {
+  const response = await requestResponse(path, init)
   const cleanupPending = response.headers.get('X-Session-Cleanup') === 'pending'
   if (response.status === 204) return { data: undefined as T, cleanupPending }
   try {

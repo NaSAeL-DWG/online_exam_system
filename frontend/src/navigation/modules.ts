@@ -133,6 +133,18 @@ export const navigationModules: NavigationModule[] = [
     },
   },
   {
+    path: '/admin/logs',
+    label: '系统日志',
+    icon: 'shield',
+    group: 'workspace',
+    roles: ['ADMIN'],
+    entry: {
+      title: '查看系统日志',
+      description: '检索运行记录与操作审计，管理临时调试采集。',
+      action: '打开系统日志',
+    },
+  },
+  {
     path: '/admin/accounts',
     label: '账号管理',
     icon: 'users',
