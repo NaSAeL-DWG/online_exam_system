@@ -8,6 +8,8 @@ class BusinessError(Exception):
 
 
 STATUS_CODES = {
+    "LOG_CURSOR_INVALID": 422,
+    "LOG_EXPORT_LIMIT": 409,
     "QUESTION_NOT_FOUND": 404,
     "QUESTION_CLOSED": 409,
     "VERSION_CONFLICT": 409,

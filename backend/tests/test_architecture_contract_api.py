@@ -47,8 +47,14 @@ async def test_registration_uses_explicit_application_contract(client):
                     if "application/json" in content:
                         assert content["application/json"]["schema"].get("$ref"), path
                     else:
-                        assert path == "/api/assets/{asset_id}"
-                        assert set(content) == {"image/png", "image/jpeg", "image/webp"}
+                        if path in {
+                            "/api/admin/logs/runtime/export",
+                            "/api/admin/logs/audit/export",
+                        }:
+                            assert set(content) == {"text/plain"}
+                        else:
+                            assert path == "/api/assets/{asset_id}"
+                            assert set(content) == {"image/png", "image/jpeg", "image/webp"}
                         assert all(
                             value["schema"] == {"type": "string", "format": "binary"}
                             for value in content.values()

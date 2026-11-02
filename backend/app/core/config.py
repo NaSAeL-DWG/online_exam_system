@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     password_min_length: int = 10
     cors_origins: str = "http://localhost:5173"
     asset_storage_dir: str = "../.local/uploads"
+    log_storage_dir: str = "../.local/logs"
     asset_max_bytes: int = Field(default=5 * 1024 * 1024, ge=1)
     admin_login_name: str | None = None
     admin_password: str | None = Field(default=None, min_length=10, max_length=256)

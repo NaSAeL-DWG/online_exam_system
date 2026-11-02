@@ -40,6 +40,17 @@ async def recover_due_attempts(resources: Resources, *, limit: int = 100) -> Rec
                 result.submitted_attempt_ids.append(str(attempt_id))
             else:
                 result.skipped += 1
+    if result.scanned:
+        logger.info(
+            "到期恢复 scanned=%s submitted=%s skipped=%s failed=%s",
+            result.scanned,
+            result.submitted,
+            result.skipped,
+            result.failed,
+            extra={"task": "recover_attempts"},
+        )
+    else:
+        logger.debug("到期扫描无待处理记录", extra={"task": "recover_attempts"})
     return result
 
 
@@ -95,4 +106,15 @@ async def recover_grading(resources: Resources, *, limit: int = 100) -> GradingR
             result.assigned += assigned
             if assigned:
                 result.assigned_exam_ids.append(str(exam_id))
+    if result.scanned or result.exam_scanned:
+        logger.info(
+            "判分恢复 scanned=%s graded=%s assigned=%s failed=%s",
+            result.scanned,
+            result.graded,
+            result.assigned,
+            result.failed,
+            extra={"task": "recover_grading"},
+        )
+    else:
+        logger.debug("判分扫描无待处理记录", extra={"task": "recover_grading"})
     return result

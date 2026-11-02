@@ -128,6 +128,54 @@ def record_audit(session, **values):
     crud.add_audit(session, **values)
 
 
+async def safe_audit_entries(session, identity, query, *, export=False):
+    """公开管理员审计查询；仅映射固定摘要，永不回传原始前后资料或自由文本原因。"""
+    from app.core.log_cursor import audit_cursor, parse_audit_cursor
+
+    ensure_role(identity.user, UserType.ADMIN)
+    cursor = (
+        parse_audit_cursor(query.before or query.after)
+        if (query.before or query.after) and not export
+        else None
+    )
+    if not export:
+        await crud.publish_audit_batch(session)
+    rows = await crud.audit_rows(session, query, cursor, export=export)
+    labels = {UserType.ADMIN: "管理员", UserType.TEACHER: "教师", UserType.STUDENT: "学生"}
+    entries = []
+    for event, actor_type, publication_id in rows:
+        # 自由文本（姓名、原因、答案等）全部排除，动作和对象类型由服务器定义。
+        summary = f"操作 {event.action}；对象 {event.entity_type}；操作已记录"
+        if event.action == "LOG_DEBUG_SETTINGS" and event.after_data:
+            module = event.after_data.get("module", "")
+            if isinstance(module, str) and len(module) <= 100:
+                summary += f"；模块 {module}"
+        if event.action == "LOG_FILE_SETTINGS" and event.after_data:
+            summary += (
+                "；文件已开启" if event.after_data.get("file_enabled") is True else "；文件已关闭"
+            )
+        entries.append(
+            {
+                "id": str(event.id),
+                "cursor": audit_cursor(publication_id),
+                "timestamp": event.created_at,
+                "actor_id": event.actor_id,
+                "actor_name": labels.get(actor_type),
+                "action": event.action,
+                "entity_type": event.entity_type,
+                "entity_id": event.entity_id,
+                "summary": summary,
+                "formatted": f"{event.created_at.isoformat()} INFO: [identity]({event.action}): {summary}",
+            }
+        )
+    return entries
+
+
+async def publish_committed_audits(session):
+    """组合式公开能力，由调用方事务为已提交审计分批建立公开次序。"""
+    return await crud.publish_audit_batch(session)
+
+
 def profile_snapshot(payload):
     return {
         "student_no": payload.student_no,

@@ -5,6 +5,7 @@ from uuid import UUID, uuid4
 
 from sqlalchemy import (
     BigInteger,
+    Boolean,
     Column,
     DateTime,
     Enum as SAEnum,
@@ -115,7 +116,15 @@ class RegistrationReview(SQLModel, table=True):
 
 class AuditEvent(SQLModel, table=True):
     __tablename__ = "audit_event"
-    __table_args__ = (Index("ix_audit_event_entity", "entity_type", "entity_id", "created_at"),)
+    __table_args__ = (
+        Index("ix_audit_event_entity", "entity_type", "entity_id", "created_at"),
+        Index(
+            "ix_audit_event_unpublished",
+            "created_at",
+            "id",
+            postgresql_where=text("log_published = false"),
+        ),
+    )
 
     id: UUID = Field(default_factory=uuid4, primary_key=True)
     actor_id: UUID | None = Field(default=None, foreign_key="user_account.id")
@@ -126,3 +135,21 @@ class AuditEvent(SQLModel, table=True):
     before_data: dict[str, Any] | None = Field(default=None, sa_column=Column(JSONB))
     after_data: dict[str, Any] | None = Field(default=None, sa_column=Column(JSONB))
     created_at: datetime = Field(default_factory=utc_now, sa_type=DateTime(timezone=True))
+    log_published: bool = Field(
+        default=False, sa_column=Column(Boolean, nullable=False, server_default=text("false"))
+    )
+
+
+class AuditPublication(SQLModel, table=True):
+    """已提交审计的可见顺序，避免事件时间或事务内序号先于提交而跳漏。"""
+
+    __tablename__ = "audit_publication"
+
+    id: int | None = Field(default=None, sa_column=Column(BigInteger, primary_key=True))
+    event_id: UUID = Field(foreign_key="audit_event.id", unique=True)
+
+
+class AuditPublicationState(SQLModel, table=True):
+    __tablename__ = "audit_publication_state"
+
+    id: int = Field(default=1, primary_key=True)

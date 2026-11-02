@@ -21,9 +21,21 @@ async def timeout_attempt_job(ctx: dict, attempt_id: str) -> bool:
 
     try:
         async with ctx["resources"].session_factory() as session:
-            return await service.timeout_attempt(session, UUID(attempt_id))
+            changed = await service.timeout_attempt(session, UUID(attempt_id))
+        logger.log(
+            logging.INFO if changed else logging.DEBUG,
+            "截止任务完成 changed=%s",
+            changed,
+            extra={"task": "timeout_attempt", "correlation_id": attempt_id},
+        )
+        return changed
     except Exception as exc:
-        logger.warning("截止任务待重试 attempt_id=%s error=%s", attempt_id, type(exc).__name__)
+        logger.warning(
+            "截止任务待重试 attempt_id=%s error=%s",
+            attempt_id,
+            type(exc).__name__,
+            extra={"task": "timeout_attempt", "correlation_id": attempt_id},
+        )
         raise Retry(defer=5) from None
 
 
@@ -46,12 +58,25 @@ async def startup(ctx: dict) -> None:
     settings = get_settings()
     ctx["settings"] = settings
     ctx["resources"] = Resources(settings)
+    await ctx["resources"].start_logging()
     result = await scan_due_attempts_job(ctx)
     ctx["startup_recovery"] = result
-    logger.info("启动到期恢复 %s", json.dumps(result, ensure_ascii=False))
+    logger.log(
+        logging.INFO if result["scanned"] else logging.DEBUG,
+        "启动到期恢复 %s",
+        json.dumps(result, ensure_ascii=False),
+        extra={"task": "startup_attempts"},
+    )
     grading_result = await scan_grading_job(ctx)
     ctx["startup_grading_recovery"] = grading_result
-    logger.info("启动判分恢复 %s", json.dumps(grading_result, ensure_ascii=False))
+    logger.log(
+        logging.INFO
+        if grading_result["scanned"] or grading_result["exam_scanned"]
+        else logging.DEBUG,
+        "启动判分恢复 %s",
+        json.dumps(grading_result, ensure_ascii=False),
+        extra={"task": "startup_grading"},
+    )
 
 
 async def shutdown(ctx: dict) -> None:

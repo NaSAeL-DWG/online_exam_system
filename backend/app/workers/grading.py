@@ -16,9 +16,22 @@ async def grade_attempt_job(ctx: dict, attempt_id: str, grading_revision: int) -
 
     try:
         async with ctx["resources"].session_factory() as session:
-            return await service.grade_attempt(session, UUID(attempt_id), grading_revision)
+            changed = await service.grade_attempt(session, UUID(attempt_id), grading_revision)
+        logger.log(
+            logging.INFO if changed else logging.DEBUG,
+            "判分任务完成 changed=%s revision=%s",
+            changed,
+            grading_revision,
+            extra={"task": "grade_attempt", "correlation_id": attempt_id},
+        )
+        return changed
     except Exception as exc:
-        logger.warning("判分任务待重试 attempt_id=%s error=%s", attempt_id, type(exc).__name__)
+        logger.warning(
+            "判分任务待重试 attempt_id=%s error=%s",
+            attempt_id,
+            type(exc).__name__,
+            extra={"task": "grade_attempt", "correlation_id": attempt_id},
+        )
         raise Retry(defer=5) from None
 
 

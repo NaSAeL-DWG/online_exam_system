@@ -14,6 +14,7 @@ async def recover(limit: int | None, *, grading: bool = False) -> int:
 
     settings = get_settings()
     resources = Resources(settings)
+    await resources.start_logging()
     try:
         recovery = recover_grading if grading else recover_due_attempts
         result = await recovery(resources, limit=limit or settings.attempt_scan_batch_size)

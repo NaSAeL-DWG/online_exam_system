@@ -1,4 +1,8 @@
 from contextlib import asynccontextmanager
+import logging
+from pathlib import Path
+import traceback
+from uuid import uuid4
 
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
@@ -19,9 +23,11 @@ from .modules.grading import router as grading
 from .modules.results import router as results
 from .modules.mistake import router as mistake
 from .modules.analytics import router as analytics
+from .modules.logging import router as system_logs
 from .core.errors import BusinessError, STATUS_CODES
 from .core.contracts import HealthResponse
 from .core.validation_errors import validation_fields
+from .core.runtime_logging import correlation_context, module_name
 from sqlalchemy.exc import OperationalError, InterfaceError
 
 
@@ -34,12 +40,63 @@ def create_app(settings_override: Settings | None = None) -> FastAPI:
     async def lifespan(app: FastAPI):
         app.state.settings = settings
         app.state.resources = Resources(settings)
+        await app.state.resources.start_logging()
         try:
             yield
         finally:
             await app.state.resources.close()
 
     app = FastAPI(title="在线限时考试系统 API", version="0.1.0", lifespan=lifespan)
+
+    @app.middleware("http")
+    async def protect_log_responses(request, call_next):
+        correlation_id = uuid4().hex
+        context_token = correlation_context.set(correlation_id)
+        logger = logging.getLogger("app.api")
+        try:
+            response = await call_next(request)
+        except Exception as exc:
+            frames = " > ".join(
+                f"{Path(frame.filename).name}:{frame.name}:{frame.lineno}"
+                for frame in traceback.extract_tb(exc.__traceback__)[-10:]
+            )
+            logger.error(
+                "HTTP未处理异常 type=%s frames=%s",
+                type(exc).__name__,
+                frames,
+                extra={"task": "unhandled"},
+            )
+            response = JSONResponse(
+                status_code=500,
+                content={"detail": {"code": "INTERNAL_ERROR", "message": "服务暂时不可用，请重试"}},
+            )
+        finally:
+            correlation_context.reset(context_token)
+        route = request.scope.get("route")
+        endpoint = getattr(route, "endpoint", None)
+        module = module_name(getattr(endpoint, "__module__", "app.api"))
+        task = getattr(route, "name", "unknown")
+        level = logging.DEBUG
+        if response.status_code >= 500:
+            level = logging.ERROR
+        elif response.status_code >= 400:
+            level = logging.WARNING
+        elif request.method not in {"GET", "HEAD", "OPTIONS"}:
+            level = logging.INFO
+        # 路由模板和固定状态替代实际 URL、查询参数及请求体，避免资料和答案进入运行日志。
+        logger.log(
+            level,
+            "%s %s status=%s",
+            request.method,
+            getattr(route, "path", "unknown"),
+            response.status_code,
+            extra={"log_module": module, "task": task, "correlation_id": correlation_id},
+        )
+        response.headers["X-Request-ID"] = correlation_id
+        if request.url.path.startswith("/api/admin/logs"):
+            response.headers["Cache-Control"] = "no-store"
+        return response
+
     app.add_middleware(
         CORSMiddleware,
         allow_origins=[
@@ -103,6 +160,7 @@ def create_app(settings_override: Settings | None = None) -> FastAPI:
     app.include_router(results.router)
     app.include_router(mistake.router)
     app.include_router(analytics.router)
+    app.include_router(system_logs.router)
     return app
 
 

@@ -10,3 +10,4 @@ from app.modules.exam.models import Exam, ExamGrader, ExamParticipant, ExamQuest
 from app.modules.attempt.models import AttemptQuestionOrder, ExamAttempt, StudentAnswer  # noqa: F401
 from app.modules.grading.models import GradingHistory, GradingTask  # noqa: F401
 from app.modules.mistake.models import MistakeAnnotation  # noqa: F401
+from app.modules.logging.models import LogSettings, RuntimeLog  # noqa: F401
