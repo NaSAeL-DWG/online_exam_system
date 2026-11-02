@@ -18,6 +18,7 @@ Windows 完成首次配置后，可在项目根目录执行 `powershell.exe -NoP
 - [开发与架构](docs/development.md)：目录职责、事务、前端结构和接口约定。
 - [测试与验证](docs/testing.md)：真实 PostgreSQL/Redis 集成测试及浏览器流程。
 - [迁移、备份与故障恢复](docs/operations.md)：升级／回滚、独立进程和管理员运维。
+- [系统日志](docs/logging.md)：管理员日志页、等级筛选、临时 DEBUG、保留规则和文件记录。
 - [可重复演示数据](docs/demo.md)与[并发验证](docs/performance.md)：完整演示流程、实测环境、结果及复现命令。
 - [领域术语](CONTEXT.md)：区分试卷、考试、答卷和最终成绩。
 

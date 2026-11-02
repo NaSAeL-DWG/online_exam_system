@@ -14,7 +14,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\start-local.ps1
 
 该入口适用于当前 Windows／WSL 本地开发布局：数据库配置使用本机地址，应用端口为 18000／5173。未运行的 PostgreSQL 使用项目 `.local/pgdata`；未运行的 Redis 使用 WSL `Ubuntu-24.04` 和私有 `.local/redis.conf`。这两个目录／文件需提前初始化，脚本不会创建凭据、清库、安装依赖或自动迁移。
 
-PostgreSQL 的 `pg_ctl.exe` 优先从 PATH 查找，当前机器也支持 `D:\postgresql\bin\pg_ctl.exe`；其他安装路径可追加 `-PgCtl 'C:\实际路径\pg_ctl.exe'`。后台进程使用隐藏窗口，日志放在 `.local/services/`，运行记录在 `.local/service-state.json`，不纳入 Git。通过会回收子进程树的自动化终端运行时追加 `-KeepAlive`，让启动宿主保持存活；普通交互式 PowerShell 无需此开关。
+PostgreSQL 的 `pg_ctl.exe` 优先从 PATH 查找，当前机器也支持 `D:\postgresql\bin\pg_ctl.exe`；其他安装路径可追加 `-PgCtl 'C:\实际路径\pg_ctl.exe'`。后台进程使用隐藏窗口，基础设施和前端开发工具的诊断输出放在 `.local/services/`，运行记录在 `.local/service-state.json`，不纳入 Git。API 与 worker 不另外重定向应用输出，其日志由管理员[系统日志](logging.md)页面管理，文件记录默认关闭；启动失败时按下文命令在前台运行以查看启动错误。通过会回收子进程树的自动化终端运行时追加 `-KeepAlive`，让启动宿主保持存活；普通交互式 PowerShell 无需此开关。
 
 ## 1. 准备环境
 
@@ -45,6 +45,7 @@ test -f .env || cp .env.example .env
 | `ADMIN_REAL_NAME`、`ADMIN_EMAIL`、`ADMIN_PHONE_NUMBER` | 管理员资料 |
 | `CORS_ORIGINS` | 实际前端来源，例如 `http://127.0.0.1:5173` |
 | `ASSET_STORAGE_DIR` | 持久图片目录；相对路径以启动后端时的工作目录为基准 |
+| `LOG_STORAGE_DIR` | 可选日志文件目录，默认 `../.local/logs`；API、worker 和 CLI 使用同一目录，仅管理员开启文件记录时写入 |
 
 本地 HTTP 使用 `COOKIE_SECURE=false`。正式部署必须使用 HTTPS、`ENVIRONMENT=production` 和 `COOKIE_SECURE=true`。`.env` 被 Git 忽略，不把真实值写入示例文件或 shell 历史中的命令参数。
 

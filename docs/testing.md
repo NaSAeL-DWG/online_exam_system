@@ -48,6 +48,18 @@ npm run format:check
 
 ## 证据与范围
 
+日志系统的针对性命令：
+
+```bash
+# backend/：使用独立测试配置，不要指向开发或业务库。
+uv run python -m pytest -q tests/test_logging_api.py tests/test_architecture_contract_api.py
+uv run python -m pytest -q tests/test_logging_acceptance_api.py
+# frontend/：先按上文加载浏览器测试凭据并启动实际服务。
+npm run test:e2e -- tests/e2e/system-logs.spec.ts
+```
+
+独立日志验收会生成超过 100000 条运行记录、验证容量清理，并以 4 个进程写入约 74 MiB 日志测试轮转，必须使用独立数据库、Redis DB 和临时文件目录。数据库写入权限故障场景还需要测试连接有创建和清理临时数据库角色的权限；这是验收环境要求，不是应用部署账号要求。该场景只操作自建临时角色及独立测试库。DEBUG 到期通过外部应用时钟推进验证，不宣称实际等待了 15 分钟。
+
 记录执行命令、版本、环境、失败原因、修复后结果及未覆盖范围。最终组合与重复定向子集不累加通过数量。并发容量需要独立记录硬件、数据量、会话数、负载方式、错误率和延迟，不能拿 `/health` 或登录并发替代完整作答流程。
 
 报告、截图、trace 和私有配置保留在 `.local/` 或工具已忽略的输出目录。公开记录只保留脱敏结论；失败日志可能包含敏感输入，分享前检查。`tech-docs/` 是本地开发证据，`docs/` 只发布可复现的项目使用与维护说明。
