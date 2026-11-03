@@ -9,7 +9,8 @@
 | 管理员查看日志、临时 DEBUG 与文件记录 | [系统日志](logging.md) |
 | 建立可重复演示数据 | [演示数据](demo.md) |
 | 了解代码结构与开发规则 | [开发与架构](development.md) |
-| 查看 UI 改版目标、页面范围与验收规则（草案） | [UI 设计约束](ui-design.md) |
+| 查看 UI 改版目标、页面范围与验收规则 | [UI 设计约束](ui-design.md) |
+| 打开灰度 demo、查看评审顺序与验证结果 | [灰度稿审核说明](ui-grayscale-review.md) |
 | 运行相关测试、验证改动 | [测试与验证](testing.md) |
 | 查看与复现 100 人业务负载验证 | [并发验证](performance.md) |
 | 升级数据库、备份、回滚、恢复服务与账号 | [运维指南](operations.md) |
