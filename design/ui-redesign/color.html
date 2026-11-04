@@ -2184,16 +2184,16 @@
     <style id="color-theme">
       /* 四个主色族各十阶；中性灰单独负责背景、文字、边界与不可答状态。 */
       :root {
-        --blue-50: #eff4fb;
-        --blue-100: #dee8f5;
-        --blue-200: #bfd0e8;
-        --blue-300: #93afd3;
-        --blue-400: #6489b9;
-        --blue-500: #416ca0;
-        --blue-600: #2b5688;
-        --blue-700: #1f456f;
-        --blue-800: #193758;
-        --blue-900: #142c46;
+        --blue-50: #f2f7ff;
+        --blue-100: #e0edff;
+        --blue-200: #bed8ff;
+        --blue-300: #91bafa;
+        --blue-400: #639bf2;
+        --blue-500: #397de7;
+        --blue-600: #2164ce;
+        --blue-700: #1a50aa;
+        --blue-800: #194386;
+        --blue-900: #173762;
         --green-50: #edf7f2;
         --green-100: #d6ece0;
         --green-200: #add8c0;
@@ -2229,7 +2229,7 @@
         --neutral-200: #e5e5e5;
         --neutral-300: #d0d0d0;
         --neutral-400: #a6a6a6;
-        --neutral-500: #7a7a7a;
+        --neutral-500: #8c8c8c;
         --neutral-600: #626262;
         --neutral-700: #454545;
         --neutral-800: #303030;
@@ -2238,11 +2238,11 @@
         --ink: var(--neutral-900);
         --muted: var(--neutral-600);
         --line: var(--neutral-200);
-        --soft: var(--neutral-100);
+        --soft: var(--surface);
         --paper: var(--surface);
-        --action: var(--blue-700);
-        --action-hover: var(--blue-800);
-        --action-pressed: var(--blue-900);
+        --action: var(--blue-600);
+        --action-hover: var(--blue-700);
+        --action-pressed: var(--blue-800);
         --focus: var(--blue-600);
         --control-border: var(--neutral-500);
         --selected-surface: var(--blue-50);
@@ -2324,7 +2324,16 @@
         border-color: var(--red-700);
       }
       .brand-mark {
-        background: var(--blue-800);
+        background: var(--blue-600);
+      }
+      /* 白色贯穿导航、工作区和内容卡片，浅灰仅承担必要的局部分区。 */
+      .sidebar,
+      .workspace,
+      .topbar {
+        background: var(--surface);
+      }
+      .topbar {
+        border-color: var(--line);
       }
       .brand small,
       .nav-label,
@@ -2344,19 +2353,29 @@
         color: var(--blue-800);
       }
       .nav-item.active {
-        background: var(--action);
-        color: #fff;
+        background: var(--blue-50);
+        color: var(--blue-700);
+        box-shadow: inset 3px 0 0 var(--blue-600);
+      }
+      .nav-item .icon {
+        color: var(--blue-600);
       }
       .feature {
-        border-color: var(--blue-300);
-        border-left-color: var(--blue-700);
+        border-color: var(--blue-200);
+        border-left-color: var(--blue-600);
       }
       .feature-side {
         background: var(--blue-50);
         border-color: var(--blue-200);
       }
       .feature-side .clock {
-        color: var(--blue-800);
+        color: var(--blue-700);
+      }
+      .stat strong {
+        color: var(--blue-700);
+      }
+      .auth-intro {
+        background: var(--blue-50);
       }
       .meta,
       .stat label,
@@ -2438,7 +2457,7 @@
       }
       .notice {
         color: var(--neutral-700);
-        background: var(--neutral-100);
+        background: var(--neutral-50);
         border-color: var(--neutral-300);
       }
       .notice[data-tone="info"] {
@@ -2462,11 +2481,14 @@
         border-color: var(--danger-border);
       }
       .summary-card:first-child {
-        background: var(--blue-50);
-        border-top-color: var(--blue-700);
+        background: var(--surface);
+        border-top-color: var(--blue-600);
       }
       .summary-card:first-child .summary-value {
-        color: var(--blue-800);
+        color: var(--blue-600);
+      }
+      .summary-label {
+        color: var(--blue-700);
       }
       .exam-summary.is-unavailable .summary-card {
         background: var(--neutral-200);
@@ -2610,20 +2632,43 @@
         background: var(--neutral-200);
         border-color: var(--neutral-300);
       }
-      /* 评审工具栏维持中性深灰，颜色只服务于产品任务和状态。 */
-      .review-bar .select-trigger {
+      /* 评审栏也使用浅色，避免非产品工具栏让整个预览显得灰暗。 */
+      .review-bar {
+        color: var(--ink);
+        background: var(--surface);
+        border-bottom-color: var(--line);
+      }
+      .review-brand strong {
+        color: var(--blue-800);
+      }
+      .review-brand small,
+      .review-field,
+      .review-note {
+        color: var(--muted);
+      }
+      .review-number {
         color: #fff;
-        background: #343434;
-        border-color: #888;
+        background: var(--blue-600);
+        border-color: var(--blue-600);
+      }
+      .review-bar button {
+        color: var(--blue-700);
+        background: var(--surface);
+        border-color: var(--blue-500);
+      }
+      .review-bar .select-trigger {
+        color: var(--ink);
+        background: var(--surface);
+        border-color: var(--control-border);
       }
       .review-bar .select-trigger:focus-visible,
       .review-bar .select-trigger[aria-expanded="true"] {
         outline: none;
-        border-color: #eee;
-        box-shadow: inset 0 0 0 1px #eee;
+        border-color: var(--focus);
+        box-shadow: inset 0 0 0 1px var(--focus);
       }
       .review-bar :focus-visible {
-        outline-color: #fff;
+        outline-color: var(--focus);
       }
       .palette-family + .palette-family {
         margin-top: 24px;
@@ -2667,7 +2712,7 @@
     <a class="sr-only" href="#main">跳至主要内容</a>
     <div class="review-bar" id="review-bar" aria-label="设计评审控制区">
       <div class="review-brand">
-        <span class="review-number">C1</span>
+        <span class="review-number">C2</span>
         <div>
           <strong>配色方案评审</strong><small>ZH​IHENG / COLOR STUDY</small>
         </div>
@@ -4159,7 +4204,7 @@
         const families = [
           [
             "blue",
-            "深蓝 · 考试主操作",
+            "清亮蓝 · 考试主操作",
             "开始／继续考试、主按钮、当前题与选中选项。",
           ],
           [
@@ -4198,8 +4243,8 @@
           )
           .join("");
         modal(
-          "配色方案 C1 · 色阶与使用规则",
-          `<div class="eyebrow">COLOR STUDY / 4 × 10</div><p>4 个主色族，每族 10 阶，另设 10 阶中性灰。以白和灰承载内容，用深蓝聚焦考试操作；成功、预警与错误色按状态出现。</p><hr class="rule">${ramps}<hr class="rule"><p class="small muted">沿用已通过的 29 个页面与 72 个场景。已标记按钮保留深灰底白字；已结束考试的三张信息卡片保持灰色。文字、符号和形状继续共同表达状态。</p><p class="small muted mt">建议对比“考试作答”的正常、时间预警和保存失败场景。所有内容仍为虚构数据，操作只影响当前页面内存；配色方案等待你的审核。</p>`,
+          "配色方案 C2 · 色阶与使用规则",
+          `<div class="eyebrow">COLOR STUDY / 4 × 10</div><p>4 个主色族，每族 10 阶，另设 10 阶中性灰。增加整个画面的白底比例，用少量浅灰区分信息，以清亮蓝强调考试操作；成功、预警与错误色按状态出现。</p><hr class="rule">${ramps}<hr class="rule"><p class="small muted">沿用已通过的 29 个页面与 72 个场景。已标记按钮保留深灰底白字；已结束考试的三张信息卡片保持灰色。文字、符号和形状继续共同表达状态。</p><p class="small muted mt">建议对比“考试作答”的正常、时间预警和保存失败场景。所有内容仍为虚构数据，操作只影响当前页面内存；配色方案等待你的审核。</p>`,
           `${button("开始学生链路", "review-student", true)}${button("关闭说明", "close-modal")}`,
         );
       }

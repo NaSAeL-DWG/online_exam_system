@@ -11,7 +11,7 @@
 | 了解代码结构与开发规则 | [开发与架构](development.md) |
 | 查看 UI 改版目标、页面范围与验收规则 | [UI 设计约束](ui-design.md) |
 | 打开灰度 demo、查看评审顺序与验证结果 | [灰度稿审核说明](ui-grayscale-review.md) |
-| 打开配色 demo、查看完整色阶与组件用色规则 | [配色方案 C1](ui-color-design.md) |
+| 打开配色 demo、查看完整色阶与组件用色规则 | [配色方案 C2](ui-color-c2.md) |
 | 运行相关测试、验证改动 | [测试与验证](testing.md) |
 | 查看与复现 100 人业务负载验证 | [并发验证](performance.md) |
 | 升级数据库、备份、回滚、恢复服务与账号 | [运维指南](operations.md) |
