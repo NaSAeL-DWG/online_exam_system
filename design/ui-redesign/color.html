@@ -2224,7 +2224,7 @@
         --red-700: #752936;
         --red-800: #5f2430;
         --red-900: #4c1f29;
-        --neutral-50: #fafafa;
+        --neutral-50: #f6f7f9;
         --neutral-100: #f4f4f4;
         --neutral-200: #e5e5e5;
         --neutral-300: #d0d0d0;
@@ -2238,7 +2238,7 @@
         --ink: var(--neutral-900);
         --muted: var(--neutral-600);
         --line: var(--neutral-200);
-        --soft: var(--surface);
+        --soft: var(--neutral-50);
         --paper: var(--surface);
         --action: var(--blue-600);
         --action-hover: var(--blue-700);
@@ -2326,11 +2326,13 @@
       .brand-mark {
         background: var(--blue-600);
       }
-      /* 白色贯穿导航、工作区和内容卡片，浅灰仅承担必要的局部分区。 */
+      /* 浅灰只衬托工作区和卡片间隔，导航、顶栏与内容卡片继续保持白色。 */
       .sidebar,
-      .workspace,
       .topbar {
         background: var(--surface);
+      }
+      .workspace {
+        background: var(--soft);
       }
       .topbar {
         border-color: var(--line);
@@ -2712,7 +2714,7 @@
     <a class="sr-only" href="#main">跳至主要内容</a>
     <div class="review-bar" id="review-bar" aria-label="设计评审控制区">
       <div class="review-brand">
-        <span class="review-number">C2</span>
+        <span class="review-number">C3</span>
         <div>
           <strong>配色方案评审</strong><small>ZH​IHENG / COLOR STUDY</small>
         </div>
@@ -4243,8 +4245,8 @@
           )
           .join("");
         modal(
-          "配色方案 C2 · 色阶与使用规则",
-          `<div class="eyebrow">COLOR STUDY / 4 × 10</div><p>4 个主色族，每族 10 阶，另设 10 阶中性灰。增加整个画面的白底比例，用少量浅灰区分信息，以清亮蓝强调考试操作；成功、预警与错误色按状态出现。</p><hr class="rule">${ramps}<hr class="rule"><p class="small muted">沿用已通过的 29 个页面与 72 个场景。已标记按钮保留深灰底白字；已结束考试的三张信息卡片保持灰色。文字、符号和形状继续共同表达状态。</p><p class="small muted mt">建议对比“考试作答”的正常、时间预警和保存失败场景。所有内容仍为虚构数据，操作只影响当前页面内存；配色方案等待你的审核。</p>`,
+          "配色方案 C3 · 色阶与使用规则",
+          `<div class="eyebrow">COLOR STUDY / 4 × 10</div><p>4 个主色族，每族 10 阶，另设 10 阶中性灰。以很浅的灰色衬托白色卡片，保留明亮的白色导航和顶栏，用清亮蓝强调考试操作；成功、预警与错误色按状态出现。</p><hr class="rule">${ramps}<hr class="rule"><p class="small muted">沿用已通过的 29 个页面与 72 个场景。已标记按钮保留深灰底白字；已结束考试的三张信息卡片保持灰色。文字、符号和形状继续共同表达状态。</p><p class="small muted mt">建议对比“考试作答”的正常、时间预警和保存失败场景。所有内容仍为虚构数据，操作只影响当前页面内存；配色方案等待你的审核。</p>`,
           `${button("开始学生链路", "review-student", true)}${button("关闭说明", "close-modal")}`,
         );
       }
