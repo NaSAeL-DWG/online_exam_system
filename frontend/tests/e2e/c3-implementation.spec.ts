@@ -67,20 +67,38 @@ test('学生首页优先继续作答，近期记录不冒充全局考试统计',
   await page.route('**/api/student/exams?**', (route) =>
     route.fulfill({ json: { items, total: 31, page: 1, page_size: 20 } }),
   )
-  await page.goto('/home')
-  await expect(page.locator('.home-exam-focus')).toContainText('正在作答的考试')
-  await expect(
-    page.locator('.home-exam-focus').getByRole('button', { name: '继续作答' }),
-  ).toBeVisible()
-  await expect(page.locator('.home-record h3')).toHaveText([
-    '正在作答的考试',
-    '可参加的考试',
-    '已经结束的考试',
-  ])
-  await expect(page.getByRole('link', { name: '全部考试 →' })).toHaveAttribute(
-    'href',
-    '/student/exams',
+  await page.route('**/api/student/attempts/active-attempt', (route) =>
+    route.fulfill({
+      json: {
+        id: 'active-attempt',
+        exam_id: 'active',
+        attempt_no: 1,
+        status: 'IN_PROGRESS',
+        server_now: '2026-11-05T06:00:00Z',
+        deadline_at: '2026-11-05T07:00:00Z',
+        questions: [],
+      },
+    }),
   )
+  await page.route('**/api/student/results?**', (route) =>
+    route.fulfill({ json: { items: [], total: 0 } }),
+  )
+  await page.route('**/api/student/mistakes?**', (route) =>
+    route.fulfill({ json: { items: [], total: 0 } }),
+  )
+  await page.goto('/home')
+  await expect(page.getByRole('region', { name: '当前考试', exact: true })).toContainText(
+    '正在作答的考试',
+  )
+  await expect(
+    page
+      .getByRole('region', { name: '当前考试', exact: true })
+      .getByRole('button', { name: '继续作答' }),
+  ).toBeVisible()
+  await expect(page.locator('.student-next-exam h3')).toHaveText(['可参加的考试'])
+  await expect(page.getByRole('region', { name: '学习记录', exact: true })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '我的账号', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: '全部考试 ↗' })).toBeVisible()
   await page.setViewportSize({ width: 390, height: 844 })
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)
 })

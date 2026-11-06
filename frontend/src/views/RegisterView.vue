@@ -6,6 +6,7 @@ import { errorMessage } from '../api/client'
 import { useAuthStore } from '../stores/auth'
 import FormField from '../components/ui/FormField.vue'
 import PasswordIndicator from '../components/ui/PasswordIndicator.vue'
+import PasswordRequirements from '../components/ui/PasswordRequirements.vue'
 import { useFormValidation } from '../composables/useFormValidation'
 import { profileRules, passwordRule, confirmationRule } from '../features/identity/formRules'
 
@@ -113,7 +114,7 @@ async function submit(): Promise<void> {
                 :input-props="inputProps"
                 type="password"
                 show-password-on="click"
-              /><PasswordIndicator :password="form.password" /></div
+              /><PasswordIndicator :password="form.password" :show-requirements-hint="false" /></div
           ></FormField>
           <FormField
             v-slot="{ inputProps }"
@@ -133,6 +134,7 @@ async function submit(): Promise<void> {
               /></div
           ></FormField>
         </div>
+        <PasswordRequirements />
         <NButton attr-type="submit" type="primary" block :loading="loading">提交注册</NButton>
       </NForm>
       <p class="auth-switch"><span>已有账号</span><RouterLink to="/login">返回登录</RouterLink></p>

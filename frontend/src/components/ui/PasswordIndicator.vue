@@ -6,8 +6,9 @@ const props = withDefaults(
     password: string
     confirmation?: string
     mode?: 'strength' | 'match'
+    showRequirementsHint?: boolean
   }>(),
-  { mode: 'strength', confirmation: '' },
+  { mode: 'strength', confirmation: '', showRequirementsHint: true },
 )
 
 const indicator = computed(() => {
@@ -40,7 +41,7 @@ const indicator = computed(() => {
       <span :style="{ width: `${indicator.width}%` }" />
     </div>
     <span>{{ indicator.label }}</span>
-    <small v-if="mode === 'strength'">仅作参考，密码需10—256个字符</small>
+    <small v-if="mode === 'strength' && showRequirementsHint">仅作参考，密码需10—256个字符</small>
   </div>
 </template>
 

@@ -4,7 +4,7 @@ export interface NavigationModule {
   path: string
   label: string
   icon: string
-  group: 'workspace' | 'preparation' | 'people' | 'account'
+  group: 'workspace' | 'student-exams' | 'learning' | 'preparation' | 'people' | 'account'
   roles: UserRole[]
   restricted?: 'application' | 'password' | 'contacts'
   entry?: { title: string; description: string; action: string }
@@ -32,7 +32,7 @@ export const navigationModules: NavigationModule[] = [
     path: '/student/exams',
     label: '我的考试',
     icon: 'exam',
-    group: 'workspace',
+    group: 'student-exams',
     roles: ['STUDENT'],
     entry: {
       title: '参加限时考试',
@@ -44,7 +44,7 @@ export const navigationModules: NavigationModule[] = [
     path: '/student/results',
     label: '考试历史',
     icon: 'paper',
-    group: 'workspace',
+    group: 'student-exams',
     roles: ['STUDENT'],
     entry: {
       title: '查看考试结果',
@@ -56,7 +56,7 @@ export const navigationModules: NavigationModule[] = [
     path: '/student/mistakes',
     label: '我的错题',
     icon: 'book',
-    group: 'workspace',
+    group: 'learning',
     roles: ['STUDENT'],
     entry: {
       title: '复习错题记录',
@@ -68,7 +68,7 @@ export const navigationModules: NavigationModule[] = [
     path: '/student/analytics',
     label: '学习分析',
     icon: 'paper',
-    group: 'workspace',
+    group: 'learning',
     roles: ['STUDENT'],
     entry: {
       title: '查看学习表现',
@@ -198,6 +198,8 @@ export const navigationModules: NavigationModule[] = [
 
 export const navigationGroups = [
   { key: 'workspace', label: '工作空间' },
+  { key: 'student-exams', label: '考试空间' },
+  { key: 'learning', label: '学习反馈' },
   { key: 'preparation', label: '考试准备' },
   { key: 'people', label: '人员与教学' },
   { key: 'account', label: '个人账号' },
@@ -218,9 +220,13 @@ export function accessibleModules(user: User | null): NavigationModule[] {
       (item) => item.restricted && item.roles.includes(user.user_type),
     )
   }
-  return navigationModules.filter(
-    (item) => item.roles.includes(user.user_type) && item.restricted !== 'application',
-  )
+  return navigationModules
+    .filter((item) => item.roles.includes(user.user_type) && item.restricted !== 'application')
+    .map((item): NavigationModule =>
+      user.user_type === 'STUDENT' && item.path === '/home'
+        ? { ...item, label: '考试工作台', group: 'student-exams' }
+        : item,
+    )
 }
 
 export function currentModule(

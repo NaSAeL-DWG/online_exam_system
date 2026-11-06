@@ -49,7 +49,13 @@ async function logout(): Promise<void> {
 </script>
 
 <template>
-  <div class="app-shell" :class="{ 'app-shell--attempt': focusedAttempt }">
+  <div
+    class="app-shell"
+    :class="{
+      'app-shell--attempt': focusedAttempt,
+      'app-shell--student': auth.user?.user_type === 'STUDENT',
+    }"
+  >
     <a class="skip-link" href="#workspace">跳至主要内容</a>
     <aside v-if="!focusedAttempt" class="sidebar">
       <div class="sidebar-brand">

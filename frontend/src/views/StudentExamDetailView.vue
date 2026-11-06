@@ -303,7 +303,6 @@ onUnmounted(() => clearInterval(clockTimer))
   padding: 24px;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
-  border-top: 3px solid var(--blue-600);
   border-radius: 2px;
   min-width: 0;
 }
@@ -341,7 +340,6 @@ onUnmounted(() => clearInterval(clockTimer))
 }
 .is-unavailable .summary-card {
   background: var(--neutral-100);
-  border-top-color: var(--neutral-400);
 }
 .is-unavailable .summary-value,
 .is-unavailable .summary-value small {

@@ -207,6 +207,14 @@
 .app-shell--attempt .workspace {
   padding-top: 20px;
 }
+.app-shell--student .navigation-link > svg {
+  color: var(--blue-600);
+}
+@media (min-width: 1051px) {
+  .app-shell--student:not(.app-shell--attempt) {
+    grid-template-columns: 204px minmax(0, 1fr);
+  }
+}
 .sidebar-brand {
   padding: 26px 22px;
   color: var(--color-text);

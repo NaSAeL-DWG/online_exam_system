@@ -10,6 +10,7 @@ import { authApi } from '../api/auth'
 import { useAuthStore } from '../stores/auth'
 import FormField from '../components/ui/FormField.vue'
 import PasswordIndicator from '../components/ui/PasswordIndicator.vue'
+import PasswordRequirements from '../components/ui/PasswordRequirements.vue'
 import { useFormValidation } from '../composables/useFormValidation'
 import { credentialRule, passwordRule, confirmationRule } from '../features/identity/formRules'
 
@@ -105,7 +106,10 @@ async function submit(): Promise<void> {
                 :input-props="{ ...inputProps, autocomplete: 'new-password' }"
                 type="password"
                 show-password-on="click"
-              /><PasswordIndicator :password="form.new_password" /></div
+              /><PasswordIndicator
+                :password="form.new_password"
+                :show-requirements-hint="false"
+              /></div
           ></FormField>
           <FormField
             v-slot="{ inputProps }"
@@ -124,6 +128,7 @@ async function submit(): Promise<void> {
                 :confirmation="form.confirmPassword"
               /></div
           ></FormField>
+          <PasswordRequirements />
           <div class="editor-actions">
             <NButton attr-type="submit" type="primary" :loading="loading" :disabled="uncertain"
               >保存新密码</NButton
