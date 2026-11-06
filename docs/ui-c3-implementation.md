@@ -61,4 +61,4 @@ npm run format:check
 
 真实业务用例需按 [测试文档](testing.md) 启动独立测试 API／worker 并加载测试凭据。
 
-后续版式差异及修正见 [C3 学生工作台还原复核](ui-c3-alignment-review.md)。本记录的初次落地通过不代表所有页面与静态稿逐像素一致。
+后续版式差异及修正见 [C3 学生工作台还原复核](ui-c3-alignment-review.md) 和 [C3 逐页落实记录](ui-c3-page-rollout.md)。后者覆盖 30 个页面场景的布局还原、设计外功能适配与分角色验证。本记录的初次主题落地不代表所有页面与静态稿逐像素一致。

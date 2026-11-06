@@ -1,14 +1,6 @@
 <script setup lang="ts">
-import { h } from 'vue'
-import {
-  NAlert,
-  NButton,
-  NDataTable,
-  NInput,
-  NModal,
-  NSpace,
-  type DataTableColumns,
-} from 'naive-ui'
+import { h, ref } from 'vue'
+import { NAlert, NButton, NDataTable, NInput, NModal, type DataTableColumns } from 'naive-ui'
 import ListPager from '../components/ListPager.vue'
 import PageHeader from '../components/ui/PageHeader.vue'
 import SurfacePanel from '../components/ui/SurfacePanel.vue'
@@ -38,26 +30,27 @@ const {
   decide,
   openReject,
 } = useRegistrationReviews()
+const inspecting = ref<StudentReview | null>(null)
+async function approveInspected(): Promise<void> {
+  if (inspecting.value && (await decide(inspecting.value, 'APPROVED'))) inspecting.value = null
+}
+function rejectInspected(): void {
+  if (!inspecting.value) return
+  openReject(inspecting.value)
+  inspecting.value = null
+}
 const columns: DataTableColumns<StudentReview> = [
   {
     title: '申请学生',
     key: 'identity',
     minWidth: 170,
-    render: (row) =>
-      h('div', [
-        h('strong', row.submitted_profile.real_name),
-        h('small', { class: 'table-subtitle' }, row.submitted_profile.student_no),
-      ]),
+    render: (row) => h('strong', row.submitted_profile.real_name),
   },
   {
-    title: '联系方式',
-    key: 'contact',
-    minWidth: 200,
-    render: (row) =>
-      h('div', [
-        h('div', row.submitted_profile.email),
-        h('small', { class: 'table-subtitle' }, row.submitted_profile.phone_number),
-      ]),
+    title: '学号',
+    key: 'student_no',
+    minWidth: 160,
+    render: (row) => h('span', { class: 'student-number' }, row.submitted_profile.student_no),
   },
   {
     title: '提交时间',
@@ -82,31 +75,17 @@ const columns: DataTableColumns<StudentReview> = [
     key: 'actions',
     width: 160,
     render: (row) =>
-      row.status === 'PENDING'
-        ? h(
-            NSpace,
-            {},
-            {
-              default: () => [
-                h(
-                  NButton,
-                  {
-                    size: 'small',
-                    type: 'primary',
-                    disabled: saving.value,
-                    onClick: () => decide(row, 'APPROVED'),
-                  },
-                  { default: () => '通过' },
-                ),
-                h(
-                  NButton,
-                  { size: 'small', disabled: saving.value, onClick: () => openReject(row) },
-                  { default: () => '拒绝' },
-                ),
-              ],
-            },
-          )
-        : h('span', { class: 'muted' }, '已处理'),
+      h(
+        NButton,
+        {
+          size: 'small',
+          disabled: saving.value,
+          onClick: () => {
+            inspecting.value = row
+          },
+        },
+        { default: () => (row.status === 'PENDING' ? '审核资料' : '查看资料') },
+      ),
   },
 ]
 </script>
@@ -114,8 +93,9 @@ const columns: DataTableColumns<StudentReview> = [
 <template>
   <div class="page-stack">
     <PageHeader
-      title="学生注册审核"
-      description="核对申请学生的真实身份；拒绝时说明需要更正的内容。"
+      eyebrow="ADMIN / APPLICATIONS"
+      title="学生审核"
+      description="核对学生身份与联系方式，再决定是否激活账号。"
       ><template #actions
         ><NButton :loading="loading" @click="load">刷新</NButton></template
       ></PageHeader
@@ -123,17 +103,17 @@ const columns: DataTableColumns<StudentReview> = [
     <NAlert v-if="failure" type="error"
       >{{ failure }} <NButton size="small" @click="load">重试加载</NButton></NAlert
     >
-    <SurfacePanel title="注册申请" description="通过后开放学生账号权限，已处理申请保留审核记录。">
-      <div class="toolbar">
-        <form class="directory-search" @submit.prevent="changePage(1)">
-          <NInput
-            v-model:value="query"
-            :input-props="{ 'aria-label': '搜索申请' }"
-            placeholder="搜索姓名或学号"
-            ><template #prefix><AppIcon name="search" :size="16" /></template></NInput
-          ><NButton attr-type="submit" :loading="loading">查询申请</NButton>
-        </form>
-      </div>
+    <div class="toolbar">
+      <form class="directory-search" @submit.prevent="changePage(1)">
+        <NInput
+          v-model:value="query"
+          :input-props="{ 'aria-label': '搜索申请' }"
+          placeholder="搜索姓名或学号"
+          ><template #prefix><AppIcon name="search" :size="16" /></template></NInput
+        ><NButton attr-type="submit" :loading="loading">查询申请</NButton>
+      </form>
+    </div>
+    <SurfacePanel class="review-list-panel">
       <LoadingSkeleton v-if="loading && !items.length" variant="table" label="正在加载注册申请" />
       <div v-else class="table-region">
         <NDataTable
@@ -153,6 +133,45 @@ const columns: DataTableColumns<StudentReview> = [
         @change="changePage"
       />
     </SurfacePanel>
+    <NModal
+      :show="!!inspecting"
+      @update:show="inspecting = null"
+      preset="card"
+      title="审核学生资料"
+      class="responsive-modal--compact"
+      :closable="!saving"
+      :mask-closable="!saving"
+    >
+      <template v-if="inspecting">
+        <dl class="review-profile">
+          <dt>学号</dt>
+          <dd>{{ inspecting.submitted_profile.student_no }}</dd>
+          <dt>姓名</dt>
+          <dd>{{ inspecting.submitted_profile.real_name }}</dd>
+          <dt>邮箱</dt>
+          <dd>{{ inspecting.submitted_profile.email }}</dd>
+          <dt>手机号</dt>
+          <dd>{{ inspecting.submitted_profile.phone_number }}</dd>
+          <dt>申请时间</dt>
+          <dd>{{ new Date(inspecting.submitted_at).toLocaleString('zh-CN') }}</dd>
+          <template v-if="inspecting.reason"
+            ><dt>拒绝原因</dt>
+            <dd>{{ inspecting.reason }}</dd></template
+          >
+        </dl>
+      </template>
+      <template #footer
+        ><div class="editor-actions">
+          <NButton :disabled="saving" @click="inspecting = null">暂不处理</NButton
+          ><template v-if="inspecting?.status === 'PENDING'"
+            ><NButton :disabled="saving" @click="rejectInspected">拒绝申请</NButton
+            ><NButton type="primary" :loading="saving" @click="approveInspected"
+              >核验通过</NButton
+            ></template
+          >
+        </div></template
+      >
+    </NModal>
     <NModal
       v-model:show="rejectVisible"
       preset="card"
@@ -191,3 +210,28 @@ const columns: DataTableColumns<StudentReview> = [
     </NModal>
   </div>
 </template>
+<style scoped>
+.review-list-panel :deep(.surface-panel-body) {
+  padding: 0;
+}
+.review-list-panel :deep(.list-pager) {
+  padding: 18px 22px;
+}
+:deep(.student-number) {
+  font-family: Consolas, monospace;
+}
+.review-profile {
+  display: grid;
+  grid-template-columns: 80px minmax(0, 1fr);
+  gap: 18px 20px;
+  font-size: 13px;
+  margin: 4px 0 16px;
+}
+.review-profile dt {
+  color: var(--color-muted);
+}
+.review-profile dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+</style>

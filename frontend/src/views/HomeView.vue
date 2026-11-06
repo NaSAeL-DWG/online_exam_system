@@ -1,35 +1,44 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { NButton } from 'naive-ui'
+import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import PageHeader from '../components/ui/PageHeader.vue'
-import StatusBadge from '../components/ui/StatusBadge.vue'
+import SurfacePanel from '../components/ui/SurfacePanel.vue'
 import AppIcon from '../components/ui/AppIcon.vue'
 import HomeExamOverview from '../features/home/HomeExamOverview.vue'
 import StudentHomeView from './StudentHomeView.vue'
-import { accessibleModules, roleLabels } from '../navigation/modules'
+import { accessibleModules } from '../navigation/modules'
 
 const auth = useAuthStore()
+const router = useRouter()
 const copy = computed(
   () =>
     ({
       STUDENT: { title: '学生工作台', description: '参加限时考试，维护你的个人账号资料。' },
       TEACHER: {
-        title: '教师工作台',
-        description: '准备题目与试卷，安排考试，处理教学与身份事务。',
+        title: '考试工作台',
+        description: '先处理进行中的考试与待阅答卷，再准备下一场考试。',
       },
-      ADMIN: { title: '管理工作台', description: '维护人员与教学组织，协作完成考试准备。' },
+      ADMIN: {
+        title: '考试工作台',
+        description: '管理考试安排、参考资格与结果公布，查看阅卷整体进度。',
+      },
     })[auth.user?.user_type ?? 'STUDENT'],
 )
 const modules = computed(() => accessibleModules(auth.user))
-const workspace = computed(() =>
+const support = computed(() =>
   modules.value.filter(
-    (item) => auth.user?.user_type === 'ADMIN' && item.group === 'workspace' && item.entry,
+    (item) =>
+      item.entry &&
+      item.group !== 'preparation' &&
+      item.group !== 'account' &&
+      !['/staff/exams', '/staff/grading-tasks'].includes(item.path),
   ),
 )
 const preparation = computed(() =>
   modules.value.filter((item) => item.group === 'preparation' && item.entry),
 )
-const people = computed(() => modules.value.filter((item) => item.group === 'people' && item.entry))
 const account = computed(() =>
   modules.value.filter((item) => item.group === 'account' && item.entry),
 )
@@ -38,94 +47,98 @@ const account = computed(() =>
 <template>
   <StudentHomeView v-if="auth.user?.user_type === 'STUDENT'" />
   <div v-else class="page-stack">
-    <PageHeader :title="copy.title" :description="copy.description"
-      ><template #actions><StatusBadge label="账号已激活" tone="success" /></template
-    ></PageHeader>
-    <HomeExamOverview />
-    <section v-if="workspace.length" class="home-section">
-      <header class="home-section-heading">
-        <h2>系统管理</h2>
-        <p>查看运行记录与操作审计</p>
-      </header>
-      <div class="home-task-list">
-        <RouterLink v-for="item in workspace" :key="item.path" :to="item.path" class="home-task">
-          <AppIcon :name="item.icon" :size="21" />
-          <div>
-            <h3>{{ item.entry!.title }}</h3>
-            <p>{{ item.entry!.description }}</p>
+    <PageHeader
+      :eyebrow="
+        auth.user?.user_type === 'ADMIN' ? 'ADMIN / EXAM OPERATIONS' : 'TEACHER / WORKSPACE'
+      "
+      :title="copy.title"
+      :description="copy.description"
+    >
+      <template #actions
+        ><NButton type="primary" @click="router.push('/staff/exams?create=1')"
+          ><template #icon><AppIcon name="plus" :size="16" /></template>创建考试</NButton
+        ></template
+      >
+    </PageHeader>
+    <HomeExamOverview>
+      <template #preparation>
+        <SurfacePanel title="考试准备">
+          <div class="staff-preparation-list">
+            <RouterLink v-for="item in preparation" :key="item.path" :to="item.path">
+              <div>
+                <h3>{{ item.entry!.title }}</h3>
+                <p>{{ item.entry!.description }}</p>
+              </div>
+              <AppIcon name="arrow-right" :size="16" />
+            </RouterLink>
           </div>
-          <AppIcon name="arrow-right" :size="18" />
-        </RouterLink>
-      </div>
-    </section>
-    <section v-if="preparation.length" class="home-section">
-      <header class="home-section-heading">
-        <h2>考试准备</h2>
-        <p>题目 → 试卷 → 独立考试快照</p>
-      </header>
-      <div class="home-preparation">
+        </SurfacePanel>
+      </template>
+    </HomeExamOverview>
+    <SurfacePanel
+      :title="auth.user?.user_type === 'ADMIN' ? '人员与系统管理' : '教学与账号'"
+      class="staff-support"
+    >
+      <div class="staff-support-links">
         <RouterLink
-          v-for="(item, index) in preparation"
+          v-for="item in [
+            ...support,
+            ...(auth.user?.user_type === 'ADMIN' ? preparation : []),
+            ...account,
+          ]"
           :key="item.path"
           :to="item.path"
-          class="home-entry"
-        >
-          <div class="home-entry-top">
-            <span class="home-entry-icon"><AppIcon :name="item.icon" :size="23" /></span
-            ><span class="home-entry-step" aria-hidden="true">0{{ index + 1 }}</span>
-          </div>
-          <h3>{{ item.entry!.title }}</h3>
-          <p>{{ item.entry!.description }}</p>
-          <span class="home-entry-action"
-            >{{ item.entry!.action }}<AppIcon name="arrow-right" :size="17"
-          /></span>
-        </RouterLink>
+          ><AppIcon :name="item.icon" :size="17" />{{ item.label
+          }}<AppIcon name="arrow-right" :size="14"
+        /></RouterLink>
       </div>
-    </section>
-    <div class="home-secondary" :class="{ 'home-secondary--single': !people.length }">
-      <section v-if="people.length" class="home-section">
-        <header class="home-section-heading">
-          <h2>人员与教学</h2>
-          <p>组织成员与账号身份</p>
-        </header>
-        <div class="home-task-list">
-          <RouterLink v-for="item in people" :key="item.path" :to="item.path" class="home-task">
-            <AppIcon :name="item.icon" :size="21" />
-            <div>
-              <h3>{{ item.entry!.title }}</h3>
-              <p>{{ item.entry!.description }}</p>
-            </div>
-            <AppIcon name="arrow-right" :size="18" />
-          </RouterLink>
-        </div>
-      </section>
-      <section class="home-section">
-        <header class="home-section-heading"><h2>我的账号</h2></header>
-        <div class="home-account">
-          <div class="home-account-identity">
-            <span class="home-account-avatar" aria-hidden="true">{{
-              auth.user?.real_name.slice(0, 1)
-            }}</span>
-            <div>
-              <strong>{{ auth.user?.real_name }}</strong
-              ><span
-                >{{ auth.user ? roleLabels[auth.user.user_type] : '' }} ·
-                {{ auth.user?.login_name }}</span
-              >
-            </div>
-          </div>
-          <div class="home-account-links">
-            <RouterLink v-for="item in account" :key="item.path" :to="item.path"
-              ><AppIcon :name="item.icon" :size="17" /><span>{{ item.entry!.action }}</span
-              ><AppIcon name="arrow-right" :size="16"
-            /></RouterLink>
-          </div>
-          <p v-if="auth.user?.user_type === 'ADMIN'" class="home-account-note">
-            身份资料可在账号管理中核验更正；管理员密码遗失时，请联系系统维护人员通过本地运维恢复。
-          </p>
-          <p v-else class="home-account-note">姓名或登录账号需要更正时，请由管理员核验后处理。</p>
-        </div>
-      </section>
-    </div>
+      <p>姓名或登录账号需要更正时，请由管理员核验后处理。</p>
+    </SurfacePanel>
   </div>
 </template>
+
+<style scoped>
+.staff-preparation-list {
+  display: grid;
+}
+.staff-preparation-list > a {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  justify-content: space-between;
+  padding: 18px 0;
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text);
+}
+.staff-preparation-list > a:first-child {
+  padding-top: 0;
+}
+.staff-preparation-list > a:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+.staff-preparation-list h3 {
+  margin: 0 0 7px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.staff-preparation-list p,
+.staff-support p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.8;
+  color: var(--color-muted);
+}
+.staff-support-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px 28px;
+  margin-bottom: 15px;
+}
+.staff-support-links a {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 13px;
+}
+</style>

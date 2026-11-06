@@ -30,7 +30,8 @@ test('学生被拒绝后可以更正资料并重新提交审核', async ({ page 
   await page.getByRole('button', { name: '查询申请' }).click()
 
   const row = page.getByRole('row').filter({ hasText: studentNo })
-  await row.getByRole('button', { name: '拒绝' }).click()
+  await row.getByRole('button', { name: '审核资料', exact: true }).click()
+  await page.getByRole('button', { name: '拒绝申请', exact: true }).click()
   await page.getByLabel('拒绝原因').fill('请核对真实姓名')
   await page.getByRole('button', { name: '确认拒绝' }).click()
   await expect(row.getByText('已拒绝')).toBeVisible()

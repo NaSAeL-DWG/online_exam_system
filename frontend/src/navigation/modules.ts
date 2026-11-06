@@ -4,7 +4,16 @@ export interface NavigationModule {
   path: string
   label: string
   icon: string
-  group: 'workspace' | 'student-exams' | 'learning' | 'preparation' | 'people' | 'account'
+  group:
+    | 'workspace'
+    | 'student-exams'
+    | 'learning'
+    | 'exam-work'
+    | 'system'
+    | 'preparation'
+    | 'organization'
+    | 'people'
+    | 'account'
   roles: UserRole[]
   restricted?: 'application' | 'password' | 'contacts'
   entry?: { title: string; description: string; action: string }
@@ -200,7 +209,10 @@ export const navigationGroups = [
   { key: 'workspace', label: '工作空间' },
   { key: 'student-exams', label: '考试空间' },
   { key: 'learning', label: '学习反馈' },
-  { key: 'preparation', label: '考试准备' },
+  { key: 'exam-work', label: '考试工作' },
+  { key: 'system', label: '系统管理' },
+  { key: 'preparation', label: '考前准备' },
+  { key: 'organization', label: '教学组织' },
   { key: 'people', label: '人员与教学' },
   { key: 'account', label: '个人账号' },
 ] as const
@@ -220,18 +232,55 @@ export function accessibleModules(user: User | null): NavigationModule[] {
       (item) => item.restricted && item.roles.includes(user.user_type),
     )
   }
-  return navigationModules
-    .filter((item) => item.roles.includes(user.user_type) && item.restricted !== 'application')
-    .map((item): NavigationModule =>
-      user.user_type === 'STUDENT' && item.path === '/home'
-        ? { ...item, label: '考试工作台', group: 'student-exams' }
-        : item,
-    )
+  return (
+    navigationModules
+      .filter((item) => item.roles.includes(user.user_type) && item.restricted !== 'application')
+      .map((item): NavigationModule => {
+        if (user.user_type === 'STUDENT') {
+          return item.path === '/home'
+            ? { ...item, label: '考试工作台', group: 'student-exams' }
+            : item
+        }
+        if (item.path === '/home') return { ...item, label: '考试工作台', group: 'exam-work' }
+        if (item.path === '/staff/exams' || item.path === '/staff/grading-tasks') {
+          return { ...item, group: 'exam-work' }
+        }
+        if (item.group === 'people' || item.path === '/admin/logs') {
+          return { ...item, group: user.user_type === 'ADMIN' ? 'system' : 'organization' }
+        }
+        return item
+      })
+      // 同组优先呈现考试管理，再呈现阅卷；管理目录按账号、教学班、审核、日志排列。
+      .sort((left, right) => {
+        const order = [
+          '/home',
+          '/staff/exams',
+          '/staff/grading-tasks',
+          '/admin/accounts',
+          '/classes',
+          '/staff/reviews',
+          '/admin/logs',
+        ]
+        const rank = (item: NavigationModule) => {
+          const index = order.indexOf(item.path)
+          return index < 0 ? order.length : index
+        }
+        return rank(left) - rank(right)
+      })
+  )
 }
 
 export function currentModule(
   path: string,
   modules: NavigationModule[],
 ): NavigationModule | undefined {
-  return modules.find((item) => path === item.path || path.startsWith(`${item.path}/`))
+  // 作答和回看使用独立路由，导航仍归属对应的考试或历史入口。
+  const parentPath = /^\/student\/attempts\/[^/]+\/review$/.test(path)
+    ? '/student/results'
+    : path.startsWith('/student/attempts/')
+      ? '/student/exams'
+      : path.startsWith('/staff/attempts/')
+        ? '/staff/grading-tasks'
+        : path
+  return modules.find((item) => parentPath === item.path || parentPath.startsWith(`${item.path}/`))
 }

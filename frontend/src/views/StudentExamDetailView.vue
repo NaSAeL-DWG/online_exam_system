@@ -131,20 +131,12 @@ onUnmounted(() => clearInterval(clockTimer))
 
 <template>
   <div class="page-stack exam-detail-page">
-    <RouterLink to="/student/exams">← 返回我的考试</RouterLink>
     <PageHeader
+      eyebrow="EXAM / OVERVIEW"
       :title="exam?.title || '考试详情'"
       description="查看考试规则与个人作答情况，确认后进入考试。"
     >
-      <template v-if="exam" #actions
-        ><StatusBadge
-          :label="phase"
-          :tone="
-            exam.status === 'CANCELLED' || exam.participant_status === 'CANCELLED'
-              ? 'danger'
-              : 'info'
-          "
-      /></template>
+      <template #actions><RouterLink to="/student/exams">← 返回我的考试</RouterLink></template>
     </PageHeader>
     <NAlert v-if="failure" type="error"
       >{{ failure }} <NButton size="small" @click="load">重新读取考试状态</NButton></NAlert
@@ -193,6 +185,10 @@ onUnmounted(() => clearInterval(clockTimer))
           <SurfacePanel title="详细信息">
             <dl class="exam-facts">
               <div>
+                <dt>考试状态</dt>
+                <dd><StatusBadge :label="phase" :tone="unavailable ? 'neutral' : 'info'" /></dd>
+              </div>
+              <div>
                 <dt>开放时间（上海）</dt>
                 <dd>{{ examTime(exam.start_at) }} — {{ examTime(exam.end_at) }}</dd>
               </div>
@@ -208,8 +204,10 @@ onUnmounted(() => clearInterval(clockTimer))
               </div>
               <div>
                 <dt>作答机会</dt>
-                <dd>已使用 {{ exam.used_attempts }} / {{ exam.max_attempts }} 次</dd>
-                <p>剩余 {{ exam.remaining_attempts }} 次</p>
+                <dd>
+                  <span>已使用 {{ exam.used_attempts }} / {{ exam.max_attempts }} 次</span>，剩余
+                  {{ exam.remaining_attempts }} 次
+                </dd>
               </div>
               <div>
                 <dt>试卷总分</dt>
@@ -217,16 +215,26 @@ onUnmounted(() => clearInterval(clockTimer))
               </div>
             </dl>
           </SurfacePanel>
-          <SurfacePanel title="作答说明">
+          <SurfacePanel title="开始前，请确认">
             <p class="exam-description">{{ exam.description || '本场考试暂无补充说明。' }}</p>
-            <ul class="attempt-rules">
-              <li>点击开始才使用一次机会；已有进行中的作答会恢复，继续作答不额外计次。</li>
+            <ol class="attempt-rules">
               <li>
-                实际截止时间取单次时长与考试结束时间中较早的一项。关闭页面、刷新和断网不会暂停。
+                <strong>准备好连续的作答时间</strong
+                >点击开始才使用一次机会；已有进行中的作答会恢复，继续作答不额外计次。
               </li>
-              <li>选择答案会自动保存，简答停止输入后保存。交卷前请核对保存状态。</li>
-              <li>截止后仅服务器已保存答案计入答卷，未上传的本地内容不计入。</li>
-            </ul>
+              <li>
+                <strong>计时不会因离开而暂停</strong
+                >实际截止时间取单次时长与考试结束时间中较早的一项。关闭页面、刷新和断网不会暂停。
+              </li>
+              <li>
+                <strong>关注答案保存结果</strong
+                >选择答案会自动保存，简答停止输入后保存。交卷前请核对保存状态。
+              </li>
+              <li>
+                <strong>交卷后不可修改本次答案</strong
+                >截止后仅服务器已保存答案计入答卷，未上传的本地内容不计入。
+              </li>
+            </ol>
           </SurfacePanel>
         </div>
         <div class="page-stack exam-personal">
@@ -296,7 +304,7 @@ onUnmounted(() => clearInterval(clockTimer))
 <style scoped>
 .exam-summary {
   display: grid;
-  grid-template-columns: 1.35fr 1fr 1fr;
+  grid-template-columns: minmax(0, 1.45fr) repeat(2, minmax(0, 1fr));
   gap: 16px;
 }
 .summary-card {
@@ -310,7 +318,7 @@ onUnmounted(() => clearInterval(clockTimer))
   margin: 0 0 20px;
   font-size: 12px;
   font-weight: 600;
-  color: var(--color-muted);
+  color: var(--blue-700);
   letter-spacing: 0.04em;
 }
 .summary-context {
@@ -322,9 +330,12 @@ onUnmounted(() => clearInterval(clockTimer))
   display: block;
   font-size: clamp(22px, 2.2vw, 30px);
   font-weight: 650;
-  color: var(--blue-700);
+  color: var(--color-text);
   font-variant-numeric: tabular-nums;
   line-height: 1.4;
+}
+.summary-card:first-child .summary-value {
+  color: var(--blue-700);
 }
 .summary-value small {
   margin-left: 8px;
@@ -342,7 +353,11 @@ onUnmounted(() => clearInterval(clockTimer))
   background: var(--neutral-100);
 }
 .is-unavailable .summary-value,
+.is-unavailable .summary-card:first-child .summary-value,
 .is-unavailable .summary-value small {
+  color: var(--neutral-600);
+}
+.is-unavailable .summary-card h2 {
   color: var(--neutral-600);
 }
 .exam-detail-grid {
@@ -378,9 +393,14 @@ onUnmounted(() => clearInterval(clockTimer))
 }
 .exam-facts {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 24px;
+  gap: 17px;
   margin: 0;
+}
+.exam-facts > div {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
 }
 dt {
   font-size: 13px;
@@ -390,7 +410,7 @@ dt {
 dd {
   margin: 0;
   line-height: 1.7;
-  font-weight: 600;
+  font-weight: 400;
 }
 .exam-facts p {
   margin: 3px 0 0;
@@ -406,6 +426,16 @@ dd {
   color: var(--color-muted);
   line-height: 1.9;
   font-size: 13px;
+}
+.attempt-rules li {
+  padding-left: 8px;
+  margin: 16px 0;
+}
+.attempt-rules strong {
+  display: block;
+  font-weight: 600;
+  color: var(--color-text);
+  margin-bottom: 3px;
 }
 .detail-start {
   display: flex;

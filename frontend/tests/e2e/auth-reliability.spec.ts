@@ -9,7 +9,7 @@ async function login(page: Page, loginName: string, password: string): Promise<v
 
 async function createTeacherAndLogin(page: Page): Promise<string> {
   await login(page, process.env.E2E_ADMIN_LOGIN!, process.env.E2E_ADMIN_PASSWORD!)
-  await expect(page.getByRole('heading', { name: '管理工作台' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '考试工作台' })).toBeVisible()
   const suffix = `${Date.now()}${Math.floor(Math.random() * 1000)}`
   const teacherNo = `F${suffix}`
   const csrf = await page.request.get('/api/auth/csrf')
@@ -62,7 +62,7 @@ test('改密响应丢失后不重复提交，用户可以用新密码重新登�
   await page.getByLabel('登录账号').fill(teacherNo)
   await page.getByLabel('密码').fill('Teacher456!')
   await page.getByRole('button', { name: '登录' }).click()
-  await expect(page.getByRole('heading', { name: '教师工作台' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '考试工作台' })).toBeVisible()
 })
 
 test('改密已成功且旧登录状态待清理时，仍提示使用新密码登录', async ({ page }) => {
@@ -88,7 +88,7 @@ test('改密已成功且旧登录状态待清理时，仍提示使用新密码�
     animations: 'disabled',
   })
   await login(page, teacherNo, 'Teacher456!')
-  await expect(page.getByRole('heading', { name: '教师工作台' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '考试工作台' })).toBeVisible()
 })
 
 test('联系方式已保存但响应内容损坏时，先读取最新资料再允许保存', async ({ page }) => {
@@ -99,7 +99,7 @@ test('联系方式已保存但响应内容损坏时，先读取最新资料再�
   await page.getByRole('button', { name: '保存新密码' }).click()
   await expect(page.getByRole('heading', { name: '账号登录', level: 1 })).toBeVisible()
   await login(page, teacherNo, 'Teacher456!')
-  await expect(page.getByRole('heading', { name: '教师工作台' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '考试工作台' })).toBeVisible()
   await page.goto('/account/contacts')
   let writes = 0
   await page.route('**/api/auth/contacts', async (route) => {
@@ -124,7 +124,7 @@ test('联系方式已保存但响应内容损坏时，先读取最新资料再�
 
 test('刷新凭据交付中断时要求重新登录，不把它提示成普通网络重试', async ({ page, context }) => {
   await login(page, process.env.E2E_ADMIN_LOGIN!, process.env.E2E_ADMIN_PASSWORD!)
-  await expect(page.getByRole('heading', { name: '管理工作台' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '考试工作台' })).toBeVisible()
   await context.clearCookies({ name: 'access_token' })
   let refreshRequests = 0
   await page.route('**/api/auth/refresh', async (route) => {
@@ -144,7 +144,7 @@ test('刷新凭据交付中断时要求重新登录，不把它提示成普通�
 
 test('刷新前服务暂不可用保留当前页面，恢复后可以手动重试', async ({ page, context }) => {
   await login(page, process.env.E2E_ADMIN_LOGIN!, process.env.E2E_ADMIN_PASSWORD!)
-  await expect(page.getByRole('heading', { name: '管理工作台' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '考试工作台' })).toBeVisible()
   await context.clearCookies({ name: 'access_token' })
   await page.route('**/api/auth/refresh', (route) =>
     route.fulfill({
@@ -168,7 +168,7 @@ test('刷新前服务暂不可用保留当前页面，恢复后可以手动重�
 
 test('退出遇到服务故障时说明未完成并保留当前身份，恢复后可重试退出', async ({ page }) => {
   await login(page, process.env.E2E_ADMIN_LOGIN!, process.env.E2E_ADMIN_PASSWORD!)
-  await expect(page.getByRole('heading', { name: '管理工作台' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '考试工作台' })).toBeVisible()
   await page.route('**/api/auth/logout', (route) =>
     route.fulfill({
       status: 503,
@@ -179,7 +179,7 @@ test('退出遇到服务故障时说明未完成并保留当前身份，恢复�
   )
   await page.getByRole('button', { name: '退出登录' }).click()
   await expect(page.getByText('认证服务暂时不可用，请稍后重试')).toBeVisible()
-  await expect(page.getByRole('heading', { name: '管理工作台' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '考试工作台' })).toBeVisible()
   await page.unroute('**/api/auth/logout')
   await page.getByRole('button', { name: '退出登录' }).click()
   await expect(page.getByRole('heading', { name: '账号登录', level: 1 })).toBeVisible()

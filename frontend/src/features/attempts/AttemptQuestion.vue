@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { NButton } from 'naive-ui'
 import SafeMarkdown from '../../components/SafeMarkdown.vue'
-import StatusBadge from '../../components/ui/StatusBadge.vue'
 import { questionTypeLabels } from '../../api/questions'
 import type { AnswerData } from '../../api/studentExams'
 import type { AnswerRow, SaveState } from './useAttemptWorkspace'
@@ -25,9 +24,9 @@ function multiple(optionId: string, checked: boolean): void {
   <section class="answer-question" :aria-label="`第 ${number} 题作答`">
     <header class="question-heading">
       <div>
-        <h2>第 {{ number }} 题</h2>
-        <StatusBadge :label="questionTypeLabels[row.question.type]" /><span class="question-score"
-          >{{ row.question.score }} 分</span
+        <h2 :aria-label="`第 ${number} 题`">{{ String(number).padStart(2, '0') }}</h2>
+        <span class="question-score"
+          >{{ questionTypeLabels[row.question.type] }} · {{ row.question.score }} 分</span
         >
       </div>
       <button
@@ -73,7 +72,7 @@ function multiple(optionId: string, checked: boolean): void {
           :checked="Array.isArray(row.value) && row.value.includes(option.id)"
           @change="multiple(option.id, ($event.target as HTMLInputElement).checked)"
         />
-        <span class="option-letter">{{ String.fromCharCode(65 + index) }}.</span
+        <span class="option-letter">{{ String.fromCharCode(65 + index) }}</span
         ><SafeMarkdown :content="option.content" />
       </label>
     </fieldset>
@@ -165,7 +164,9 @@ function multiple(optionId: string, checked: boolean): void {
 }
 h2 {
   margin: 0;
-  font-size: 18px;
+  font:
+    24px Consolas,
+    monospace;
   font-weight: 650;
 }
 .question-score {
@@ -214,6 +215,8 @@ h2 {
 }
 .question-content {
   padding: 24px 0;
+  font-size: 17px;
+  line-height: 1.95;
 }
 .answer-options {
   border: 0;
@@ -253,6 +256,16 @@ h2 {
 }
 .option-letter {
   color: var(--color-muted);
+  display: grid;
+  place-items: center;
+  width: 23px;
+  height: 23px;
+  border: 1px solid var(--color-border);
+  font:
+    12px Consolas,
+    monospace;
+  flex-shrink: 0;
+  margin-top: 2px;
 }
 .short-answer-label > span {
   font-size: 12px;

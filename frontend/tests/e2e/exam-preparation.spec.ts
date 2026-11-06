@@ -26,7 +26,7 @@ test('共享题库保存判断题的假答案并可重新读取', async ({ page 
   await page.getByLabel('科目', { exact: true }).fill('数学')
   await selectNaiveOption(page, page.getByRole('combobox', { name: '判断答案', exact: true }), '假')
   await page.getByRole('button', { name: '保存题目' }).click()
-  await expect(page.getByRole('dialog')).toBeHidden()
+  await expect(page.getByRole('heading', { name: '共享题库', exact: true })).toBeVisible()
   await page.getByLabel('搜索题目').fill(content)
   await page.getByRole('button', { name: '查询题目' }).click()
   await page

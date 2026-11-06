@@ -38,41 +38,47 @@
   align-items: center;
   justify-content: space-between;
   gap: 18px;
-  padding: 26px 42px;
+  padding: 0 32px;
+  min-height: 64px;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface);
 }
 .auth-topbar-note {
   color: var(--color-muted);
   font-size: 12px;
 }
 .auth-workspace {
-  width: min(980px, calc(100% - 64px));
-  margin: auto;
+  width: min(960px, calc(100% - 64px));
+  margin: 58px auto 30px;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 288px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   border: 1px solid var(--color-border);
   background: var(--color-surface);
   border-radius: var(--radius-md);
   overflow: hidden;
 }
 .auth-task {
-  padding: 50px 56px;
+  padding: 44px;
   min-width: 0;
 }
-/* 注册保持独立、居中的有限宽度表单，返回登录位于同一张卡片内。 */
+/* 注册保持居中限宽，返回入口与表单同列，避免大屏两端分离。 */
 .auth-workspace--register {
   width: min(760px, calc(100% - 48px));
   grid-template-columns: minmax(0, 1fr);
-  margin: 24px auto;
+  margin: 42px auto 24px;
+  border: 0;
+  background: transparent;
+  overflow: visible;
 }
 .auth-workspace--register .auth-task {
-  padding: 36px 40px;
+  padding: 0;
 }
 .auth-task-header {
   margin-bottom: 32px;
 }
 .auth-task-header h1 {
   margin: 0;
-  font-size: 34px;
+  font-size: 26px;
   line-height: 1.35;
   letter-spacing: -0.04em;
   font-weight: 750;
@@ -80,7 +86,7 @@
 .auth-task-header p {
   margin: 10px 0 0;
   color: var(--color-muted);
-  font-size: 14px;
+  font-size: 13px;
 }
 .auth-form {
   max-width: 100%;
@@ -88,75 +94,62 @@
 .auth-switch {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: space-between;
   gap: 8px;
-  padding-top: 24px;
-  border-top: 1px solid var(--color-border);
-  margin: 28px 0 0;
+  margin: 20px 0 0;
   font-size: 13px;
   color: var(--color-muted);
 }
-.auth-support {
+.auth-intro {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  padding: 44px 28px;
-  background: var(--neutral-50);
-  border-left: 1px solid var(--color-border);
+  padding: 44px;
+  min-height: 540px;
+  background: var(--blue-50);
+  border-right: 1px solid var(--blue-100);
 }
-.auth-support-label {
-  font-size: 11px;
-  letter-spacing: 0.1em;
-  color: var(--color-muted);
-  margin: 0 0 20px;
+.auth-intro .page-eyebrow {
+  margin-top: 44px;
 }
-.auth-support h2 {
-  font-size: 16px;
-  margin: 0 0 18px;
+.auth-intro h2 {
+  font-size: 34px;
+  line-height: 1.6;
+  font-weight: 500;
+  letter-spacing: -1px;
+  margin: 16px 0 18px;
 }
-.auth-support-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: grid;
-  gap: 22px;
-}
-.auth-support-list li {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  font-size: 13px;
-  line-height: 1.7;
-}
-.auth-support-list svg {
-  margin-top: 2px;
-  color: var(--blue-600);
-}
-.auth-support-list strong {
-  display: block;
-  color: var(--color-text);
-  font-weight: 600;
-}
-.auth-support-list span {
-  display: block;
+.auth-intro p {
   color: var(--color-muted);
   font-size: 12px;
-  margin-top: 4px;
+  line-height: 1.8;
 }
-.auth-help {
+.auth-intro-note {
+  border-top: 1px solid var(--blue-200);
+  padding-top: 18px;
+  margin: 32px 0 0;
+}
+.auth-login-help {
   border-top: 1px solid var(--color-border);
-  margin-top: 40px;
-  padding-top: 22px;
-  font-size: 12px;
+  margin: 24px 0 0;
+  padding-top: 20px;
   color: var(--color-muted);
+  font-size: 12px;
+  line-height: 1.8;
 }
-.auth-help strong {
-  color: var(--color-text);
-  display: block;
-  margin-bottom: 6px;
+.register-back {
+  display: inline-block;
+  margin-bottom: 18px;
+  font-size: 12px;
 }
-.auth-help p {
-  margin: 0;
+.register-panel {
+  padding: 24px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+.auth-workspace--register .auth-task-header {
+  margin-bottom: 24px;
 }
 .auth-footer {
   padding: 25px 24px;
@@ -186,7 +179,7 @@
 }
 .app-shell {
   display: grid;
-  grid-template-columns: 216px minmax(0, 1fr);
+  grid-template-columns: 204px minmax(0, 1fr);
   min-height: 100vh;
 }
 .sidebar {
@@ -201,19 +194,18 @@
   flex-direction: column;
 }
 /* 作答空间收起全局导航，由作答页集中提供身份、计时与退出提醒。 */
-.app-shell--attempt {
+.app-shell--focus {
   grid-template-columns: minmax(0, 1fr);
 }
 .app-shell--attempt .workspace {
   padding-top: 20px;
 }
-.app-shell--student .navigation-link > svg {
-  color: var(--blue-600);
+.app-shell--focus:not(.app-shell--attempt) .workspace {
+  max-width: 1312px;
+  margin: 0 auto;
 }
-@media (min-width: 1051px) {
-  .app-shell--student:not(.app-shell--attempt) {
-    grid-template-columns: 204px minmax(0, 1fr);
-  }
+.navigation-link > svg {
+  color: var(--blue-600);
 }
 .sidebar-brand {
   padding: 26px 22px;
@@ -306,7 +298,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 20px;
-  padding: 0 36px;
+  padding: 0 32px;
   border-bottom: 1px solid var(--color-border);
   background: var(--color-surface);
 }
@@ -359,7 +351,7 @@
   margin-left: 5px;
 }
 .workspace {
-  padding: 32px 36px 48px;
+  padding: 28px 32px 48px;
   min-width: 0;
   background: var(--color-bg);
 }
@@ -408,7 +400,7 @@
   .app-shell {
     grid-template-columns: 206px minmax(0, 1fr);
   }
-  .app-shell--attempt {
+  .app-shell--focus {
     grid-template-columns: minmax(0, 1fr);
   }
   .topbar {
@@ -456,7 +448,7 @@
     padding: 24px 16px 40px;
   }
   .auth-topbar {
-    padding: 22px 24px;
+    padding: 0 20px;
   }
   .auth-topbar-note {
     display: none;
@@ -470,25 +462,30 @@
     padding: 30px 26px;
   }
   .auth-workspace--register .auth-task {
-    padding: 28px 22px;
+    padding: 0;
   }
   .auth-task-header h1 {
-    font-size: 31px;
+    font-size: 24px;
   }
-  .auth-support {
-    padding: 22px 26px;
-    border-left: 0;
-    border-top: 1px solid var(--color-border);
+  .auth-intro {
+    padding: 26px;
+    min-height: auto;
+    border-right: 0;
+    border-bottom: 1px solid var(--blue-100);
   }
-  .auth-support-label,
-  .auth-support h2,
-  .auth-support-list {
+  .auth-intro .brand,
+  .auth-intro-note {
     display: none;
   }
-  .auth-help {
-    padding: 0;
+  .auth-intro .page-eyebrow {
     margin: 0;
-    border: 0;
+  }
+  .auth-intro h2 {
+    font-size: 24px;
+    margin: 8px 0;
+  }
+  .register-panel {
+    padding: 20px;
   }
   .auth-footer {
     padding: 18px 24px;

@@ -7,7 +7,7 @@ test('真实服务的21名教师可分页查询并跨页关联教学班', async 
   await page.getByLabel('登录账号').fill(process.env.E2E_ADMIN_LOGIN!)
   await page.getByLabel('密码').fill(process.env.E2E_ADMIN_PASSWORD!)
   await page.getByRole('button', { name: '登录' }).click()
-  await expect(page.getByRole('heading', { name: '管理工作台' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '考试工作台' })).toBeVisible()
   const prefix = `P${Date.now()}`
   const csrf = await page.request.get('/api/auth/csrf')
   const { csrf_token: csrfToken } = await csrf.json()

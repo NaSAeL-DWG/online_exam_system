@@ -14,6 +14,7 @@
 | 打开配色 demo、查看完整色阶与组件用色规则 | [配色方案 C3](ui-color-c3.md) |
 | 查看 C3 正式前端改造范围与验证情况 | [C3 前端落地](ui-c3-implementation.md) |
 | 查看学生工作台与 C3 稿的差异及修正 | [学生工作台还原复核](ui-c3-alignment-review.md) |
+| 查看 C3 全页面版式落实、功能适配与逐页验收 | [C3 逐页落实记录](ui-c3-page-rollout.md) |
 | 运行相关测试、验证改动 | [测试与验证](testing.md) |
 | 查看与复现 100 人业务负载验证 | [并发验证](performance.md) |
 | 升级数据库、备份、回滚、恢复服务与账号 | [运维指南](operations.md) |

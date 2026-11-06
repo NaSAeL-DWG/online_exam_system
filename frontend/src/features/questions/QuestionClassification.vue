@@ -4,7 +4,10 @@ import NSelect from '../../components/ui/AppSelect.vue'
 import { questionTypeLabels, type QuestionInput } from '../../api/questions'
 import type { ContentFieldErrors } from '../contentValidation'
 const model = defineModel<QuestionInput>({ required: true })
-defineProps<{ errors?: ContentFieldErrors }>()
+withDefaults(
+  defineProps<{ errors?: ContentFieldErrors; section?: 'all' | 'basics' | 'properties' }>(),
+  { section: 'all' },
+)
 const tagErrorId = `${useId()}-tags-error`
 const tagHintId = `${useId()}-tags-hint`
 const subjectErrorId = `${useId()}-subject-error`
@@ -35,20 +38,24 @@ function changeType(value: QuestionInput['type']): void {
 </script>
 
 <template>
-  <section class="classification" aria-labelledby="classification-title">
+  <section
+    class="classification"
+    :class="`classification--${section}`"
+    :aria-label="section === 'properties' ? '题目属性' : '分类信息'"
+  >
     <div class="section-heading">
-      <h3 id="classification-title">分类信息</h3>
+      <h3>{{ section === 'properties' ? '题目属性' : '分类信息' }}</h3>
       <p class="muted">便于共享检索与后续组卷。</p>
     </div>
     <div class="form-grid two-columns">
-      <label class="field"
+      <label v-if="section !== 'properties'" class="field"
         >题型<NSelect
           :value="model.type"
           aria-label="题型"
           :options="Object.entries(questionTypeLabels).map(([value, label]) => ({ value, label }))"
           @update:value="changeType"
       /></label>
-      <label class="field"
+      <label v-if="section !== 'properties'" class="field"
         >科目<input
           v-model="model.subject"
           aria-label="科目"
@@ -61,7 +68,7 @@ function changeType(value: QuestionInput['type']): void {
           errors.subject
         }}</span></label
       >
-      <label class="field"
+      <label v-if="section !== 'basics'" class="field"
         >难度<NSelect
           v-model:value="model.difficulty"
           aria-label="难度"
@@ -71,7 +78,7 @@ function changeType(value: QuestionInput['type']): void {
             { value: 'HARD', label: '困难' },
           ]"
       /></label>
-      <label class="field"
+      <label v-if="section !== 'basics'" class="field"
         >知识点标签<input
           v-model="tagText"
           aria-label="知识点标签"
@@ -107,6 +114,24 @@ p {
 .form-grid {
   grid-template-columns: 0.85fr 1fr 0.75fr 1.5fr;
   gap: 16px;
+}
+.classification--basics .form-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.classification--basics .field:first-child {
+  order: 2;
+}
+.classification--properties .field:first-child {
+  order: 2;
+}
+.classification--basics .section-heading {
+  display: none;
+}
+.classification--properties .form-grid {
+  grid-template-columns: 1fr;
+}
+.classification--properties .section-heading p {
+  display: none;
 }
 @media (max-width: 760px) {
   .form-grid {

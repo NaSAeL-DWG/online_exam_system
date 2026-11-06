@@ -6,7 +6,7 @@ test('账号列表翻页和角色筛选由服务器决定，故障后可以重�
   await page.getByLabel('登录账号').fill(process.env.E2E_ADMIN_LOGIN!)
   await page.getByLabel('密码').fill(process.env.E2E_ADMIN_PASSWORD!)
   await page.getByRole('button', { name: '登录' }).click()
-  await expect(page.getByRole('heading', { name: '管理工作台' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '考试工作台' })).toBeVisible()
 
   // HTTP 边界提供确定的分页数据；认证仍连接真实服务。
   let unavailable = false
@@ -50,7 +50,8 @@ test('账号列表翻页和角色筛选由服务器决定，故障后可以重�
   await expect(page.getByRole('row').filter({ hasText: '第一页学生' })).toBeVisible()
   await page.getByRole('button', { name: '账号下一页' }).click()
   await expect(page.getByRole('row').filter({ hasText: '第二页学生' })).toBeVisible()
-  await page.getByText('教师', { exact: true }).click()
+  await page.getByRole('combobox', { name: '账号角色', exact: true }).click()
+  await page.getByRole('option', { name: '教师', exact: true }).click()
   await expect(page.getByRole('row').filter({ hasText: '跨页教师' })).toBeVisible()
   unavailable = true
   await page.getByRole('button', { name: '查询账号' }).click()
@@ -67,7 +68,7 @@ test('审核列表可查询后续页申请，搜索会回到第一页', async ({
   await page.getByLabel('登录账号').fill(process.env.E2E_ADMIN_LOGIN!)
   await page.getByLabel('密码').fill(process.env.E2E_ADMIN_PASSWORD!)
   await page.getByRole('button', { name: '登录' }).click()
-  await expect(page.getByRole('heading', { name: '管理工作台' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '考试工作台' })).toBeVisible()
   await page.route('**/api/staff/reviews**', async (route) => {
     const query = new URL(route.request().url()).searchParams
     const second = query.get('page') === '2'
@@ -114,7 +115,7 @@ test('教学班可从候选第二页选择教师，搜索不丢失已选择教�
   await page.getByLabel('登录账号').fill(process.env.E2E_ADMIN_LOGIN!)
   await page.getByLabel('密码').fill(process.env.E2E_ADMIN_PASSWORD!)
   await page.getByRole('button', { name: '登录' }).click()
-  await expect(page.getByRole('heading', { name: '管理工作台' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '考试工作台' })).toBeVisible()
   await page.route('**/api/admin/teachers**', async (route) => {
     const query = new URL(route.request().url()).searchParams
     const second = query.get('page') === '2'
@@ -143,15 +144,19 @@ test('教学班可从候选第二页选择教师，搜索不丢失已选择教�
     .getByRole('link', { name: '教学班', exact: true })
     .click()
   await page.getByRole('button', { name: '新建教学班' }).click()
-  await page.getByLabel('负责教师').click()
+  await page.getByRole('combobox', { name: '负责教师', exact: true }).click()
   await page.getByText('第一页教师（T01）', { exact: true }).click()
   await page.keyboard.press('Escape')
   await page.getByRole('button', { name: '教师候选下一页' }).click()
-  await page.getByLabel('负责教师').click()
+  await page.getByRole('combobox', { name: '负责教师', exact: true }).click()
   await page.getByText('第二页教师（T02）', { exact: true }).click()
   await page.keyboard.press('Escape')
   await page.getByLabel('搜索教师').fill('没有候选')
   await page.getByRole('button', { name: '查询教师' }).click()
-  await expect(page.getByLabel('负责教师')).toContainText('第一页教师（T01）')
-  await expect(page.getByLabel('负责教师')).toContainText('第二页教师（T02）')
+  await expect(page.getByRole('combobox', { name: '负责教师', exact: true })).toContainText(
+    '第一页教师（T01）',
+  )
+  await expect(page.getByRole('combobox', { name: '负责教师', exact: true })).toContainText(
+    '第二页教师（T02）',
+  )
 })

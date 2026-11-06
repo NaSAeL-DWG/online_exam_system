@@ -36,8 +36,9 @@ test('管理员可创建多教师教学班、维护学生并归档', async ({ pa
   await page
     .getByRole('row')
     .filter({ hasText: studentNo })
-    .getByRole('button', { name: '通过' })
+    .getByRole('button', { name: '审核资料', exact: true })
     .click()
+  await page.getByRole('button', { name: '核验通过', exact: true }).click()
 
   const csrf = await page.request.get('/api/auth/csrf')
   const { csrf_token: csrfToken } = (await csrf.json()) as { csrf_token: string }

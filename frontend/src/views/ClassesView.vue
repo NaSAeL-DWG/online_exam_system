@@ -131,8 +131,9 @@ const studentColumns: DataTableColumns<UserSummary> = [
 <template>
   <div class="page-stack">
     <PageHeader
+      eyebrow="ADMIN / CLASSES"
       title="教学班"
-      description="以成员组组织教学；多名教师可协作负责，学生可加入多个教学班。"
+      description="维护班级与教师关联，考试参考名单由各场考试单独管理。"
       ><template #actions
         ><NButton v-if="isAdmin" type="primary" @click="openCreate"
           ><template #icon><AppIcon name="plus" :size="18" /></template>新建教学班</NButton
@@ -142,22 +143,17 @@ const studentColumns: DataTableColumns<UserSummary> = [
     <NAlert v-if="failure" type="error"
       >{{ failure }} <NButton size="small" @click="load">重试加载</NButton></NAlert
     >
-    <SurfacePanel
-      title="教学班目录"
-      :description="
-        isAdmin ? '配置负责教师与成员；归档后保留历史关系。' : '查看并维护与你关联的教学班成员。'
-      "
-    >
-      <div class="toolbar">
-        <form class="directory-search" @submit.prevent="changePage(1)">
-          <NInput
-            v-model:value="query"
-            :input-props="{ 'aria-label': '搜索教学班' }"
-            placeholder="搜索名称或说明"
-            ><template #prefix><AppIcon name="search" :size="16" /></template></NInput
-          ><NButton attr-type="submit" :loading="loading">查询教学班</NButton>
-        </form>
-      </div>
+    <div class="toolbar">
+      <form class="directory-search" @submit.prevent="changePage(1)">
+        <NInput
+          v-model:value="query"
+          :input-props="{ 'aria-label': '搜索教学班' }"
+          placeholder="搜索名称或说明"
+          ><template #prefix><AppIcon name="search" :size="16" /></template></NInput
+        ><NButton attr-type="submit" :loading="loading">查询教学班</NButton>
+      </form>
+    </div>
+    <SurfacePanel class="class-list-panel">
       <LoadingSkeleton v-if="loading && !items.length" variant="table" label="正在加载教学班目录" />
       <div v-else class="table-region">
         <NDataTable
@@ -179,7 +175,10 @@ const studentColumns: DataTableColumns<UserSummary> = [
     </SurfacePanel>
     <div class="section-note">
       <AppIcon name="info" :size="19" />
-      <p>教学班成员变化不会联动已建立的考试名单。需要调整参考资格时，请进入相应考试处理。</p>
+      <div>
+        <strong>考试名单独立维护</strong>
+        <p>调整班级成员不会自动增删已建立的考试名单。如需调整参考资格，请到对应考试详情处理。</p>
+      </div>
     </div>
     <NModal
       v-model:show="editorVisible"
@@ -278,3 +277,26 @@ const studentColumns: DataTableColumns<UserSummary> = [
     </NModal>
   </div>
 </template>
+<style scoped>
+.class-list-panel :deep(.surface-panel-body) {
+  padding: 0;
+}
+.class-list-panel :deep(.list-pager) {
+  padding: 18px 22px;
+}
+.section-note {
+  align-items: flex-start;
+  padding: 20px 24px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+.section-note strong {
+  font-size: 13px;
+  color: var(--color-text);
+}
+.section-note p {
+  margin: 6px 0 0;
+  line-height: 1.8;
+}
+</style>

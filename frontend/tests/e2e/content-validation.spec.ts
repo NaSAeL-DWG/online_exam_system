@@ -158,7 +158,7 @@ test('试卷名称和题分提供中文校验，合法一位小数可保存', as
   await page
     .getByRole('row')
     .filter({ hasText: paper.title })
-    .getByRole('button', { name: '编辑', exact: true })
+    .getByRole('button', { name: '编辑组卷', exact: true })
     .click()
   const writes: string[] = []
   page.on('request', (request) => {
@@ -180,7 +180,7 @@ test('试卷名称和题分提供中文校验，合法一位小数可保存', as
   expect(writes).toHaveLength(0)
   await page.getByLabel('第 1 题分值').fill('2.5')
   await page.getByRole('button', { name: '保存试卷', exact: true }).click()
-  await expect(page.getByRole('dialog')).toBeHidden()
+  await expect(page.getByRole('heading', { name: '共享试卷', exact: true })).toBeVisible()
   const saved = await (await page.request.get(`/api/staff/papers/${paper.id}`)).json()
   expect(saved.questions[0].score).toBe('2.5')
   expect(saved.title).toBe('卷'.repeat(200))
@@ -198,7 +198,7 @@ test('考试草稿跨分区定位数值错误，空时间和合法半分钟可�
   await page.getByLabel('最多作答次数').fill('101')
   await page.getByRole('tab', { name: '题目快照', exact: true }).click()
   await page.getByRole('button', { name: '保存考试草稿', exact: true }).click()
-  await expect(page.getByRole('tab', { name: '考试设置', exact: true })).toHaveAttribute(
+  await expect(page.getByRole('tab', { name: '考试配置', exact: true })).toHaveAttribute(
     'aria-selected',
     'true',
   )
@@ -223,7 +223,7 @@ test('考试草稿跨分区定位数值错误，空时间和合法半分钟可�
   expect(saved.pass_percentage).toBe('60.25')
   await page.getByRole('tab', { name: '题目快照', exact: true }).click()
   await page.getByLabel('快照第 1 题分值').fill('1.25')
-  await page.getByRole('tab', { name: '考试设置', exact: true }).click()
+  await page.getByRole('tab', { name: '考试配置', exact: true }).click()
   await page.getByRole('button', { name: '保存考试草稿', exact: true }).click()
   await expect(page.getByRole('tab', { name: '题目快照', exact: true })).toHaveAttribute(
     'aria-selected',

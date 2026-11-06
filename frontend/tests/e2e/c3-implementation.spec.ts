@@ -111,6 +111,9 @@ test('教师首页按真实待办总数显示并优先继续阅卷', async ({ pa
   await page.route('**/api/staff/grading-tasks?**', (route) => {
     const query = new URL(route.request().url()).searchParams
     expect(query.get('assigned_teacher_id')).toBe('c3-home-user')
+    if (query.get('status') === 'COMPLETED') {
+      return route.fulfill({ json: { items: [], total: 0, page: 1, page_size: 1 } })
+    }
     const active = query.get('status') === 'IN_PROGRESS'
     return route.fulfill({
       json: {
@@ -143,6 +146,9 @@ test('教师首页按真实待办总数显示并优先继续阅卷', async ({ pa
 
 test('管理员保留考试管理并将旧阅卷链接导回考试管理', async ({ page }) => {
   await identity(page, 'ADMIN')
+  await page.route('**/api/staff/grading-tasks?**', (route) =>
+    route.fulfill({ json: { items: [], total: 0, page: 1, page_size: 1 } }),
+  )
   await page.route('**/api/staff/exams?**', (route) =>
     route.fulfill({ json: { items: [], total: 0, page: 1, page_size: 20 } }),
   )

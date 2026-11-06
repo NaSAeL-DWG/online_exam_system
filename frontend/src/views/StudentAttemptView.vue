@@ -137,32 +137,40 @@ function confirmReload(): void {
       :to="`/student/exams/${attempt.exam_id}`"
       >← 返回考试详情</RouterLink
     >
-    <div v-if="attempt?.status === 'IN_PROGRESS'" class="attempt-identity">
-      <div>
-        <strong>{{ auth.user?.real_name }}</strong
-        ><span
-          >学号 <span class="identity-number">{{ auth.user?.login_name }}</span></span
-        >
+    <header v-if="attempt?.status === 'IN_PROGRESS'" class="attempt-header">
+      <div class="attempt-heading">
+        <span class="attempt-brand">知衡 <small>考试作答</small></span>
+        <h1>{{ attempt.exam_title }}</h1>
+        <p>第 {{ attempt.attempt_no }} 次作答 · 截止 {{ examTime(attempt.deadline_at) }}（上海）</p>
       </div>
-      <NButton size="small" :disabled="submitting" @click="requestExit()">退出作答界面</NButton>
-    </div>
+      <div class="attempt-identity">
+        <div>
+          <strong>{{ auth.user?.real_name }}</strong
+          ><span
+            >学号 <span class="identity-number">{{ auth.user?.login_name }}</span></span
+          >
+        </div>
+      </div>
+      <div class="deadline-clock" :class="{ urgent: remaining < 300000 }">
+        <span>剩余时间</span><strong role="timer" aria-label="剩余作答时间">{{ countdown }}</strong>
+      </div>
+      <NButton type="primary" :disabled="!canEdit" :loading="submitting" @click="beginSubmission"
+        >提交答卷</NButton
+      >
+      <NButton :disabled="submitting" @click="requestExit()">退出作答界面</NButton>
+    </header>
     <PageHeader
-      :title="attempt?.exam_title || '考试作答'"
+      v-if="attempt?.status !== 'IN_PROGRESS'"
+      :eyebrow="attempt?.status === 'SUBMITTED' ? 'EXAM / SUBMITTED' : 'EXAM / ATTEMPT'"
+      :title="
+        attempt?.status === 'SUBMITTED' ? '本次作答已提交' : attempt?.exam_title || '考试作答'
+      "
       :description="
         attempt
           ? `第 ${attempt.attempt_no} 次作答 · 截止 ${examTime(attempt.deadline_at)}（上海）`
           : undefined
       "
     >
-      <template v-if="attempt?.status === 'IN_PROGRESS'" #actions
-        ><div class="deadline-clock" :class="{ urgent: remaining < 300000 }">
-          <span>剩余时间</span
-          ><strong role="timer" aria-label="剩余作答时间">{{ countdown }}</strong>
-        </div>
-        <NButton type="primary" :disabled="!canEdit" :loading="submitting" @click="beginSubmission"
-          >提交答卷</NButton
-        ></template
-      >
     </PageHeader>
     <NAlert v-if="failure" type="error"
       >{{ failure }} <NButton v-if="!attempt" size="small" @click="load">重新加载作答</NButton
@@ -185,7 +193,7 @@ function confirmReload(): void {
       题本地草稿未确认上传。未上传的内容不计入答卷，系统只提交服务器已保存的答案。</NAlert
     >
     <LoadingSkeleton v-if="loading && !attempt" variant="detail" label="正在读取作答与保存状态" />
-    <SurfacePanel v-if="attempt?.status === 'SUBMITTED'" title="答卷已提交">
+    <SurfacePanel v-if="attempt?.status === 'SUBMITTED'" class="submitted-panel">
       <div class="submission-summary">
         <div class="submission-check" aria-hidden="true">✓</div>
         <div>
@@ -218,6 +226,9 @@ function confirmReload(): void {
           </p>
         </div>
       </div>
+      <NAlert type="info" title="关于再次作答"
+        >若考试仍在开放时间内且有剩余次数，可从考试详情再次开始。最终成绩取最后一次有效提交。</NAlert
+      >
     </SurfacePanel>
     <template v-else-if="attempt && current">
       <NAlert
@@ -227,7 +238,7 @@ function confirmReload(): void {
       >
         请优先检查未答题和保存状态。截止后仅服务器已保存的答案计入答卷。
       </NAlert>
-      <div class="attempt-progress">
+      <div v-if="pendingCount || savingCount" class="attempt-progress">
         <span
           >已作答 <strong>{{ answeredCount }} / {{ rows.length }}</strong></span
         ><span>{{
@@ -284,7 +295,7 @@ function confirmReload(): void {
                   }"
                   @click="currentIndex = index"
                 >
-                  <span>{{ index + 1 }}</span
+                  <span>{{ String(index + 1).padStart(2, '0') }}</span
                   ><span v-if="row.marked" class="navigation-mark" aria-hidden="true">◆</span
                   ><span v-if="row.state !== 'saved'" class="navigation-pending" aria-hidden="true"
                     >•</span
@@ -396,13 +407,49 @@ function confirmReload(): void {
 </template>
 
 <style scoped>
+.attempt-page {
+  max-width: 1248px;
+  margin-inline: auto;
+}
+.attempt-header {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  border-bottom: 1px solid var(--color-border);
+  padding-bottom: 20px;
+  margin-bottom: 8px;
+}
+.attempt-heading {
+  flex: 1;
+  min-width: 0;
+}
+.attempt-brand {
+  display: block;
+  font-size: 17px;
+  font-weight: 650;
+  margin-bottom: 10px;
+}
+.attempt-brand small {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--color-muted);
+  margin-left: 10px;
+}
+.attempt-heading h1 {
+  font-size: 18px;
+  margin: 0;
+  font-weight: 600;
+}
+.attempt-heading p {
+  color: var(--color-muted);
+  font-size: 11px;
+  margin: 6px 0 0;
+}
 .attempt-identity {
   display: flex;
   justify-content: flex-end;
   gap: 20px;
   align-items: center;
-  padding-bottom: 16px;
-  border-bottom: 1px solid var(--color-border);
 }
 .attempt-identity > div {
   display: flex;
@@ -467,9 +514,12 @@ function confirmReload(): void {
 }
 .attempt-workspace {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 280px;
+  grid-template-columns: minmax(0, 1fr) 268px;
   gap: 24px;
   align-items: start;
+}
+.attempt-main :deep(.surface-panel-body) {
+  padding: 32px;
 }
 .attempt-sidebar {
   position: sticky;
@@ -628,12 +678,15 @@ function confirmReload(): void {
   margin: 8px 0;
 }
 .submission-summary {
-  display: flex;
+  display: grid;
+  justify-items: center;
+  text-align: center;
   gap: 22px;
+  padding: 42px 24px;
 }
 .submission-check {
-  width: 48px;
-  height: 48px;
+  width: 64px;
+  height: 64px;
   background: var(--green-50);
   color: var(--green-700);
   font-size: 28px;
@@ -644,7 +697,7 @@ function confirmReload(): void {
 }
 .submission-summary h3 {
   margin: 0 0 12px;
-  font-size: 17px;
+  font-size: 24px;
 }
 .submission-summary p {
   color: var(--color-muted);
@@ -656,7 +709,24 @@ function confirmReload(): void {
   margin-top: 20px;
   font-size: 13px;
 }
+.submission-summary > div:last-child {
+  max-width: 600px;
+}
+.submitted-panel :deep(.surface-panel-body) {
+  padding: 24px;
+}
 @media (max-width: 900px) {
+  .attempt-header {
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+  .attempt-heading {
+    flex-basis: calc(100% - 150px);
+  }
+  .attempt-identity {
+    order: 3;
+    margin-right: auto;
+  }
   .attempt-workspace {
     grid-template-columns: 1fr;
   }
@@ -678,6 +748,22 @@ function confirmReload(): void {
   }
 }
 @media (max-width: 550px) {
+  .attempt-main :deep(.surface-panel-body) {
+    padding: 20px;
+  }
+  .attempt-header {
+    gap: 18px 12px;
+  }
+  .attempt-heading {
+    flex-basis: 100%;
+  }
+  .attempt-heading h1 {
+    font-size: 17px;
+  }
+  .attempt-identity {
+    order: 0;
+    flex: 1;
+  }
   .question-navigation {
     grid-template-columns: repeat(5, minmax(0, 1fr));
   }

@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { ref, useId } from 'vue'
-import { useRouter } from 'vue-router'
+import { onMounted, ref, useId } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { NAlert, NButton, NModal } from 'naive-ui'
 import NSelect from '../components/ui/AppSelect.vue'
-import { examsApi, examStatusLabels, type AudienceType } from '../api/exams'
+import { examsApi, examStatusLabels, type AudienceType, type ExamStatus } from '../api/exams'
 import { errorMessage } from '../api/client'
 import ListPager from '../components/ListPager.vue'
 import PageHeader from '../components/ui/PageHeader.vue'
@@ -20,8 +20,10 @@ import {
   type ContentFieldErrors,
 } from '../features/contentValidation'
 const router = useRouter()
-const { items, page, total, query, failure, loading, load, changePage } = usePagedList(
-  examsApi.list,
+const route = useRoute()
+const status = ref<ExamStatus | ''>('')
+const { items, page, total, query, failure, loading, load, changePage } = usePagedList((query) =>
+  examsApi.list({ ...query, status: status.value || undefined }),
 )
 const visible = ref(false)
 const saving = ref(false)
@@ -69,10 +71,17 @@ async function save(): Promise<void> {
     saving.value = false
   }
 }
+onMounted(() => {
+  // 工作台的创建入口打开同一套来源试卷选择流程。
+  if (route.query.create === '1') create()
+})
 </script>
 <template>
   <div class="page-stack">
-    <PageHeader title="考试管理" description="从试卷创建考试，配置时间、评分与参考资格。"
+    <PageHeader
+      eyebrow="STAFF / EXAMS"
+      title="考试管理"
+      description="从草稿配置到结果公布，按考试阶段管理每一次测验。"
       ><template #actions
         ><NButton type="primary" @click="create"
           ><template #icon><AppIcon name="plus" :size="17" /></template>创建考试</NButton
@@ -82,25 +91,34 @@ async function save(): Promise<void> {
     <NAlert v-if="failure" type="error"
       >{{ failure }} <NButton size="small" @click="load">重新加载考试</NButton></NAlert
     >
-    <SurfacePanel
-      ><form class="toolbar" @submit.prevent="changePage(1)">
-        <input
-          v-model="query"
-          class="form-control exam-search"
-          aria-label="搜索考试"
-          placeholder="搜索考试名称"
-        /><NButton attr-type="submit" :loading="loading">查询考试</NButton
-        ><span class="toolbar-meta">共 {{ total }} 场考试</span>
-      </form>
+    <form class="toolbar exam-list-filter" @submit.prevent="changePage(1)">
+      <input
+        v-model="query"
+        class="form-control exam-search"
+        aria-label="搜索考试"
+        placeholder="搜索考试名称"
+      /><NSelect
+        v-model:value="status"
+        class="exam-status-filter"
+        aria-label="考试状态"
+        :options="[
+          { label: '全部状态', value: '' },
+          ...Object.entries(examStatusLabels).map(([value, label]) => ({ value, label })),
+        ]"
+        @update:value="changePage(1)"
+      /><NButton attr-type="submit" :loading="loading">查询考试</NButton
+      ><span class="toolbar-meta">共 {{ total }} 场考试</span>
+    </form>
+    <SurfacePanel class="exam-list-panel">
       <LoadingSkeleton v-if="loading && !items.length" variant="table" label="正在加载考试" />
       <div v-else class="table-region" :aria-busy="loading">
         <table class="exam-table">
           <thead>
             <tr>
               <th>考试名称</th>
+              <th>时间与范围</th>
+              <th>试卷与作答</th>
               <th>状态</th>
-              <th>参考范围</th>
-              <th>总分</th>
               <th class="action-cell">操作</th>
             </tr>
           </thead>
@@ -108,13 +126,27 @@ async function save(): Promise<void> {
             <tr v-for="exam in items" :key="exam.id">
               <td>
                 <strong>{{ exam.title }}</strong>
+                <p class="exam-id">{{ exam.id }}</p>
+              </td>
+              <td>
                 <p class="exam-time">
                   {{
                     exam.start_at
                       ? displayShanghaiTime(exam.start_at).replace('T', ' ')
                       : '尚未设置开始时间'
                   }}
+                  <template v-if="exam.end_at">
+                    — {{ displayShanghaiTime(exam.end_at).replace('T', ' ') }}</template
+                  >
                 </p>
+                <span class="exam-scope">{{
+                  exam.audience_type === 'PUBLIC' ? '全部激活学生' : '限定名单'
+                }}</span>
+              </td>
+              <td>
+                <strong>{{ exam.total_score }}</strong
+                ><span class="muted"> 分</span>
+                <p class="exam-time">最多作答 {{ exam.max_attempts }} 次</p>
               </td>
               <td>
                 <StatusBadge
@@ -130,15 +162,10 @@ async function save(): Promise<void> {
                   "
                 />
               </td>
-              <td>{{ exam.audience_type === 'PUBLIC' ? '全部激活学生' : '限定名单' }}</td>
-              <td>
-                <strong>{{ exam.total_score }}</strong
-                ><span class="muted"> 分</span>
-              </td>
               <td class="action-cell">
-                <NButton size="small" @click="router.push(`/staff/exams/${exam.id}`)"
-                  >管理考试</NButton
-                >
+                <NButton size="small" @click="router.push(`/staff/exams/${exam.id}`)">{{
+                  exam.status === 'DRAFT' ? '配置考试' : '管理考试'
+                }}</NButton>
               </td>
             </tr>
             <tr v-if="!items.length">
@@ -227,13 +254,41 @@ async function save(): Promise<void> {
   font-size: 12px;
 }
 .exam-search {
-  flex: 1;
+  flex: 0 1 360px;
   min-width: 0;
-  max-width: 420px;
+  max-width: 360px;
+}
+.exam-list-filter {
+  margin: 0;
+  padding: 0;
+}
+.exam-status-filter {
+  width: 160px;
+}
+.exam-list-panel :deep(.surface-panel-body) {
+  padding: 0;
+}
+.exam-list-panel :deep(.list-pager) {
+  padding: 16px 20px;
+}
+.exam-id {
+  max-width: 280px;
+  overflow-wrap: anywhere;
+  margin: 7px 0 0;
+  color: var(--color-muted);
+  font:
+    10px Consolas,
+    monospace;
+}
+.exam-scope {
+  display: block;
+  margin-top: 7px;
+  color: var(--color-muted);
+  font-size: 11px;
 }
 .exam-table {
   width: 100%;
-  min-width: 680px;
+  min-width: 820px;
   border-collapse: collapse;
   text-align: left;
 }
@@ -245,17 +300,17 @@ th {
 }
 th,
 td {
-  padding: 16px;
+  padding: 20px 24px;
   border-bottom: 1px solid var(--color-border);
 }
 td:first-child {
-  width: 40%;
+  width: 30%;
 }
 td strong {
   font-weight: 600;
 }
 .exam-time {
-  margin: 6px 0 0;
+  margin: 0;
   color: var(--color-muted);
   font-size: 12px;
 }

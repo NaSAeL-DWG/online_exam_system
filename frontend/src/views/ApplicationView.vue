@@ -8,7 +8,7 @@ import type { StudentApplication } from '../types'
 import PageHeader from '../components/ui/PageHeader.vue'
 import SurfacePanel from '../components/ui/SurfacePanel.vue'
 import LoadingSkeleton from '../components/ui/LoadingSkeleton.vue'
-import AppIcon from '../components/ui/AppIcon.vue'
+import StatusBadge from '../components/ui/StatusBadge.vue'
 import FormField from '../components/ui/FormField.vue'
 import { useFormValidation } from '../composables/useFormValidation'
 import { profileRules } from '../features/identity/formRules'
@@ -58,8 +58,11 @@ onMounted(load)
 </script>
 
 <template>
-  <div class="page-stack narrow-page">
-    <PageHeader title="学生注册申请" description="查看身份审核结果，按教师说明更正申请资料。"
+  <div class="page-stack application-page">
+    <PageHeader
+      eyebrow="ACCOUNT / APPLICATION"
+      title="学生注册申请"
+      description="账号激活后，即可查看考试安排并参加考试。"
       ><template #actions
         ><NButton :loading="loading" @click="load">刷新审核状态</NButton></template
       ></PageHeader
@@ -70,23 +73,8 @@ onMounted(load)
         >{{ failure }}
         <NButton v-if="!application" size="small" @click="load">重试加载</NButton></NAlert
       >
-      <section
-        v-if="application"
-        class="application-status"
-        :class="{ 'application-status--rejected': application.status === 'REJECTED' }"
-        aria-label="审核结果"
-      >
-        <AppIcon
-          :name="
-            application.status === 'REJECTED'
-              ? 'alert'
-              : application.status === 'APPROVED'
-                ? 'check-circle'
-                : 'clock'
-          "
-          :size="30"
-        />
-        <div>
+      <SurfacePanel v-if="application" aria-label="审核结果">
+        <div class="application-summary-heading">
           <h2>
             {{
               application.status === 'PENDING'
@@ -96,19 +84,67 @@ onMounted(load)
                   : '申请未通过'
             }}
           </h2>
+          <StatusBadge
+            :label="
+              application.status === 'REJECTED'
+                ? '待更正'
+                : application.status === 'APPROVED'
+                  ? '已通过'
+                  : '待审核'
+            "
+            :tone="
+              application.status === 'REJECTED'
+                ? 'danger'
+                : application.status === 'APPROVED'
+                  ? 'success'
+                  : 'neutral'
+            "
+          />
+        </div>
+        <NAlert
+          :type="
+            application.status === 'REJECTED'
+              ? 'error'
+              : application.status === 'APPROVED'
+                ? 'success'
+                : 'info'
+          "
+          :show-icon="false"
+        >
+          <strong>{{
+            application.status === 'REJECTED'
+              ? '请按审核意见更正资料'
+              : application.status === 'APPROVED'
+                ? '资料核验完成'
+                : '资料已收到'
+          }}</strong>
           <p v-if="application.status === 'REJECTED'">{{ application.reason }}</p>
           <p v-else-if="application.status === 'APPROVED'">重新登录后即可进入学生工作台。</p>
-          <p v-else>等待教师审核，审核期间仍可通过“联系方式”维护邮箱与手机号。</p>
-          <p class="application-date">
-            提交于 {{ new Date(application.submitted_at).toLocaleString('zh-CN') }}
-          </p>
-          <ol v-if="application.status !== 'REJECTED'" class="application-timeline">
-            <li class="complete"><span>1</span>提交申请</li>
-            <li :class="{ complete: application.status === 'APPROVED' }"><span>2</span>教师审核</li>
-            <li :class="{ complete: application.status === 'APPROVED' }"><span>3</span>身份激活</li>
-          </ol>
-        </div>
-      </section>
+          <p v-else>请耐心等待教师核验。审核期间仍可维护联系方式。</p>
+          <p>提交于 {{ new Date(application.submitted_at).toLocaleString('zh-CN') }}</p>
+        </NAlert>
+        <dl class="application-profile">
+          <dt>姓名</dt>
+          <dd>{{ application.submitted_profile.real_name }}</dd>
+          <dt>学号</dt>
+          <dd>{{ application.submitted_profile.student_no }}</dd>
+          <dt>邮箱</dt>
+          <dd>{{ application.submitted_profile.email }}</dd>
+          <dt>手机号</dt>
+          <dd>{{ application.submitted_profile.phone_number }}</dd>
+        </dl>
+        <ol v-if="application.status !== 'REJECTED'" class="application-timeline">
+          <li class="complete"><span>1</span>提交申请</li>
+          <li :class="{ complete: application.status === 'APPROVED' }"><span>2</span>教师审核</li>
+          <li :class="{ complete: application.status === 'APPROVED' }"><span>3</span>身份激活</li>
+        </ol>
+        <RouterLink
+          v-if="application.status !== 'REJECTED'"
+          to="/account/contacts"
+          class="application-contact"
+          >维护联系方式 →</RouterLink
+        >
+      </SurfacePanel>
       <SurfacePanel
         v-if="application?.status === 'REJECTED'"
         title="更正后重新提交"
@@ -146,26 +182,54 @@ onMounted(load)
           </div>
         </NForm>
       </SurfacePanel>
-      <SurfacePanel v-if="application" title="提交资料"
-        ><dl class="profile-grid">
-          <div>
-            <dt>姓名</dt>
-            <dd>{{ application.submitted_profile.real_name }}</dd>
-          </div>
-          <div>
-            <dt>学号</dt>
-            <dd>{{ application.submitted_profile.student_no }}</dd>
-          </div>
-          <div>
-            <dt>邮箱</dt>
-            <dd>{{ application.submitted_profile.email }}</dd>
-          </div>
-          <div>
-            <dt>手机号</dt>
-            <dd>{{ application.submitted_profile.phone_number }}</dd>
-          </div>
-        </dl></SurfacePanel
-      >
     </div>
   </div>
 </template>
+
+<style scoped>
+.application-page {
+  max-width: 760px;
+  margin-left: 0;
+}
+.application-summary-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+.application-summary-heading h2 {
+  font-size: 17px;
+  margin: 0;
+}
+.application-profile {
+  display: grid;
+  grid-template-columns: 108px minmax(0, 1fr);
+  gap: 14px 20px;
+  margin: 24px 0;
+  font-size: 13px;
+}
+.application-profile dt {
+  color: var(--color-muted);
+}
+.application-profile dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.application-contact {
+  display: inline-block;
+  margin-top: 24px;
+  font-size: 13px;
+}
+.n-alert p {
+  margin: 6px 0 0;
+}
+@media (max-width: 600px) {
+  .application-summary-heading {
+    align-items: flex-start;
+  }
+  .application-profile {
+    grid-template-columns: 64px minmax(0, 1fr);
+  }
+}
+</style>

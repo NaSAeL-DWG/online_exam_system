@@ -10,6 +10,7 @@ import { changeQuestionType } from '../features/questions/questionDraft'
 import { useContentValidation } from '../features/contentValidation'
 import { questionErrors } from '../features/questions/questionValidation'
 const model = defineModel<QuestionInput>({ required: true })
+withDefaults(defineProps<{ pageLayout?: boolean }>(), { pageLayout: false })
 const emit = defineEmits<{ uploading: [value: boolean] }>()
 const uploading = ref(false)
 const uploadFailure = ref('')
@@ -47,10 +48,11 @@ async function upload(event: Event, field: 'content' | 'explanation'): Promise<v
 }
 </script>
 <template>
-  <div ref="fieldsRoot" class="question-fields">
+  <div ref="fieldsRoot" class="question-fields" :class="{ 'question-fields--page': pageLayout }">
     <QuestionClassification
       v-model="model"
       :errors="errors"
+      :section="pageLayout ? 'basics' : 'all'"
       @type-change="changeQuestionType(model)"
     />
     <NAlert v-if="uploadFailure" type="error">{{ uploadFailure }}</NAlert>
@@ -69,7 +71,7 @@ async function upload(event: Event, field: 'content' | 'explanation'): Promise<v
             maxlength="100000"
             :aria-invalid="!!errors.content"
             :aria-describedby="errors.content ? `${errorPrefix}-content-error` : undefined"
-            rows="7"
+            :rows="pageLayout ? 4 : 7"
             placeholder="输入题干；行内公式使用 $…$，独立公式使用 $$…$$"
           />
           <span
@@ -128,6 +130,16 @@ async function upload(event: Event, field: 'content' | 'explanation'): Promise<v
         </section>
       </section>
       <aside class="preview-column" aria-label="题目预览">
+        <QuestionClassification
+          v-if="pageLayout"
+          v-model="model"
+          section="properties"
+          :errors="errors"
+        />
+        <div v-if="pageLayout" class="snapshot-note">
+          <strong>变更范围</strong>
+          <p>修改共享题目只影响后续引用，不会自动替换已建立的考试快照。</p>
+        </div>
         <div class="preview-heading">
           <h3>题目预览</h3>
           <span class="muted">实时更新</span>
@@ -153,6 +165,63 @@ async function upload(event: Event, field: 'content' | 'explanation'): Promise<v
   display: grid;
   gap: 24px;
   min-width: 0;
+}
+.question-fields--page {
+  grid-template-columns: minmax(0, 1fr) 300px;
+  align-items: start;
+  gap: 0 24px;
+}
+.question-fields--page > :deep(.classification) {
+  grid-column: 1;
+  padding: 24px 26px 0;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-bottom: 0;
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+}
+.question-fields--page .content-workspace {
+  display: contents;
+}
+.question-fields--page .writing-column {
+  grid-column: 1;
+  padding: 24px 26px;
+  border: 1px solid var(--color-border);
+  border-top: 0;
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+  background: var(--color-surface);
+}
+.question-fields--page .preview-column {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  background: var(--color-surface);
+  position: static;
+  padding: 24px;
+}
+.question-fields--page .preview-heading {
+  margin-top: 28px;
+}
+.snapshot-note {
+  margin: 24px -24px 0;
+  padding: 20px 24px;
+  border-top: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border);
+  font-size: 13px;
+}
+.snapshot-note p {
+  color: var(--color-muted);
+  margin: 8px 0 0;
+  line-height: 1.8;
+}
+@media (max-width: 900px) {
+  .question-fields--page {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+  .question-fields--page .preview-column {
+    grid-column: 1;
+    grid-row: auto;
+    margin-top: 20px;
+  }
 }
 .field-error {
   color: var(--red-600);

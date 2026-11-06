@@ -195,9 +195,10 @@ test('指定教师整卷首阅完成后其他教师才可改分并必须记录�
   page,
   browser,
 }, testInfo) => {
-  test.setTimeout(60_000)
+  test.setTimeout(90_000)
   await login(page, process.env.E2E_ADMIN_LOGIN!, process.env.E2E_ADMIN_PASSWORD!)
-  const fixture = await gradingFixture(page, browser, 4)
+  // 真实服务下预留登录和逐题保存时间，避免 4 秒窗口在夹具提交前结束。
+  const fixture = await gradingFixture(page, browser, 12)
   await waitForTask(page, fixture.exam.id, fixture.attemptId)
   const firstContext = await signedContext(
     browser,

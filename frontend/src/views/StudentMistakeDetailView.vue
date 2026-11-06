@@ -95,12 +95,13 @@ async function save(): Promise<void> {
 </script>
 <template>
   <div class="page-stack">
-    <RouterLink to="/student/mistakes">← 返回我的错题</RouterLink>
     <PageHeader
+      eyebrow="LEARNING / REVIEW"
       title="错题详情"
       :description="data ? `${data.exam_title} · 第 ${data.attempt_no} 次作答` : undefined"
     >
       <template #actions
+        ><RouterLink to="/student/mistakes">← 错题列表</RouterLink
         ><NButton :loading="loading" :disabled="saving" @click="reload">刷新错题</NButton></template
       >
     </PageHeader>
@@ -110,43 +111,56 @@ async function save(): Promise<void> {
       {{ loading ? '正在读取可见错题…' : '暂无可查看的错题。' }}
     </p>
     <template v-if="data">
-      <SnapshotReviewQuestion :question="data.question" />
-      <SurfacePanel title="学习标记" description="备注与掌握状态独立保存，不改变本次分数。">
-        <NAlert v-if="saveFailure" class="form-alert" type="error"
-          >{{ saveFailure
-          }}<NButton v-if="needsReload" size="small" @click="reload">核对最新标记</NButton></NAlert
-        >
-        <NAlert v-if="success" class="form-alert" type="success">{{ success }}</NAlert>
-        <form class="annotation-form" @submit.prevent="save">
-          <label class="field"
-            >学习备注<textarea
-              v-model="note"
-              aria-label="学习备注"
-              maxlength="20000"
-              rows="4"
-              placeholder="记录易错原因、复习方法或待解决的问题"
-              :disabled="saving || needsReload"
-            />
-          </label>
+      <div class="mistake-detail-grid">
+        <div class="page-stack">
+          <SnapshotReviewQuestion :question="data.question" compact />
+          <SurfacePanel title="我的复习笔记" description="笔记只对自己可见，不改变本次分数。">
+            <NAlert v-if="saveFailure" class="form-alert" type="error"
+              >{{ saveFailure
+              }}<NButton v-if="needsReload" size="small" @click="reload"
+                >核对最新标记</NButton
+              ></NAlert
+            >
+            <NAlert v-if="success" class="form-alert" type="success">{{ success }}</NAlert>
+            <form class="annotation-form" @submit.prevent="save">
+              <label class="field"
+                >学习备注<textarea
+                  v-model="note"
+                  aria-label="学习备注"
+                  maxlength="20000"
+                  rows="4"
+                  placeholder="记录易错原因、复习方法或待解决的问题"
+                  :disabled="saving || needsReload"
+                />
+              </label>
+              <div class="editor-actions">
+                <span class="muted annotation-note">笔记与掌握情况一并保存</span>
+                <NButton
+                  type="primary"
+                  attr-type="submit"
+                  :loading="saving"
+                  :disabled="!dirty || needsReload"
+                  >保存学习标记</NButton
+                >
+              </div>
+            </form>
+          </SurfacePanel>
+        </div>
+        <SurfacePanel title="掌握情况" class="mastery-panel">
+          <h2>{{ mastered ? '已掌握' : '待复习' }}</h2>
+          <p>确认理解后标记已掌握，历史错误记录仍会保留。</p>
           <label class="check-field"
             ><input
               v-model="mastered"
               aria-label="已掌握本题"
               type="checkbox"
               :disabled="saving || needsReload"
-            />已掌握本题</label
+            />{{ mastered ? '已标记掌握 · 可取消' : '标记已掌握' }}</label
           >
-          <div class="editor-actions">
-            <NButton
-              type="primary"
-              attr-type="submit"
-              :loading="saving"
-              :disabled="!dirty || needsReload"
-              >保存学习标记</NButton
-            >
-          </div>
-        </form>
-      </SurfacePanel>
+          <p v-if="dirty" class="mastery-dirty">有尚未保存的学习标记，请点击保存学习标记。</p>
+          <p v-else>当前学习标记已保存。</p>
+        </SurfacePanel>
+      </div>
     </template>
   </div>
 </template>
@@ -154,5 +168,46 @@ async function save(): Promise<void> {
 .annotation-form {
   display: grid;
   gap: 20px;
+}
+.mistake-detail-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 24px;
+  align-items: start;
+}
+.mistake-detail-grid > * {
+  min-width: 0;
+}
+.mastery-panel h2 {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 600;
+}
+.mastery-panel .check-field {
+  padding: 11px 14px;
+  background: var(--color-primary);
+  border: 1px solid var(--color-primary);
+  border-radius: 2px;
+  color: white;
+  font-size: 13px;
+  cursor: pointer;
+}
+.mastery-panel p {
+  color: var(--color-muted);
+  font-size: 12px;
+  line-height: 1.9;
+  margin: 18px 0 24px;
+}
+.mastery-panel .mastery-dirty {
+  color: var(--amber-700);
+}
+.annotation-note {
+  font-size: 12px;
+  margin-right: auto;
+}
+@media (max-width: 850px) {
+  .mistake-detail-grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

@@ -54,12 +54,12 @@ export function useRegistrationReviews() {
     page.value = value
     void load()
   }
-  async function decide(row: StudentReview, decision: 'APPROVED' | 'REJECTED'): Promise<void> {
-    if (saving.value) return
+  async function decide(row: StudentReview, decision: 'APPROVED' | 'REJECTED'): Promise<boolean> {
+    if (saving.value) return false
     rejectFailure.value = ''
     if (decision === 'REJECTED' && !rejectValidation.validate()) {
       rejectFailure.value = '请检查标出的填写内容'
-      return
+      return false
     }
     saving.value = true
     try {
@@ -72,11 +72,13 @@ export function useRegistrationReviews() {
       rejectVisible.value = false
       reason.value = ''
       await load()
+      return true
     } catch (error) {
       if (decision === 'REJECTED') {
         rejectValidation.applyServerError(error)
         rejectFailure.value = errorMessage(error)
       } else message.error(errorMessage(error))
+      return false
     } finally {
       saving.value = false
     }

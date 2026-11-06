@@ -197,7 +197,7 @@ test('学生主动开始后保存四类答案，刷新恢复同次作答并等�
   expect(beforeSubmit.questions[2].answer.answer_data).toBe(false)
   expect(beforeSubmit.questions[3].answer.answer_data).toBe('提交时还在防抖窗口中的答案。')
   await page.getByRole('button', { name: '确认交卷', exact: true }).click()
-  await expect(page.getByRole('heading', { name: '答卷已提交', level: 2 })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '本次作答已提交', level: 1 })).toBeVisible()
   const latest = await (
     await page.request.get(new URL(attemptUrl).pathname.replace('/student/', '/api/student/'))
   ).json()
@@ -356,7 +356,7 @@ test('到期自动交卷不被空题阻止，未上传草稿不能在截止后�
   })
   await page.getByRole('radio', { name: 'A. 选项甲', exact: true }).check()
   await expect(page.getByRole('status', { name: '本题保存状态' })).toHaveText('保存失败')
-  await expect(page.getByRole('heading', { name: '答卷已提交', level: 2 })).toBeVisible({
+  await expect(page.getByRole('heading', { name: '本次作答已提交', level: 1 })).toBeVisible({
     timeout: 20_000,
   })
   await expect(page.getByText('时间到，系统已自动交卷', { exact: true })).toBeVisible()
@@ -387,12 +387,12 @@ test('空题交卷明确列出题号，确认后只显示提交收据', async ({
   await expect(page.getByRole('dialog')).toContainText('第 1 题、第 2 题、第 4 题')
   await expect(page.getByRole('dialog')).not.toContainText('第 3 题')
   await page.getByRole('button', { name: '确认交卷', exact: true }).click()
-  await expect(page.getByRole('heading', { name: '答卷已提交', level: 2 })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '本次作答已提交', level: 1 })).toBeVisible()
   await expect(page.getByRole('navigation', { name: '题目导航' })).toHaveCount(0)
   await page.getByRole('link', { name: '← 返回考试详情', exact: true }).click()
   await expect(page.getByText('本场考试的作答机会已用完。', { exact: true })).toBeVisible()
   await page.getByRole('button', { name: '查看提交状态', exact: true }).click()
-  await expect(page.getByRole('heading', { name: '答卷已提交', level: 2 })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '本次作答已提交', level: 1 })).toBeVisible()
 })
 
 test('答案版本冲突保留本地内容，确认重读后显示服务器答案', async ({ page }, testInfo) => {

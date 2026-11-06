@@ -18,31 +18,19 @@ const registering = computed(() => route.name === 'register')
       <span class="auth-topbar-note">教学 · 考试 · 协作</span>
     </header>
     <main class="auth-workspace" :class="{ 'auth-workspace--register': registering }">
-      <section class="auth-task"><RouterView /></section>
-      <aside v-if="!registering" class="auth-support" aria-label="账号使用说明">
+      <aside v-if="!registering" class="auth-intro" aria-label="知衡考试平台">
         <div>
-          <p class="auth-support-label">账号使用说明</p>
-          <h2>使用你的机构账号</h2>
-          <ul class="auth-support-list">
-            <li>
-              <AppIcon name="user" :size="18" />
-              <div><strong>学生</strong><span>使用学号登录，新账号需提交注册申请。</span></div>
-            </li>
-            <li>
-              <AppIcon name="class" :size="18" />
-              <div><strong>教师</strong><span>使用工号登录，由管理员创建账号。</span></div>
-            </li>
-            <li>
-              <AppIcon name="shield" :size="18" />
-              <div><strong>管理员</strong><span>使用预置管理账号维护系统。</span></div>
-            </li>
-          </ul>
+          <div class="brand">
+            <span class="brand-symbol"><AppIcon name="book" :size="21" /></span>
+            <span class="brand-name">知衡</span>
+          </div>
+          <div class="page-eyebrow">FOCUS ON WHAT MATTERS</div>
+          <h2>专注每一道题。<br />认真每一场考试。</h2>
+          <p>从考试准备、限时作答到阅卷反馈，<br />让每一步都有清晰的秩序。</p>
         </div>
-        <div class="auth-help">
-          <strong>无法登录？</strong>
-          <p>请联系系统管理员核验身份或重置密码。</p>
-        </div>
+        <p class="auth-intro-note">学生使用学号，教师使用工号。教师账号由管理员创建。</p>
       </aside>
+      <section class="auth-task"><RouterView /></section>
     </main>
     <footer class="auth-footer">知衡 · 在线限时考试系统</footer>
   </div>

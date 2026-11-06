@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { reactive, ref, watch } from 'vue'
-import { NAlert, NButton, NModal, useDialog } from 'naive-ui'
+import { NAlert, NButton, useDialog } from 'naive-ui'
 import NSelect from '../components/ui/AppSelect.vue'
 import { questionsApi, questionTypeLabels } from '../api/questions'
 import ListPager from '../components/ListPager.vue'
@@ -60,7 +60,12 @@ function resetFilters(): void {
 
 <template>
   <div class="page-stack">
-    <PageHeader title="共享题库" description="按科目、题型和知识点查找并维护共享题目。">
+    <PageHeader
+      v-if="!visible"
+      eyebrow="PREPARATION / QUESTION BANK"
+      title="共享题库"
+      description="维护可复用题目；已创建考试中的题目快照保持独立。"
+    >
       <template #actions
         ><NButton type="primary" @click="create"
           ><template #icon><AppIcon name="plus" :size="17" /></template>新建题目</NButton
@@ -71,7 +76,7 @@ function resetFilters(): void {
       >{{ failure || editorFailure }}
       <NButton size="small" @click="load">重新加载题库</NButton></NAlert
     >
-    <SurfacePanel>
+    <template v-if="!visible">
       <form class="filter-workspace" @submit.prevent="changePage(1)">
         <div class="search-line">
           <label class="search-box"
@@ -119,77 +124,80 @@ function resetFilters(): void {
           />
         </div>
       </form>
-      <div class="list-heading">
-        <h2>题目列表</h2>
-        <span class="muted">共 {{ total }} 道题</span>
-      </div>
-      <LoadingSkeleton v-if="loading && !items.length" variant="table" label="正在加载题库" />
-      <div v-else class="table-region" :aria-busy="loading">
-        <table class="question-table">
-          <thead>
-            <tr>
-              <th>题目</th>
-              <th>分类</th>
-              <th>状态</th>
-              <th class="action-cell">操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="item in items" :key="item.id">
-              <td>
-                <p class="question-summary">{{ questionSummary(item.content) }}</p>
-                <span class="question-type">{{ questionTypeLabels[item.type] }}</span>
-              </td>
-              <td>
-                <strong>{{ item.subject }}</strong>
-                <p class="row-meta">
-                  {{ difficultyLabels[item.difficulty]
-                  }}<template v-if="item.knowledge_tags.length">
-                    · {{ item.knowledge_tags.join('、') }}</template
-                  >
-                </p>
-              </td>
-              <td>
-                <StatusBadge
-                  :label="item.status === 'ACTIVE' ? '使用中' : '已关闭'"
-                  :tone="item.status === 'ACTIVE' ? 'success' : 'neutral'"
-                />
-              </td>
-              <td class="action-cell"><NButton size="small" @click="edit(item)">编辑</NButton></td>
-            </tr>
-            <tr v-if="!items.length">
-              <td colspan="4" class="empty-state">
-                {{
-                  loading
-                    ? '正在加载题目…'
-                    : failure
-                      ? '题库暂时无法读取，请重试。'
-                      : '没有找到题目，可调整筛选或新建题目。'
-                }}
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      <ListPager
-        label="题库"
-        :page="page"
-        :page-size="20"
-        :total="total"
-        :loading="loading"
-        @change="changePage"
-      />
-    </SurfacePanel>
-    <NModal
-      :show="visible"
-      @update:show="closeEditor"
-      preset="card"
-      :title="selected ? '编辑题目' : '新建题目'"
-      class="responsive-modal responsive-modal--editor"
-      :mask-closable="false"
-      :closable="!saving && !uploading"
-      :close-on-esc="!saving && !uploading"
-    >
+      <SurfacePanel class="question-list-panel">
+        <LoadingSkeleton v-if="loading && !items.length" variant="table" label="正在加载题库" />
+        <div v-else class="table-region" :aria-busy="loading">
+          <table class="question-table">
+            <thead>
+              <tr>
+                <th>题目</th>
+                <th>科目 / 知识点</th>
+                <th>题型</th>
+                <th>难度</th>
+                <th>状态</th>
+                <th class="action-cell">操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="item in items" :key="item.id">
+                <td>
+                  <p class="question-summary">{{ questionSummary(item.content) }}</p>
+                  <span class="question-id">{{ item.id }}</span>
+                </td>
+                <td>
+                  <strong>{{ item.subject }}</strong>
+                  <p class="row-meta">
+                    {{ item.knowledge_tags.join('、') || '未设置知识点' }}
+                  </p>
+                </td>
+                <td>{{ questionTypeLabels[item.type] }}</td>
+                <td>{{ difficultyLabels[item.difficulty] }}</td>
+                <td>
+                  <StatusBadge
+                    :label="item.status === 'ACTIVE' ? '使用中' : '已关闭'"
+                    :tone="item.status === 'ACTIVE' ? 'success' : 'neutral'"
+                  />
+                </td>
+                <td class="action-cell">
+                  <NButton size="small" @click="edit(item)">编辑</NButton>
+                </td>
+              </tr>
+              <tr v-if="!items.length">
+                <td colspan="6" class="empty-state">
+                  {{
+                    loading
+                      ? '正在加载题目…'
+                      : failure
+                        ? '题库暂时无法读取，请重试。'
+                        : '没有找到题目，可调整筛选或新建题目。'
+                  }}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <ListPager
+          label="题库"
+          :page="page"
+          :page-size="20"
+          :total="total"
+          :loading="loading"
+          @change="changePage"
+        />
+      </SurfacePanel>
+    </template>
+    <template v-else>
+      <PageHeader
+        eyebrow="PREPARATION / EDIT QUESTION"
+        :title="selected ? '编辑题目' : '新建题目'"
+        description="题干与解析支持公式；学生简答内容为纯文本。"
+      >
+        <template #actions
+          ><NButton :disabled="saving || uploading" @click="closeEditor"
+            >← 返回题库</NButton
+          ></template
+        >
+      </PageHeader>
       <NAlert v-if="editorFailure" class="form-alert" type="error"
         >{{ editorFailure }}
         <NButton v-if="conflict && selected" @click="edit(selected)"
@@ -197,7 +205,12 @@ function resetFilters(): void {
         ></NAlert
       >
       <form class="question-form" novalidate @submit.prevent="saveQuestion">
-        <QuestionFields ref="questionFields" v-model="form" @uploading="uploading = $event" />
+        <QuestionFields
+          ref="questionFields"
+          v-model="form"
+          page-layout
+          @uploading="uploading = $event"
+        />
         <div class="editor-actions">
           <span class="muted">{{
             selected ? '修改将更新共享题库；既有考试快照保持不变。' : '保存后可用于手动组卷。'
@@ -209,6 +222,7 @@ function resetFilters(): void {
               :disabled="saving || conflict || uploading"
               @click="closeQuestion"
               >关闭题目</NButton
+            ><NButton :disabled="saving || uploading" @click="closeEditor">取消</NButton
             ><NButton
               attr-type="submit"
               type="primary"
@@ -219,13 +233,30 @@ function resetFilters(): void {
           </div>
         </div>
       </form>
-    </NModal>
+    </template>
   </div>
 </template>
 <style scoped>
 .filter-workspace {
   display: grid;
   gap: 12px;
+}
+.question-list-panel :deep(.surface-panel-body) {
+  padding: 0;
+}
+.question-list-panel :deep(.list-pager) {
+  padding: 18px 22px;
+}
+.question-id {
+  display: block;
+  max-width: 260px;
+  color: var(--color-muted);
+  font:
+    11px Consolas,
+    monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .search-line {
   display: flex;
@@ -274,7 +305,7 @@ function resetFilters(): void {
   font-size: 13px;
 }
 .question-table {
-  min-width: 650px;
+  min-width: 850px;
   width: 100%;
   border-collapse: collapse;
   text-align: left;
@@ -292,10 +323,10 @@ td {
   vertical-align: middle;
 }
 td:first-child {
-  width: 52%;
+  width: 36%;
 }
 td:nth-child(2) {
-  width: 25%;
+  width: 23%;
 }
 td strong {
   font-size: 13px;
@@ -334,6 +365,10 @@ td strong {
 }
 .editor-actions {
   justify-content: space-between;
+  padding: 20px 26px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
 }
 .editor-actions > span {
   font-size: 12px;
