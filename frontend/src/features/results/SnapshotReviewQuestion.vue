@@ -78,6 +78,8 @@ const fullScore = computed(
   justify-content: space-between;
   gap: 14px;
   margin-bottom: 18px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--color-border);
 }
 .review-question-header > div {
   display: flex;
@@ -87,7 +89,7 @@ const fullScore = computed(
   font-size: 13px;
 }
 .review-question-header strong {
-  font-size: 15px;
+  font-size: 18px;
 }
 .review-tags {
   display: flex;
@@ -120,7 +122,8 @@ const fullScore = computed(
   margin-top: 22px;
 }
 .review-answer-grid section {
-  background: var(--color-bg);
+  background: var(--neutral-50);
+  border: 1px solid var(--neutral-200);
   border-radius: var(--radius-sm);
   padding: 16px;
   min-width: 0;
@@ -129,7 +132,7 @@ const fullScore = computed(
   margin: 0 0 10px;
   font-size: 13px;
   font-weight: 600;
-  color: var(--color-muted);
+  color: var(--color-text);
 }
 .review-explanation {
   border-top: 1px solid var(--color-border);

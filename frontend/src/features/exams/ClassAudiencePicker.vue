@@ -6,6 +6,7 @@ import { errorMessage } from '../../api/client'
 import type { TeachingClass } from '../../types'
 import ListPager from '../../components/ListPager.vue'
 import StatusBadge from '../../components/ui/StatusBadge.vue'
+import LoadingSkeleton from '../../components/ui/LoadingSkeleton.vue'
 
 const selectedIds = defineModel<string[]>({ required: true })
 defineProps<{ disabled: boolean }>()
@@ -74,7 +75,7 @@ onMounted(() => void load())
       <p v-if="!classes.length && !loading && !failure" class="picker-empty">
         未找到教学班，试试其他名称。
       </p>
-      <p v-if="loading && !classes.length" class="picker-empty" role="status">正在加载教学班…</p>
+      <LoadingSkeleton v-if="loading && !classes.length" :rows="2" label="正在加载教学班" />
     </div>
     <p class="selection-summary">
       已选 {{ selectedIds.length }} 个班级<span class="muted"> · 跨页保留</span>

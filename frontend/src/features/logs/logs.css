@@ -81,7 +81,7 @@
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: #899593;
+  background: var(--neutral-500);
   margin-right: 6px;
 }
 .logs-live-status i.active {
@@ -96,7 +96,7 @@
   overflow-anchor: none;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
-  background: #fafbf9;
+  background: var(--color-surface);
 }
 .logs-empty {
   text-align: center;
@@ -105,8 +105,8 @@
   font-size: 14px;
 }
 .log-entry {
-  border-bottom: 1px solid #e9ede9;
-  border-left: 3px solid #75a997;
+  border-bottom: 1px solid var(--color-border);
+  border-left: 3px solid var(--blue-500);
   font-family: Consolas, 'Microsoft YaHei', monospace;
   font-size: 12px;
 }
@@ -114,13 +114,13 @@
   border-bottom: 0;
 }
 .log-entry[data-level='WARNING'] {
-  border-left-color: #d5a04b;
+  border-left-color: var(--amber-500);
 }
 .log-entry[data-level='ERROR'] {
-  border-left-color: #d16e67;
+  border-left-color: var(--red-500);
 }
 .log-entry[data-level='DEBUG'] {
-  border-left-color: #9ba6b6;
+  border-left-color: var(--neutral-500);
 }
 .log-entry summary {
   display: flex;
@@ -134,7 +134,7 @@
   display: none;
 }
 .log-entry summary:hover {
-  background: #f0f5f0;
+  background: var(--blue-50);
 }
 .log-entry-line {
   white-space: pre-wrap;
@@ -144,7 +144,7 @@
 }
 .log-entry-mark {
   font-size: 17px;
-  color: #71827c;
+  color: var(--color-muted);
   line-height: 1;
 }
 .log-entry[open] .log-entry-mark {
@@ -157,8 +157,8 @@
   margin: 0 14px 14px 30px;
   padding: 14px;
   border: 1px solid var(--color-border);
-  border-radius: 5px;
-  background: white;
+  border-radius: var(--radius-sm);
+  background: var(--color-bg);
   line-height: 1.8;
 }
 .log-entry-detail dt {

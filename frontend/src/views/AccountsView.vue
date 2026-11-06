@@ -8,15 +8,16 @@ import {
   NFormItem,
   NInput,
   NModal,
-  NSelect,
   NSpace,
   NRadioButton,
   NRadioGroup,
   type DataTableColumns,
 } from 'naive-ui'
 import ListPager from '../components/ListPager.vue'
+import NSelect from '../components/ui/AppSelect.vue'
 import PageHeader from '../components/ui/PageHeader.vue'
 import SurfacePanel from '../components/ui/SurfacePanel.vue'
+import LoadingSkeleton from '../components/ui/LoadingSkeleton.vue'
 import StatusBadge from '../components/ui/StatusBadge.vue'
 import AppIcon from '../components/ui/AppIcon.vue'
 import FormField from '../components/ui/FormField.vue'
@@ -154,7 +155,8 @@ const columns: DataTableColumns<User> = [
           ><NButton attr-type="submit" :loading="loading">查询账号</NButton>
         </form>
       </div>
-      <div class="table-region">
+      <LoadingSkeleton v-if="loading && !users.length" variant="table" label="正在加载账号目录" />
+      <div v-else class="table-region">
         <NDataTable
           :columns="columns"
           :data="users"

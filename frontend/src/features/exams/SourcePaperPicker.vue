@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, useId, watch } from 'vue'
 import { NAlert, NButton } from 'naive-ui'
+import NSelect from '../../components/ui/AppSelect.vue'
 import { papersApi, type PaperSummary } from '../../api/papers'
 import { usePagedList } from '../../composables/usePagedList'
 import ListPager from '../../components/ListPager.vue'
@@ -17,6 +18,17 @@ watch(model, (id) => {
 const offPageSelection = computed(
   () => selected.value && !items.value.some((paper) => paper.id === selected.value!.id),
 )
+const paperOptions = computed(() => {
+  const choices = items.value.map((paper) => ({
+    value: paper.id,
+    label: `${paper.title}${paper.status === 'ARCHIVED' ? '（已归档）' : ''}`,
+    disabled: paper.status === 'ARCHIVED',
+  }))
+  if (offPageSelection.value && selected.value) {
+    choices.unshift({ value: selected.value.id, label: selected.value.title, disabled: false })
+  }
+  return choices
+})
 </script>
 <template>
   <section class="source-picker" aria-label="试卷选择工作区">
@@ -34,26 +46,16 @@ const offPageSelection = computed(
     <NAlert v-if="failure" class="form-alert" type="error"
       >{{ failure }} <NButton size="small" @click="load">重试加载试卷</NButton></NAlert
     ><label class="field"
-      >来源试卷<select
-        v-model="model"
+      >来源试卷<NSelect
+        v-model:value="model"
         aria-label="来源试卷"
-        required
+        placeholder="选择来源试卷"
+        :options="paperOptions"
+        :loading="loading"
+        :status="error ? 'error' : undefined"
         :aria-invalid="!!error"
         :aria-describedby="error ? errorId : undefined"
-      >
-        <option value="" disabled>选择来源试卷</option>
-        <option v-if="offPageSelection && selected" :value="selected.id">
-          {{ selected.title }}
-        </option>
-        <option
-          v-for="paper in items"
-          :key="paper.id"
-          :value="paper.id"
-          :disabled="paper.status === 'ARCHIVED'"
-        >
-          {{ paper.title }}{{ paper.status === 'ARCHIVED' ? '（已归档）' : '' }}
-        </option></select
-      ><span v-if="error" :id="errorId" class="field-error" role="alert">{{ error }}</span></label
+      /><span v-if="error" :id="errorId" class="field-error" role="alert">{{ error }}</span></label
     >
     <p v-if="selected" class="source-summary">
       {{ selected.question_count }} 道题 · 总分 {{ selected.total_score }} 分
@@ -70,7 +72,7 @@ const offPageSelection = computed(
 </template>
 <style scoped>
 .field-error {
-  color: #b42318;
+  color: var(--red-600);
   font-size: 12px;
 }
 .source-picker {

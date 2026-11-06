@@ -145,7 +145,7 @@ function save(): void {
   border-top: 1px solid var(--color-border);
 }
 .field-error {
-  color: #b42318;
+  color: var(--red-600);
   font-size: 12px;
 }
 .grade-form-header {

@@ -12,6 +12,7 @@ import {
 import ListPager from '../components/ListPager.vue'
 import PageHeader from '../components/ui/PageHeader.vue'
 import SurfacePanel from '../components/ui/SurfacePanel.vue'
+import LoadingSkeleton from '../components/ui/LoadingSkeleton.vue'
 import StatusBadge from '../components/ui/StatusBadge.vue'
 import AppIcon from '../components/ui/AppIcon.vue'
 import FormField from '../components/ui/FormField.vue'
@@ -133,7 +134,8 @@ const columns: DataTableColumns<StudentReview> = [
           ><NButton attr-type="submit" :loading="loading">查询申请</NButton>
         </form>
       </div>
-      <div class="table-region">
+      <LoadingSkeleton v-if="loading && !items.length" variant="table" label="正在加载注册申请" />
+      <div v-else class="table-region">
         <NDataTable
           :columns="columns"
           :data="items"

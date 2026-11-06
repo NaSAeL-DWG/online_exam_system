@@ -6,6 +6,7 @@ import PageHeader from '../components/ui/PageHeader.vue'
 import SurfacePanel from '../components/ui/SurfacePanel.vue'
 import StatusBadge from '../components/ui/StatusBadge.vue'
 import ListPager from '../components/ListPager.vue'
+import LoadingSkeleton from '../components/ui/LoadingSkeleton.vue'
 import { usePrivateResource } from '../features/results/usePrivateResource'
 import { examTime } from '../features/attempts/examAvailability'
 import '../features/results/results.css'
@@ -49,6 +50,7 @@ function filter(): void {
         <span v-if="data" class="toolbar-meta">共 {{ data.total }} 场考试</span>
       </form>
       <div class="result-list" :aria-busy="loading">
+        <LoadingSkeleton v-if="loading" label="正在读取最新结果" />
         <article v-for="item in data?.items" :key="item.exam_id" class="result-row">
           <div class="result-row-copy">
             <RouterLink :to="`/student/results/${item.exam_id}`" class="result-row-title">{{
@@ -73,7 +75,7 @@ function filter(): void {
             <RouterLink :to="`/student/results/${item.exam_id}`">查看结果 →</RouterLink>
           </div>
         </article>
-        <p v-if="!data?.items.length" class="result-empty" role="status">
+        <p v-if="!loading && !data?.items.length" class="result-empty" role="status">
           {{ loading ? '正在读取最新结果…' : failure ? '结果暂不可读取。' : '暂无考试历史。' }}
         </p>
       </div>

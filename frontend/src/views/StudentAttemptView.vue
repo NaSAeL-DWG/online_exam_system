@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { useRoute } from 'vue-router'
+import { computed, onUnmounted, ref } from 'vue'
+import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 import { NAlert, NButton, NModal, useDialog } from 'naive-ui'
 import { useAuthStore } from '../stores/auth'
 import PageHeader from '../components/ui/PageHeader.vue'
 import SurfacePanel from '../components/ui/SurfacePanel.vue'
+import LoadingSkeleton from '../components/ui/LoadingSkeleton.vue'
 import AttemptQuestion from '../features/attempts/AttemptQuestion.vue'
 import {
   useAttemptWorkspace,
@@ -15,6 +16,7 @@ import { isUnanswered } from '../features/attempts/answerDrafts'
 import { examTime } from '../features/attempts/examAvailability'
 
 const route = useRoute()
+const router = useRouter()
 const auth = useAuthStore()
 const dialog = useDialog()
 const workspace = useAttemptWorkspace(String(route.params.id), auth.user!.id)
@@ -47,7 +49,48 @@ const {
 } = workspace
 const currentIndex = ref(0)
 const current = computed(() => rows.value[currentIndex.value])
+const savingCount = computed(() => rows.value.filter((row) => row.state === 'saving').length)
 const confirmation = ref(false)
+const compactWorkspace = window.matchMedia('(max-width: 900px)')
+const navigationOpen = ref(!compactWorkspace.matches)
+function resizeNavigation(event: MediaQueryListEvent): void {
+  navigationOpen.value = !event.matches
+}
+compactWorkspace.addEventListener('change', resizeNavigation)
+onUnmounted(() => compactWorkspace.removeEventListener('change', resizeNavigation))
+const exitConfirmation = ref(false)
+const exitSaving = ref(false)
+const exitTarget = ref('')
+let exitAcknowledged = false
+/** 退出只离开界面；先尝试同步，并在弹窗中如实区分服务器答案与本地草稿。 */
+async function requestExit(target?: string): Promise<void> {
+  if (exitSaving.value) return
+  exitTarget.value = target || `/student/exams/${attempt.value?.exam_id}`
+  exitConfirmation.value = true
+  if (canEdit.value && pendingCount.value) {
+    exitSaving.value = true
+    try {
+      await saveAll()
+    } finally {
+      exitSaving.value = false
+    }
+  }
+}
+async function acknowledgeExit(): Promise<void> {
+  exitAcknowledged = true
+  try {
+    await router.push(exitTarget.value)
+  } finally {
+    exitAcknowledged = false
+  }
+}
+// 侧栏、返回链接等路由离开操作也必须经过同一提醒。
+onBeforeRouteLeave((to) => {
+  if (!auth.authenticated || attempt.value?.status !== 'IN_PROGRESS' || exitAcknowledged)
+    return true
+  void requestExit(to.fullPath)
+  return false
+})
 const canTakeover = computed(
   () =>
     attempt.value?.status === 'IN_PROGRESS' &&
@@ -88,7 +131,21 @@ function confirmReload(): void {
 
 <template>
   <div class="page-stack attempt-page">
-    <RouterLink v-if="attempt" :to="`/student/exams/${attempt.exam_id}`">← 返回考试详情</RouterLink>
+    <RouterLink v-if="!attempt" to="/student/exams">← 返回我的考试</RouterLink>
+    <RouterLink
+      v-if="attempt?.status !== 'IN_PROGRESS' && attempt"
+      :to="`/student/exams/${attempt.exam_id}`"
+      >← 返回考试详情</RouterLink
+    >
+    <div v-if="attempt?.status === 'IN_PROGRESS'" class="attempt-identity">
+      <div>
+        <strong>{{ auth.user?.real_name }}</strong
+        ><span
+          >学号 <span class="identity-number">{{ auth.user?.login_name }}</span></span
+        >
+      </div>
+      <NButton size="small" :disabled="submitting" @click="requestExit()">退出作答界面</NButton>
+    </div>
     <PageHeader
       :title="attempt?.exam_title || '考试作答'"
       :description="
@@ -127,7 +184,7 @@ function confirmReload(): void {
       {{ missedUploads }}
       题本地草稿未确认上传。未上传的内容不计入答卷，系统只提交服务器已保存的答案。</NAlert
     >
-    <p v-if="loading && !attempt" class="muted" role="status">正在读取作答与保存状态…</p>
+    <LoadingSkeleton v-if="loading && !attempt" variant="detail" label="正在读取作答与保存状态" />
     <SurfacePanel v-if="attempt?.status === 'SUBMITTED'" title="答卷已提交">
       <div class="submission-summary">
         <div class="submission-check" aria-hidden="true">✓</div>
@@ -163,12 +220,25 @@ function confirmReload(): void {
       </div>
     </SurfacePanel>
     <template v-else-if="attempt && current">
+      <NAlert
+        v-if="remaining > 0 && remaining < 300000 && canEdit"
+        type="warning"
+        title="距离个人作答截止不足 5 分钟"
+      >
+        请优先检查未答题和保存状态。截止后仅服务器已保存的答案计入答卷。
+      </NAlert>
       <div class="attempt-progress">
         <span
           >已作答 <strong>{{ answeredCount }} / {{ rows.length }}</strong></span
-        ><span>{{ pendingCount ? `${pendingCount} 题待保存` : '当前答案均已保存' }}</span
+        ><span>{{
+          savingCount
+            ? `正在同步 ${savingCount} 题答案`
+            : pendingCount
+              ? `${pendingCount} 题待保存`
+              : '当前答案均已保存'
+        }}</span
         ><NButton
-          v-if="pendingCount && canEdit"
+          v-if="pendingCount && canEdit && !savingCount"
           size="small"
           :disabled="submitting"
           @click="saveAll"
@@ -177,41 +247,71 @@ function confirmReload(): void {
       </div>
       <div class="attempt-workspace">
         <aside class="attempt-sidebar">
-          <SurfacePanel title="题目导航"
-            ><nav class="question-navigation" aria-label="题目导航">
-              <button
-                v-for="(row, index) in rows"
-                :key="row.question.id"
-                type="button"
-                :aria-label="`第 ${index + 1} 题`"
-                :aria-describedby="`question-state-${row.question.id}`"
-                :aria-current="currentIndex === index ? 'step' : undefined"
-                :class="{
-                  current: currentIndex === index,
-                  answered: !isUnanswered(row.value),
-                  pending: row.state !== 'saved',
-                  marked: row.marked,
-                }"
-                @click="currentIndex = index"
-              >
-                <span>{{ index + 1 }}</span
-                ><span v-if="row.marked" class="navigation-mark" aria-hidden="true">★</span
-                ><span v-if="row.state !== 'saved'" class="navigation-pending" aria-hidden="true"
-                  >•</span
-                >
-                <span :id="`question-state-${row.question.id}`" class="sr-only">{{
-                  navigationDescription(row)
-                }}</span>
-              </button>
-            </nav>
-            <div class="navigation-key">
-              <span><i class="answered-key" />已作答</span><span>★ 待检查</span
-              ><span>• 待保存</span>
-            </div>
-            <p class="navigation-note">
-              选择题自动保存；简答停止输入后保存。截止时间由服务器决定。
-            </p></SurfacePanel
+          <details
+            class="answer-card"
+            :open="navigationOpen"
+            @toggle="navigationOpen = ($event.target as HTMLDetailsElement).open"
           >
+            <summary>
+              答题卡与交卷 <span>{{ answeredCount }} / {{ rows.length }}</span>
+            </summary>
+            <div class="answer-card-content">
+              <div
+                class="answer-progress-track"
+                role="progressbar"
+                aria-label="答题进度"
+                :aria-valuenow="answeredCount"
+                :aria-valuemin="0"
+                :aria-valuemax="rows.length"
+              >
+                <span
+                  :style="{ width: `${rows.length ? (answeredCount / rows.length) * 100 : 0}%` }"
+                />
+              </div>
+              <nav class="question-navigation" aria-label="题目导航">
+                <button
+                  v-for="(row, index) in rows"
+                  :key="row.question.id"
+                  type="button"
+                  :aria-label="`第 ${index + 1} 题`"
+                  :aria-describedby="`question-state-${row.question.id}`"
+                  :aria-current="currentIndex === index ? 'step' : undefined"
+                  :class="{
+                    current: currentIndex === index,
+                    answered: !isUnanswered(row.value),
+                    pending: row.state !== 'saved',
+                    marked: row.marked,
+                  }"
+                  @click="currentIndex = index"
+                >
+                  <span>{{ index + 1 }}</span
+                  ><span v-if="row.marked" class="navigation-mark" aria-hidden="true">◆</span
+                  ><span v-if="row.state !== 'saved'" class="navigation-pending" aria-hidden="true"
+                    >•</span
+                  >
+                  <span :id="`question-state-${row.question.id}`" class="sr-only">{{
+                    navigationDescription(row)
+                  }}</span>
+                </button>
+              </nav>
+              <div class="navigation-key">
+                <span><i class="current-key" />当前题</span
+                ><span><i class="answered-key" />已作答</span><span>◆ 待检查</span
+                ><span>• 待保存</span>
+              </div>
+              <p class="navigation-note">
+                选择题自动保存；简答停止输入后保存。截止时间由服务器决定。
+              </p>
+              <div class="navigation-submit">
+                <p>
+                  尚未作答 <strong>{{ emptyNumbers.length }} 题</strong>
+                </p>
+                <NButton block :disabled="!canEdit" :loading="submitting" @click="beginSubmission"
+                  >检查并交卷</NButton
+                >
+              </div>
+            </div>
+          </details>
         </aside>
         <div class="attempt-main">
           <SurfacePanel
@@ -231,7 +331,10 @@ function confirmReload(): void {
             <div class="question-step">
               <NButton :disabled="currentIndex === 0" @click="currentIndex -= 1">上一题</NButton
               ><span>{{ currentIndex + 1 }} / {{ rows.length }}</span
-              ><NButton :disabled="currentIndex === rows.length - 1" @click="currentIndex += 1"
+              ><NButton
+                type="primary"
+                :disabled="currentIndex === rows.length - 1"
+                @click="currentIndex += 1"
                 >下一题</NButton
               >
             </div></SurfacePanel
@@ -268,10 +371,53 @@ function confirmReload(): void {
         >
       </div>
     </NModal>
+    <NModal
+      v-model:show="exitConfirmation"
+      preset="card"
+      title="退出作答界面？"
+      class="responsive-modal"
+    >
+      <p>
+        已保存到服务器的答案会保留，退出后可在考试允许的时间内继续作答。退出不会暂停计时，到截止时间系统将使用服务器已保存的答案自动提交。
+      </p>
+      <NAlert v-if="exitSaving" type="info">正在尝试保存本页修改，请稍候。</NAlert>
+      <NAlert v-else-if="pendingCount" type="warning"
+        >仍有
+        {{ pendingCount }}
+        题修改未确认保存到服务器。尚未同步的本地输入不计入自动提交，请返回作答重试保存。</NAlert
+      >
+      <p v-else class="muted">当前答案均已确认保存到服务器。退出作答界面不会立即交卷。</p>
+      <div class="confirmation-actions">
+        <NButton type="primary" @click="exitConfirmation = false">返回作答</NButton
+        ><NButton :disabled="exitSaving" @click="acknowledgeExit">我已知晓</NButton>
+      </div>
+    </NModal>
   </div>
 </template>
 
 <style scoped>
+.attempt-identity {
+  display: flex;
+  justify-content: flex-end;
+  gap: 20px;
+  align-items: center;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--color-border);
+}
+.attempt-identity > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  align-items: center;
+  font-size: 13px;
+}
+.attempt-identity > div > span {
+  color: var(--color-muted);
+}
+.identity-number {
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text);
+}
 .sr-only {
   position: absolute;
   width: 1px;
@@ -297,7 +443,7 @@ function confirmReload(): void {
   color: var(--color-primary);
 }
 .deadline-clock.urgent strong {
-  color: #b04743;
+  color: var(--red-700);
 }
 .takeover-action {
   display: flex;
@@ -321,17 +467,65 @@ function confirmReload(): void {
 }
 .attempt-workspace {
   display: grid;
-  grid-template-columns: 244px minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) 280px;
   gap: 24px;
   align-items: start;
 }
 .attempt-sidebar {
   position: sticky;
   top: 24px;
+  grid-column: 2;
+  grid-row: 1;
+}
+.answer-card {
+  border: 1px solid var(--color-border);
+  border-radius: 2px;
+  background: var(--color-surface);
+}
+.answer-card summary {
+  padding: 18px 20px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.answer-card summary > span {
+  float: right;
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+.answer-card-content {
+  padding: 0 20px 20px;
+}
+.answer-progress-track {
+  background: var(--neutral-200);
+  height: 4px;
+  margin: 0 0 20px;
+}
+.answer-progress-track span {
+  height: 100%;
+  background: var(--blue-600);
+  display: block;
+  transition: width 0.15s;
+}
+.navigation-submit {
+  margin-top: 20px;
+  border-top: 1px solid var(--color-border);
+  padding-top: 16px;
+}
+.navigation-submit p {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  color: var(--color-muted);
+}
+.navigation-submit strong {
+  color: var(--color-text);
 }
 .question-navigation {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 10px;
 }
 .question-navigation button {
@@ -345,14 +539,20 @@ function confirmReload(): void {
   font-size: 14px;
 }
 .question-navigation button.answered {
-  background: var(--color-primary-soft);
-  color: var(--color-primary);
-  border-color: #b8dbce;
+  background: var(--blue-100);
+  color: var(--blue-800);
+  border-color: var(--blue-200);
 }
 .question-navigation button.current {
-  outline: 2px solid var(--color-primary);
-  outline-offset: 2px;
+  background: var(--blue-600);
+  color: white;
+  border-color: var(--blue-600);
   font-weight: 700;
+}
+.question-navigation button:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--blue-900);
+  border-color: var(--blue-900);
 }
 .navigation-mark {
   position: absolute;
@@ -364,7 +564,10 @@ function confirmReload(): void {
   position: absolute;
   right: 4px;
   bottom: 0;
-  color: #986313;
+  color: var(--amber-700);
+}
+.question-navigation button.current .navigation-pending {
+  color: white;
 }
 .navigation-key {
   display: flex;
@@ -382,8 +585,13 @@ function confirmReload(): void {
 .answered-key {
   width: 8px;
   height: 8px;
-  background: var(--color-primary-soft);
-  border: 1px solid #b8dbce;
+  background: var(--blue-100);
+  border: 1px solid var(--blue-200);
+}
+.current-key {
+  width: 8px;
+  height: 8px;
+  background: var(--blue-600);
 }
 .navigation-note {
   margin: 18px 0 0;
@@ -392,6 +600,8 @@ function confirmReload(): void {
 }
 .attempt-main {
   min-width: 0;
+  grid-column: 1;
+  grid-row: 1;
 }
 .question-step {
   display: flex;
@@ -424,12 +634,12 @@ function confirmReload(): void {
 .submission-check {
   width: 48px;
   height: 48px;
-  background: var(--color-primary-soft);
-  color: var(--color-primary);
+  background: var(--green-50);
+  color: var(--green-700);
   font-size: 28px;
   display: grid;
   place-items: center;
-  border-radius: 50%;
+  border-radius: 2px;
   flex-shrink: 0;
 }
 .submission-summary h3 {
@@ -452,6 +662,12 @@ function confirmReload(): void {
   }
   .attempt-sidebar {
     position: static;
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .attempt-main {
+    grid-column: 1;
+    grid-row: 2;
   }
   .question-navigation {
     grid-template-columns: repeat(8, minmax(0, 44px));
@@ -479,6 +695,14 @@ function confirmReload(): void {
   .deadline-clock {
     text-align: left;
     min-width: 120px;
+  }
+  .attempt-identity {
+    justify-content: space-between;
+    gap: 12px;
+    align-items: flex-start;
+  }
+  .attempt-identity > div {
+    display: grid;
   }
 }
 </style>

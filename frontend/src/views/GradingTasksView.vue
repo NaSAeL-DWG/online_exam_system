@@ -6,6 +6,7 @@ import { useAuthStore } from '../stores/auth'
 import { usePagedList } from '../composables/usePagedList'
 import PageHeader from '../components/ui/PageHeader.vue'
 import SurfacePanel from '../components/ui/SurfacePanel.vue'
+import LoadingSkeleton from '../components/ui/LoadingSkeleton.vue'
 import StatusBadge from '../components/ui/StatusBadge.vue'
 import ListPager from '../components/ListPager.vue'
 import '../features/grading/grading.css'
@@ -74,7 +75,7 @@ function selectScope(value: typeof scope.value): void {
       <NAlert v-if="failure" type="error"
         >{{ failure }} <NButton size="small" @click="load">重试加载任务</NButton></NAlert
       >
-      <p v-if="loading" class="muted" role="status">正在读取任务…</p>
+      <LoadingSkeleton v-if="loading" variant="table" label="正在读取阅卷任务" />
       <div v-else-if="items.length" class="table-region">
         <table class="grading-table">
           <thead>

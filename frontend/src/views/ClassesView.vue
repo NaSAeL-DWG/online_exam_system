@@ -15,6 +15,7 @@ import ListPager from '../components/ListPager.vue'
 import MemberPicker from '../components/MemberPicker.vue'
 import PageHeader from '../components/ui/PageHeader.vue'
 import SurfacePanel from '../components/ui/SurfacePanel.vue'
+import LoadingSkeleton from '../components/ui/LoadingSkeleton.vue'
 import StatusBadge from '../components/ui/StatusBadge.vue'
 import AppIcon from '../components/ui/AppIcon.vue'
 import FormField from '../components/ui/FormField.vue'
@@ -157,7 +158,8 @@ const studentColumns: DataTableColumns<UserSummary> = [
           ><NButton attr-type="submit" :loading="loading">查询教学班</NButton>
         </form>
       </div>
-      <div class="table-region">
+      <LoadingSkeleton v-if="loading && !items.length" variant="table" label="正在加载教学班目录" />
+      <div v-else class="table-region">
         <NDataTable
           :columns="columns"
           :data="items"

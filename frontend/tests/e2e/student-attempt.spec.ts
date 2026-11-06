@@ -165,7 +165,7 @@ test('学生主动开始后保存四类答案，刷新恢复同次作答并等�
   await page.getByRole('button', { name: '第 3 题', exact: true }).click()
   await page.getByRole('radio', { name: '错误', exact: true }).check()
   await expect(page.getByRole('status', { name: '本题保存状态' })).toHaveText('已保存')
-  await page.getByRole('button', { name: '☆ 标记待检查', exact: true }).click()
+  await page.getByRole('button', { name: '标记待检查', exact: true }).click()
   const beforeRefresh = await (
     await page.request.get(new URL(attemptUrl).pathname.replace('/student/', '/api/student/'))
   ).json()
@@ -177,7 +177,7 @@ test('学生主动开始后保存四类答案，刷新恢复同次作答并等�
     await page.request.get(new URL(attemptUrl).pathname.replace('/student/', '/api/student/'))
   ).json()
   expect(afterRefresh.deadline_at).toBe(beforeRefresh.deadline_at)
-  await expect(page.getByRole('button', { name: '★ 已标记待检查', exact: true })).toHaveAttribute(
+  await expect(page.getByRole('button', { name: '已标记待检查', exact: true })).toHaveAttribute(
     'aria-pressed',
     'true',
   )

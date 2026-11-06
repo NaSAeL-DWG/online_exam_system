@@ -155,7 +155,7 @@ async function upload(event: Event, field: 'content' | 'explanation'): Promise<v
   min-width: 0;
 }
 .field-error {
-  color: #b42318;
+  color: var(--red-600);
   font-size: 12px;
 }
 .content-workspace {

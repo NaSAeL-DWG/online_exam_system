@@ -5,6 +5,7 @@ import { NAlert, NButton } from 'naive-ui'
 import { resultsApi } from '../api/results'
 import PageHeader from '../components/ui/PageHeader.vue'
 import SurfacePanel from '../components/ui/SurfacePanel.vue'
+import LoadingSkeleton from '../components/ui/LoadingSkeleton.vue'
 import SnapshotReviewQuestion from '../features/results/SnapshotReviewQuestion.vue'
 import { usePrivateResource } from '../features/results/usePrivateResource'
 import { examTime } from '../features/attempts/examAvailability'
@@ -34,7 +35,8 @@ const questions = computed(() =>
       <template #actions><NButton :loading="loading" @click="load">刷新答卷</NButton></template>
     </PageHeader>
     <NAlert v-if="failure" type="error">{{ failure }}</NAlert>
-    <p v-if="!data" class="result-empty" role="status">
+    <LoadingSkeleton v-if="loading" variant="detail" label="正在读取授权答卷" />
+    <p v-if="!loading && !data" class="result-empty" role="status">
       {{ loading ? '正在读取授权答卷…' : '暂无可查看的答卷。' }}
     </p>
     <template v-if="data">

@@ -6,6 +6,7 @@ import { mistakesApi } from '../api/mistakes'
 import { ApiError, errorMessage, isWriteResultUnknown } from '../api/client'
 import PageHeader from '../components/ui/PageHeader.vue'
 import SurfacePanel from '../components/ui/SurfacePanel.vue'
+import LoadingSkeleton from '../components/ui/LoadingSkeleton.vue'
 import SnapshotReviewQuestion from '../features/results/SnapshotReviewQuestion.vue'
 import { usePrivateResource } from '../features/results/usePrivateResource'
 import { useUnsavedChanges } from '../composables/useUnsavedChanges'
@@ -104,7 +105,8 @@ async function save(): Promise<void> {
       >
     </PageHeader>
     <NAlert v-if="failure" type="error">{{ failure }}</NAlert>
-    <p v-if="!data" class="result-empty" role="status">
+    <LoadingSkeleton v-if="loading" variant="detail" label="正在读取可见错题" />
+    <p v-if="!loading && !data" class="result-empty" role="status">
       {{ loading ? '正在读取可见错题…' : '暂无可查看的错题。' }}
     </p>
     <template v-if="data">

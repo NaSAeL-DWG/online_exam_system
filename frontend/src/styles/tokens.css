@@ -1,20 +1,85 @@
 :root {
-  --color-bg: #f5f6f4;
+  /* C3 色阶：四个主色族各十阶，辅助中性灰单独承担背景、文字和边界。 */
+  --blue-50: #f2f7ff;
+  --blue-100: #e0edff;
+  --blue-200: #bed8ff;
+  --blue-300: #91bafa;
+  --blue-400: #639bf2;
+  --blue-500: #397de7;
+  --blue-600: #2164ce;
+  --blue-700: #1a50aa;
+  --blue-800: #194386;
+  --blue-900: #173762;
+  --green-50: #edf7f2;
+  --green-100: #d6ece0;
+  --green-200: #add8c0;
+  --green-300: #7abb9a;
+  --green-400: #4b9874;
+  --green-500: #2f7b59;
+  --green-600: #236344;
+  --green-700: #1c5038;
+  --green-800: #173f2e;
+  --green-900: #123325;
+  --amber-50: #fcf6e9;
+  --amber-100: #f5e8c5;
+  --amber-200: #ecd39b;
+  --amber-300: #dfb665;
+  --amber-400: #c99536;
+  --amber-500: #a97920;
+  --amber-600: #885e16;
+  --amber-700: #6e4a15;
+  --amber-800: #573b14;
+  --amber-900: #452f12;
+  --red-50: #fbf0f0;
+  --red-100: #f5dede;
+  --red-200: #e8baba;
+  --red-300: #d88f90;
+  --red-400: #c36468;
+  --red-500: #a9464e;
+  --red-600: #8f333e;
+  --red-700: #752936;
+  --red-800: #5f2430;
+  --red-900: #4c1f29;
+  --neutral-50: #f6f7f9;
+  --neutral-100: #f4f4f4;
+  --neutral-200: #e5e5e5;
+  --neutral-300: #d0d0d0;
+  --neutral-400: #a6a6a6;
+  --neutral-500: #8c8c8c;
+  --neutral-600: #626262;
+  --neutral-700: #454545;
+  --neutral-800: #303030;
+  --neutral-900: #202020;
+
+  /* 页面只引用语义变量；控件边界与普通分隔线使用不同灰度。 */
+  --color-bg: var(--neutral-50);
   --color-surface: #ffffff;
-  --color-text: #202b2b;
-  --color-muted: #697674;
-  --color-border: #dce3df;
-  --color-primary: #087f73;
-  --color-primary-soft: #e8f4ef;
-  --color-sidebar: #202c2c;
-  --radius-sm: 6px;
-  --radius-md: 10px;
+  --color-text: var(--neutral-900);
+  --color-muted: var(--neutral-600);
+  --color-border: var(--neutral-200);
+  --color-control-border: var(--neutral-500);
+  --color-primary: var(--blue-600);
+  --color-primary-hover: var(--blue-700);
+  --color-primary-pressed: var(--blue-800);
+  --color-primary-soft: var(--blue-50);
+  --color-focus: var(--blue-600);
+  --color-sidebar: var(--color-surface);
+  --color-success: var(--green-700);
+  --color-success-soft: var(--green-50);
+  --color-warning: var(--amber-800);
+  --color-warning-soft: var(--amber-50);
+  --color-danger: var(--red-700);
+  --color-danger-soft: var(--red-50);
+  --radius-sm: 2px;
+  --radius-md: 4px;
   --shadow-panel: none;
+  --shadow-popup: 0 8px 24px rgb(32 32 32 / 14%), 0 2px 6px rgb(32 32 32 / 8%);
   font-family: Inter, 'PingFang SC', 'Microsoft YaHei', sans-serif;
   color: var(--color-text);
   background: var(--color-bg);
   font-synthesis: none;
   -webkit-font-smoothing: antialiased;
+  accent-color: var(--color-primary);
 }
 * {
   box-sizing: border-box;
@@ -42,9 +107,10 @@ a:hover {
   text-decoration: underline;
 }
 a:focus-visible,
-button:focus-visible {
-  outline: 3px solid #58b6a9;
-  outline-offset: 3px;
+button:focus-visible,
+summary:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
 }
 button {
   cursor: pointer;
@@ -56,5 +122,6 @@ p {
   line-height: 1.7;
 }
 ::selection {
-  background: #b9e2d7;
+  background: var(--blue-100);
+  color: var(--blue-900);
 }

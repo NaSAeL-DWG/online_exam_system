@@ -54,7 +54,7 @@ const indicator = computed(() => {
 }
 .password-meter {
   height: 4px;
-  background: #e7ebe8;
+  background: var(--neutral-200);
   border-radius: 2px;
   overflow: hidden;
   margin-bottom: 5px;
@@ -62,17 +62,17 @@ const indicator = computed(() => {
 .password-meter span {
   display: block;
   height: 100%;
-  background: #86958c;
+  background: var(--neutral-500);
   transition: width 160ms ease;
 }
 .password-feedback--weak .password-meter span {
-  background: #b8514b;
+  background: var(--red-600);
 }
 .password-feedback--medium .password-meter span {
-  background: #a47a28;
+  background: var(--amber-600);
 }
 .password-feedback--strong .password-meter span {
-  background: #4b8672;
+  background: var(--green-600);
 }
 .password-feedback small {
   display: block;

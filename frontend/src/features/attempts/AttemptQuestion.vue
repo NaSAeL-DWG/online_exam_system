@@ -37,7 +37,10 @@ function multiple(optionId: string, checked: boolean): void {
         :disabled="disabled"
         @click="emit('mark')"
       >
-        {{ row.marked ? '★ 已标记待检查' : '☆ 标记待检查' }}
+        <svg viewBox="0 0 24 24" aria-hidden="true" :class="{ 'flag-filled': row.marked }">
+          <path d="M5 22V3h14l-3 5 3 5H5" />
+        </svg>
+        {{ row.marked ? '已标记待检查' : '标记待检查' }}
       </button>
     </header>
     <SafeMarkdown class="question-content" :content="row.question.content" />
@@ -107,9 +110,22 @@ function multiple(optionId: string, checked: boolean): void {
     >
     <footer class="question-save">
       <div>
-        <span role="status" aria-label="本题保存状态" :class="`save-${row.state}`">{{
-          saveLabels[row.state]
-        }}</span>
+        <span
+          role="status"
+          aria-label="本题保存状态"
+          class="save-feedback"
+          :class="`save-${row.state}`"
+        >
+          <span v-if="row.state === 'saving'" class="save-spinner" aria-hidden="true" />
+          <svg v-else-if="row.state === 'saved'" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="m5 12 4 4L19 6" />
+          </svg>
+          <svg v-else viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="12" cy="12" r="9" />
+            <path v-if="row.state !== 'unsaved'" d="M12 7v6m0 3v1" />
+          </svg>
+          {{ saveLabels[row.state] }}
+        </span>
         <p v-if="row.error" class="save-error" role="alert">{{ row.error }}</p>
       </div>
       <div class="question-save-actions">
@@ -157,14 +173,43 @@ h2 {
   font-size: 13px;
 }
 .mark-button {
-  border: 0;
-  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid var(--neutral-300);
+  border-radius: 2px;
+  background: var(--neutral-100);
   color: var(--color-muted);
   font-size: 13px;
-  padding: 5px 0;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+.mark-button svg {
+  width: 16px;
+  height: 16px;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  fill: none;
+}
+.mark-button:hover {
+  border-color: var(--neutral-500);
+}
+.mark-button:focus-visible {
+  outline: none;
+  border-color: var(--blue-600);
+  box-shadow: inset 0 0 0 1px var(--blue-600);
+}
+.mark-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+.mark-button .flag-filled {
+  fill: currentColor;
 }
 .mark-button[aria-pressed='true'] {
-  color: var(--color-primary);
+  border-color: #3a3a3a;
+  background: #3a3a3a;
+  color: #fff;
   font-weight: 600;
 }
 .question-content {
@@ -190,7 +235,14 @@ h2 {
 }
 .answer-option.selected {
   border-color: var(--color-primary);
-  background: var(--color-primary-soft);
+  background: var(--blue-50);
+}
+.answer-option:focus-within {
+  border-color: var(--blue-600);
+  box-shadow: inset 0 0 0 1px var(--blue-600);
+}
+.answer-option > :last-child {
+  min-width: 0;
 }
 .answer-option input {
   margin: 6px 0 0;
@@ -222,12 +274,43 @@ h2 {
   flex-shrink: 0;
 }
 .save-saved {
-  color: var(--color-primary);
+  color: var(--green-700);
+}
+.save-feedback {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 22px;
+}
+.save-feedback svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+}
+.save-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--blue-200);
+  border-top-color: var(--blue-600);
+  border-radius: 50%;
+  animation: save-spin 0.75s linear infinite;
+}
+@keyframes save-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .save-spinner {
+    animation: none;
+  }
 }
 .save-failed,
 .save-conflict,
 .save-error {
-  color: #b04743;
+  color: var(--red-700);
 }
 .save-error {
   margin: 7px 0 0;

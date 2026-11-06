@@ -45,11 +45,11 @@ test('真实服务的21名教师可分页查询并跨页关联教学班', async 
   await page.getByLabel('教学班名称').fill(`跨页教学班 ${prefix}`)
   await page.getByLabel('搜索教师').fill(prefix)
   await page.getByRole('button', { name: '查询教师' }).click()
-  await page.getByLabel('负责教师').click()
+  await page.getByRole('combobox', { name: '负责教师', exact: true }).click()
   await page.getByText(`分页教师20（${prefix}20）`, { exact: true }).click()
   await page.keyboard.press('Escape')
   await page.getByRole('button', { name: '教师候选下一页' }).click()
-  await page.getByLabel('负责教师').click()
+  await page.getByRole('combobox', { name: '负责教师', exact: true }).click()
   await page.getByText(`分页教师00（${prefix}00）`, { exact: true }).click()
   await page.keyboard.press('Escape')
   await page.getByRole('button', { name: '保存', exact: true }).click()
@@ -57,8 +57,12 @@ test('真实服务的21名教师可分页查询并跨页关联教学班', async 
   await expect(classRow).toContainText('分页教师20')
   await expect(classRow).toContainText('分页教师00')
   await classRow.getByRole('button', { name: '编辑', exact: true }).click()
-  await expect(page.getByLabel('负责教师')).toContainText(`分页教师00（${prefix}00）`)
-  await expect(page.getByLabel('负责教师')).toContainText(`分页教师20（${prefix}20）`)
+  await expect(page.getByRole('combobox', { name: '负责教师', exact: true })).toContainText(
+    `分页教师00（${prefix}00）`,
+  )
+  await expect(page.getByRole('combobox', { name: '负责教师', exact: true })).toContainText(
+    `分页教师20（${prefix}20）`,
+  )
   await expect(page.locator('.n-message')).toHaveCount(0, { timeout: 5_000 })
   await page.screenshot({
     path: 'test-results/visual/member-pagination.png',

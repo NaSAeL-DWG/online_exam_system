@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { reactive } from 'vue'
 import { NAlert, NButton } from 'naive-ui'
+import NSelect from './ui/AppSelect.vue'
 import { questionsApi, questionTypeLabels, type Question } from '../api/questions'
 import ListPager from './ListPager.vue'
 import StatusBadge from './ui/StatusBadge.vue'
+import LoadingSkeleton from './ui/LoadingSkeleton.vue'
 import { usePagedList } from '../composables/usePagedList'
 import { difficultyLabels, questionSummary } from '../features/questions/questionDraft'
 const props = defineProps<{ excludedIds: string[] }>()
@@ -40,22 +42,27 @@ const { query, page, total, items, loading, failure, load, changePage } = usePag
         v-model="filters.tag"
         aria-label="选题知识点"
         placeholder="知识点"
-      /><select class="form-control" v-model="filters.difficulty" aria-label="选题难度">
-        <option value="">全部难度</option>
-        <option v-for="(label, value) in difficultyLabels" :key="value" :value="value">
-          {{ label }}
-        </option></select
-      ><select class="form-control" v-model="filters.type" aria-label="选题题型">
-        <option value="">全部题型</option>
-        <option v-for="(label, type) in questionTypeLabels" :key="type" :value="type">
-          {{ label }}
-        </option>
-      </select>
+      /><NSelect
+        v-model:value="filters.difficulty"
+        aria-label="选题难度"
+        :options="[
+          { value: '', label: '全部难度' },
+          ...Object.entries(difficultyLabels).map(([value, label]) => ({ value, label })),
+        ]"
+      /><NSelect
+        v-model:value="filters.type"
+        aria-label="选题题型"
+        :options="[
+          { value: '', label: '全部题型' },
+          ...Object.entries(questionTypeLabels).map(([value, label]) => ({ value, label })),
+        ]"
+      />
     </div>
     <NAlert v-if="failure" type="error"
       >{{ failure }} <NButton size="small" @click="load">重试加载题目</NButton></NAlert
     >
-    <div class="table-region" :aria-busy="loading">
+    <LoadingSkeleton v-if="loading && !items.length" variant="table" label="正在加载可用题目" />
+    <div v-else class="table-region" :aria-busy="loading">
       <table class="picker-table">
         <thead>
           <tr>

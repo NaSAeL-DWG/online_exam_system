@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { onBeforeUnmount, ref, watch } from 'vue'
 import { NAlert, NButton } from 'naive-ui'
+import NSelect from '../components/ui/AppSelect.vue'
 import PageHeader from '../components/ui/PageHeader.vue'
 import SurfacePanel from '../components/ui/SurfacePanel.vue'
+import LoadingSkeleton from '../components/ui/LoadingSkeleton.vue'
 import { useLogViewer } from '../features/logs/useLogViewer'
 import { displayLogLine } from '../features/logs/logFormat'
 import LogSettings from '../features/logs/LogSettings.vue'
@@ -116,13 +118,16 @@ async function download() {
         <label class="field">开始时间<input v-model="draft.start" type="datetime-local" /></label>
         <label class="field">结束时间<input v-model="draft.end" type="datetime-local" /></label>
         <label v-if="view === 'runtime'" class="field"
-          >日志等级<select v-model="draft.level">
-            <option value="INFO">INFO · 仅信息</option>
-            <option value="WARNING">WARNING · 信息和警告</option>
-            <option value="ERROR">ERROR · 信息、警告和错误</option>
-            <option value="DEBUG">DEBUG · 全部已采集</option>
-          </select></label
-        >
+          >日志等级<NSelect
+            v-model:value="draft.level"
+            aria-label="日志等级"
+            :options="[
+              { value: 'INFO', label: 'INFO · 仅信息' },
+              { value: 'WARNING', label: 'WARNING · 信息和警告' },
+              { value: 'ERROR', label: 'ERROR · 信息、警告和错误' },
+              { value: 'DEBUG', label: 'DEBUG · 全部已采集' },
+            ]"
+        /></label>
         <label class="field">关键词<input v-model="draft.q" placeholder="搜索日志内容" /></label>
         <template v-if="view === 'runtime'">
           <label class="field"
@@ -208,7 +213,7 @@ async function download() {
         :aria-busy="loading"
         @scroll="onScroll"
       >
-        <p v-if="loading" class="logs-empty" role="status">正在加载日志…</p>
+        <LoadingSkeleton v-if="loading && !entries.length" :rows="5" label="正在加载日志" />
         <p v-else-if="entries.length === 0" class="logs-empty">
           {{ failure ? '日志暂未加载，请重试' : '当前筛选下暂无日志' }}
         </p>

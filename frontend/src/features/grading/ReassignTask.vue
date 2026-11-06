@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, useId } from 'vue'
 import { NAlert, NButton, NModal } from 'naive-ui'
+import NSelect from '../../components/ui/AppSelect.vue'
 import { gradingApi, type StaffAttemptDetail } from '../../api/grading'
 import { identityApi } from '../../api/identity'
 import { ApiError, errorMessage, isWriteResultUnknown } from '../../api/client'
@@ -120,20 +121,22 @@ async function reloadTask(): Promise<void> {
         >{{ candidateFailure }} <NButton size="small" @click="load">重试读取教师</NButton></NAlert
       >
       <label class="field"
-        >选择阅卷教师<select
+        >选择阅卷教师<NSelect
           :value="teacherId"
           aria-label="选择阅卷教师"
-          required
+          placeholder="请选择激活教师"
+          :options="
+            options.map((teacher) => ({
+              value: teacher.id,
+              label: `${teacher.real_name}（${teacher.login_name}）`,
+            }))
+          "
+          :status="errors.teacher_id ? 'error' : undefined"
           :aria-invalid="!!errors.teacher_id"
           :aria-describedby="errors.teacher_id ? `${errorPrefix}-teacher-error` : undefined"
           :disabled="loading || saving || needsReload"
-          @change="select(($event.target as HTMLSelectElement).value)"
-        >
-          <option value="">请选择激活教师</option>
-          <option v-for="teacher in options" :key="teacher.id" :value="teacher.id">
-            {{ teacher.real_name }}（{{ teacher.login_name }}）
-          </option></select
-        ><span
+          @update:value="select"
+        /><span
           v-if="errors.teacher_id"
           :id="`${errorPrefix}-teacher-error`"
           class="field-error"
@@ -179,7 +182,7 @@ async function reloadTask(): Promise<void> {
 </template>
 <style scoped>
 .field-error {
-  color: #b42318;
+  color: var(--red-600);
   font-size: 12px;
 }
 .reassignment-form {

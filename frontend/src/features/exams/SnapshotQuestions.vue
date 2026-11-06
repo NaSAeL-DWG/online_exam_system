@@ -137,7 +137,7 @@ defineExpose({ validate, resetValidation })
   gap: 6px;
 }
 .field-error {
-  color: #b42318;
+  color: var(--red-600);
   font-size: 12px;
 }
 .snapshot-workspace {
@@ -175,7 +175,7 @@ defineExpose({ validate, resetValidation })
   height: 30px;
   display: grid;
   place-items: center;
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   background: var(--color-primary-soft);
   color: var(--color-primary);
   font-weight: 700;

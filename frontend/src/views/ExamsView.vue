@@ -2,11 +2,13 @@
 import { ref, useId } from 'vue'
 import { useRouter } from 'vue-router'
 import { NAlert, NButton, NModal } from 'naive-ui'
+import NSelect from '../components/ui/AppSelect.vue'
 import { examsApi, examStatusLabels, type AudienceType } from '../api/exams'
 import { errorMessage } from '../api/client'
 import ListPager from '../components/ListPager.vue'
 import PageHeader from '../components/ui/PageHeader.vue'
 import SurfacePanel from '../components/ui/SurfacePanel.vue'
+import LoadingSkeleton from '../components/ui/LoadingSkeleton.vue'
 import StatusBadge from '../components/ui/StatusBadge.vue'
 import AppIcon from '../components/ui/AppIcon.vue'
 import SourcePaperPicker from '../features/exams/SourcePaperPicker.vue'
@@ -90,7 +92,8 @@ async function save(): Promise<void> {
         /><NButton attr-type="submit" :loading="loading">查询考试</NButton
         ><span class="toolbar-meta">共 {{ total }} 场考试</span>
       </form>
-      <div class="table-region" :aria-busy="loading">
+      <LoadingSkeleton v-if="loading && !items.length" variant="table" label="正在加载考试" />
+      <div v-else class="table-region" :aria-busy="loading">
         <table class="exam-table">
           <thead>
             <tr>
@@ -121,7 +124,9 @@ async function save(): Promise<void> {
                       ? 'warning'
                       : exam.status === 'CANCELLED'
                         ? 'danger'
-                        : 'success'
+                        : exam.status === 'RESULTS_PUBLISHED'
+                          ? 'success'
+                          : 'info'
                   "
                 />
               </td>
@@ -180,10 +185,13 @@ async function save(): Promise<void> {
               >{{ errors.title }}</span
             ></label
           ><label class="field"
-            >参考范围<select v-model="audience" aria-label="参考范围">
-              <option value="RESTRICTED">限定名单</option>
-              <option value="PUBLIC">全部激活学生</option>
-            </select></label
+            >参考范围<NSelect
+              v-model:value="audience"
+              aria-label="参考范围"
+              :options="[
+                { value: 'RESTRICTED', label: '限定名单' },
+                { value: 'PUBLIC', label: '全部激活学生' },
+              ]" /></label
           ><label class="field full-width"
             >考试说明<textarea
               v-model="description"
@@ -215,7 +223,7 @@ async function save(): Promise<void> {
 </template>
 <style scoped>
 .field-error {
-  color: #b42318;
+  color: var(--red-600);
   font-size: 12px;
 }
 .exam-search {

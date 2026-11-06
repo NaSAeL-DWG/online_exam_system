@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { reactive, ref, watch } from 'vue'
 import { NAlert, NButton, NModal, useDialog } from 'naive-ui'
+import NSelect from '../components/ui/AppSelect.vue'
 import { questionsApi, questionTypeLabels } from '../api/questions'
 import ListPager from '../components/ListPager.vue'
 import QuestionFields from '../components/QuestionFields.vue'
 import PageHeader from '../components/ui/PageHeader.vue'
 import SurfacePanel from '../components/ui/SurfacePanel.vue'
+import LoadingSkeleton from '../components/ui/LoadingSkeleton.vue'
 import StatusBadge from '../components/ui/StatusBadge.vue'
 import AppIcon from '../components/ui/AppIcon.vue'
 import { usePagedList } from '../composables/usePagedList'
@@ -87,37 +89,42 @@ function resetFilters(): void {
             v-model="filters.subject"
             aria-label="筛选科目"
             placeholder="全部科目"
-          /><select class="form-control" v-model="filters.type" aria-label="筛选题型">
-            <option value="">全部题型</option>
-            <option v-for="(label, type) in questionTypeLabels" :key="type" :value="type">
-              {{ label }}
-            </option></select
-          ><select class="form-control" v-model="filters.difficulty" aria-label="筛选难度">
-            <option value="">全部难度</option>
-            <option
-              v-for="(label, difficulty) in difficultyLabels"
-              :key="difficulty"
-              :value="difficulty"
-            >
-              {{ label }}
-            </option></select
-          ><input
+          /><NSelect
+            v-model:value="filters.type"
+            aria-label="筛选题型"
+            :options="[
+              { value: '', label: '全部题型' },
+              ...Object.entries(questionTypeLabels).map(([value, label]) => ({ value, label })),
+            ]"
+          /><NSelect
+            v-model:value="filters.difficulty"
+            aria-label="筛选难度"
+            :options="[
+              { value: '', label: '全部难度' },
+              ...Object.entries(difficultyLabels).map(([value, label]) => ({ value, label })),
+            ]"
+          /><input
             class="form-control"
             v-model="filters.tag"
             aria-label="筛选知识点"
             placeholder="知识点标签"
-          /><select class="form-control" v-model="filters.status" aria-label="筛选状态">
-            <option value="">全部状态</option>
-            <option value="ACTIVE">使用中</option>
-            <option value="CLOSED">已关闭</option>
-          </select>
+          /><NSelect
+            v-model:value="filters.status"
+            aria-label="筛选状态"
+            :options="[
+              { value: '', label: '全部状态' },
+              { value: 'ACTIVE', label: '使用中' },
+              { value: 'CLOSED', label: '已关闭' },
+            ]"
+          />
         </div>
       </form>
       <div class="list-heading">
         <h2>题目列表</h2>
         <span class="muted">共 {{ total }} 道题</span>
       </div>
-      <div class="table-region" :aria-busy="loading">
+      <LoadingSkeleton v-if="loading && !items.length" variant="table" label="正在加载题库" />
+      <div v-else class="table-region" :aria-busy="loading">
         <table class="question-table">
           <thead>
             <tr>
@@ -240,6 +247,14 @@ function resetFilters(): void {
   min-width: 0;
   background: transparent;
 }
+.search-box:focus-within {
+  border-color: var(--color-primary);
+  box-shadow: inset 0 0 0 1px var(--color-primary);
+}
+.search-box input:focus {
+  border: 0;
+  box-shadow: none;
+}
 .filter-grid {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -331,7 +346,7 @@ td strong {
   .filter-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  .filter-grid select:last-child {
+  .filter-grid > :last-child {
     grid-column: 1 / -1;
   }
   .search-line {

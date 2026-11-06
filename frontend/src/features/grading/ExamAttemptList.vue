@@ -1,14 +1,52 @@
 <script setup lang="ts">
+import { computed, ref } from 'vue'
 import { NAlert, NButton } from 'naive-ui'
-import { gradingApi, gradingStatusLabels, taskStatusLabels } from '../../api/grading'
+import {
+  gradingApi,
+  gradingStatusLabels,
+  taskStatusLabels,
+  type StaffAttemptDetail,
+} from '../../api/grading'
+import { errorMessage } from '../../api/client'
 import { usePagedList } from '../../composables/usePagedList'
 import StatusBadge from '../../components/ui/StatusBadge.vue'
+import LoadingSkeleton from '../../components/ui/LoadingSkeleton.vue'
 import ListPager from '../../components/ListPager.vue'
 import './grading.css'
+import { useAuthStore } from '../../stores/auth'
+import ReassignTask from './ReassignTask.vue'
+const auth = useAuthStore()
+const canGrade = computed(() => auth.user?.user_type === 'TEACHER')
+const isAdmin = computed(() => auth.user?.user_type === 'ADMIN')
+const reassignment = ref<StaffAttemptDetail | null>(null)
+const openingTask = ref<string | null>(null)
+const reassignmentFailure = ref('')
+const reassignmentSuccess = ref('')
 const props = defineProps<{ examId: string }>()
 const { items, page, total, query, loading, failure, load, changePage } = usePagedList((query) =>
   gradingApi.attempts(props.examId, query),
 )
+async function openReassignment(attemptId: string): Promise<void> {
+  if (openingTask.value) return
+  openingTask.value = attemptId
+  reassignmentFailure.value = ''
+  reassignmentSuccess.value = ''
+  try {
+    // 管理员在进度列表管理任务，答卷内容不进入评分工作区。
+    const detail = await gradingApi.attempt(attemptId)
+    if (detail.can_reassign) reassignment.value = detail
+    else reassignmentFailure.value = '该任务当前不可改派，请刷新进度后重试。'
+  } catch (error) {
+    reassignmentFailure.value = errorMessage(error)
+  } finally {
+    openingTask.value = null
+  }
+}
+function reassigned(): void {
+  reassignment.value = null
+  reassignmentSuccess.value = '阅卷任务已改派，已有题分和评分历史已保留。'
+  void load()
+}
 </script>
 <template>
   <form class="toolbar" @submit.prevent="changePage(1)">
@@ -24,7 +62,14 @@ const { items, page, total, query, loading, failure, load, changePage } = usePag
   <NAlert v-if="failure" type="error"
     >{{ failure }} <NButton size="small" @click="load">重试加载答卷</NButton></NAlert
   >
-  <div class="table-region" :aria-busy="loading">
+  <NAlert v-if="reassignmentFailure" class="form-alert" type="error">{{
+    reassignmentFailure
+  }}</NAlert>
+  <NAlert v-if="reassignmentSuccess" class="form-alert" type="success">{{
+    reassignmentSuccess
+  }}</NAlert>
+  <LoadingSkeleton v-if="loading && !items.length" variant="table" label="正在读取答卷进度" />
+  <div v-else class="table-region" :aria-busy="loading">
     <table class="grading-table">
       <thead>
         <tr>
@@ -50,7 +95,13 @@ const { items, page, total, query, loading, failure, load, changePage } = usePag
                   ? '作答中'
                   : gradingStatusLabels[attempt.grading_status]
               "
-              :tone="attempt.grading_status === 'GRADED' ? 'success' : 'warning'"
+              :tone="
+                attempt.status === 'IN_PROGRESS'
+                  ? 'info'
+                  : attempt.grading_status === 'GRADED'
+                    ? 'success'
+                    : 'warning'
+              "
             />
           </td>
           <td>
@@ -66,7 +117,20 @@ const { items, page, total, query, loading, failure, load, changePage } = usePag
               attempt.task.assigned_teacher.real_name
             }}</span>
           </td>
-          <td><RouterLink :to="`/staff/attempts/${attempt.id}`">查看答卷 →</RouterLink></td>
+          <td v-if="canGrade">
+            <RouterLink :to="`/staff/attempts/${attempt.id}`">查看答卷 →</RouterLink>
+          </td>
+          <td v-else>
+            <NButton
+              v-if="isAdmin && attempt.task && !['COMPLETED', 'VOID'].includes(attempt.task.status)"
+              size="small"
+              :loading="openingTask === attempt.id"
+              :disabled="openingTask !== null"
+              @click="openReassignment(attempt.id)"
+              >改派任务</NButton
+            >
+            <span v-else class="muted">—</span>
+          </td>
         </tr>
         <tr v-if="!items.length">
           <td colspan="6" class="empty-state">
@@ -83,5 +147,12 @@ const { items, page, total, query, loading, failure, load, changePage } = usePag
     :page-size="20"
     :loading="loading"
     @change="changePage"
+  />
+  <ReassignTask
+    v-if="reassignment"
+    :attempt="reassignment"
+    @close="reassignment = null"
+    @saved="reassigned"
+    @refreshed="reassignment = $event"
   />
 </template>

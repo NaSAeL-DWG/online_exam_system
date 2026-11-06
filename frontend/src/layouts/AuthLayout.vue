@@ -1,5 +1,10 @@
 <script setup lang="ts">
+import { computed } from 'vue'
+import { useRoute } from 'vue-router'
 import AppIcon from '../components/ui/AppIcon.vue'
+
+const route = useRoute()
+const registering = computed(() => route.name === 'register')
 </script>
 
 <template>
@@ -12,9 +17,9 @@ import AppIcon from '../components/ui/AppIcon.vue'
       </RouterLink>
       <span class="auth-topbar-note">教学 · 考试 · 协作</span>
     </header>
-    <main class="auth-workspace">
+    <main class="auth-workspace" :class="{ 'auth-workspace--register': registering }">
       <section class="auth-task"><RouterView /></section>
-      <aside class="auth-support" aria-label="账号使用说明">
+      <aside v-if="!registering" class="auth-support" aria-label="账号使用说明">
         <div>
           <p class="auth-support-label">账号使用说明</p>
           <h2>使用你的机构账号</h2>

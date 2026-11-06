@@ -4,8 +4,12 @@ import { resultStateLabels, type ResultState } from '../../api/results'
 defineProps<{ state: ResultState; allowReview: boolean }>()
 </script>
 <template>
-  <NAlert v-if="state !== 'PUBLISHED'" :type="state === 'CORRECTING' ? 'warning' : 'info'">
-    <strong>{{ resultStateLabels[state] }}</strong>
+  <NAlert
+    class="result-visibility"
+    v-if="state !== 'PUBLISHED'"
+    :type="state === 'CORRECTING' ? 'warning' : 'info'"
+    :title="resultStateLabels[state]"
+  >
     <p v-if="state === 'CORRECTING'">
       教师正在复核本场结果。成绩、答案、错题及相关分析暂时不可查看，重新公布后恢复。
     </p>
@@ -14,7 +18,16 @@ defineProps<{ state: ResultState; allowReview: boolean }>()
     </p>
     <p v-else>本场历史作答已失效，不计入成绩、错题与分析。</p>
   </NAlert>
-  <NAlert v-else-if="!allowReview" type="info"
+  <NAlert class="result-visibility" v-else-if="!allowReview" type="info"
     >本场未开放答卷回看。成绩可查看，答案、解析、错题及题目表现不开放。</NAlert
   >
 </template>
+<style scoped>
+.result-visibility {
+  align-self: start;
+}
+.result-visibility p {
+  margin: 0;
+  line-height: 1.8;
+}
+</style>

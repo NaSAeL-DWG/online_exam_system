@@ -6,6 +6,7 @@ import QuestionPicker from '../components/QuestionPicker.vue'
 import ListPager from '../components/ListPager.vue'
 import PageHeader from '../components/ui/PageHeader.vue'
 import SurfacePanel from '../components/ui/SurfacePanel.vue'
+import LoadingSkeleton from '../components/ui/LoadingSkeleton.vue'
 import StatusBadge from '../components/ui/StatusBadge.vue'
 import AppIcon from '../components/ui/AppIcon.vue'
 import PaperQuestionList from '../features/papers/PaperQuestionList.vue'
@@ -95,7 +96,8 @@ function archive(): void {
         /><NButton attr-type="submit" :loading="loading">查询试卷</NButton
         ><span class="toolbar-meta">共 {{ total }} 张试卷</span>
       </form>
-      <div class="table-region" :aria-busy="loading">
+      <LoadingSkeleton v-if="loading && !items.length" variant="table" label="正在加载试卷" />
+      <div v-else class="table-region" :aria-busy="loading">
         <table class="paper-table">
           <thead>
             <tr>
@@ -251,7 +253,7 @@ function archive(): void {
 </template>
 <style scoped>
 .field-error {
-  color: #b42318;
+  color: var(--red-600);
   font-size: 12px;
 }
 .paper-search {

@@ -19,6 +19,7 @@ const router = useRouter()
 const message = useMessage()
 const loggingOut = ref(false)
 const navigationOpen = ref(false)
+const focusedAttempt = computed(() => route.name === 'student-attempt')
 const modules = computed(() => accessibleModules(auth.user))
 const module = computed(() => currentModule(route.path, modules.value))
 const section = computed(
@@ -48,9 +49,9 @@ async function logout(): Promise<void> {
 </script>
 
 <template>
-  <div class="app-shell">
+  <div class="app-shell" :class="{ 'app-shell--attempt': focusedAttempt }">
     <a class="skip-link" href="#workspace">跳至主要内容</a>
-    <aside class="sidebar">
+    <aside v-if="!focusedAttempt" class="sidebar">
       <div class="sidebar-brand">
         <div class="brand">
           <span class="brand-symbol"><AppIcon name="book" :size="21" /></span
@@ -68,7 +69,7 @@ async function logout(): Promise<void> {
       </div>
     </aside>
     <div class="app-main">
-      <header class="topbar">
+      <header v-if="!focusedAttempt" class="topbar">
         <div class="topbar-location">
           <button
             class="mobile-menu-button"
@@ -98,6 +99,7 @@ async function logout(): Promise<void> {
       <main id="workspace" class="workspace" tabindex="-1"><RouterView /></main>
     </div>
     <NDrawer
+      v-if="!focusedAttempt"
       v-model:show="navigationOpen"
       placement="left"
       :width="288"

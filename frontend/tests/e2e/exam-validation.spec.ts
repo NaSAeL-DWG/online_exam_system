@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { selectNaiveOption } from './naive-select'
 
 test('题目保存显示具体校验原因，纠正后可以提交', async ({ page }) => {
   test.skip(!process.env.E2E_ADMIN_LOGIN || !process.env.E2E_ADMIN_PASSWORD, '需要管理员测试凭据')
@@ -9,7 +10,7 @@ test('题目保存显示具体校验原因，纠正后可以提交', async ({ pa
   await expect(page).toHaveURL('/home')
   await page.goto('/staff/questions')
   await page.getByRole('button', { name: '新建题目' }).click()
-  await page.getByLabel('题型', { exact: true }).selectOption('MULTIPLE_CHOICE')
+  await selectNaiveOption(page, page.getByRole('combobox', { name: '题型', exact: true }), '多选题')
   await page.getByLabel('科目', { exact: true }).fill('数学')
   await page.getByLabel('题干', { exact: true }).fill(`校验 ${Date.now()}`)
   await page.getByLabel('选项 1', { exact: true }).fill('1')

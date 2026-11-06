@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { reactive, ref } from 'vue'
 import { NAlert, NButton } from 'naive-ui'
+import NSelect from '../components/ui/AppSelect.vue'
 import { mistakesApi, type MistakeFilters } from '../api/mistakes'
 import { questionTypeLabels } from '../api/questions'
 import PageHeader from '../components/ui/PageHeader.vue'
@@ -8,6 +9,7 @@ import SurfacePanel from '../components/ui/SurfacePanel.vue'
 import StatusBadge from '../components/ui/StatusBadge.vue'
 import SafeMarkdown from '../components/SafeMarkdown.vue'
 import ListPager from '../components/ListPager.vue'
+import LoadingSkeleton from '../components/ui/LoadingSkeleton.vue'
 import { usePrivateResource } from '../features/results/usePrivateResource'
 import '../features/results/results.css'
 
@@ -19,6 +21,15 @@ const filters = reactive<MistakeFilters>({
   mastered: '',
 })
 const applied = ref<MistakeFilters>({})
+const typeOptions = [
+  { label: '全部题型', value: '' },
+  ...Object.entries(questionTypeLabels).map(([value, label]) => ({ label, value })),
+]
+const masteryOptions = [
+  { label: '全部掌握情况', value: '' },
+  { label: '待复习', value: 'false' },
+  { label: '已掌握', value: 'true' },
+]
 const page = ref(1)
 const { data, loading, failure, load } = usePrivateResource(
   () => [page.value, applied.value],
@@ -32,6 +43,10 @@ const { data, loading, failure, load } = usePrivateResource(
 function filter(): void {
   page.value = 1
   applied.value = { ...filters }
+}
+function clearFilters(): void {
+  Object.assign(filters, { q: '', subject: '', type: '', knowledge_tag: '', mastered: '' })
+  filter()
 }
 </script>
 <template>
@@ -53,33 +68,40 @@ function filter(): void {
         <label class="field"
           >科目<input v-model="filters.subject" aria-label="科目筛选" placeholder="科目名称"
         /></label>
-        <label class="field"
-          >题型<select v-model="filters.type" aria-label="题型筛选">
-            <option value="">全部题型</option>
-            <option v-for="(label, type) in questionTypeLabels" :key="type" :value="type">
-              {{ label }}
-            </option>
-          </select></label
-        >
+        <div class="field">
+          <label for="mistake-type">题型</label
+          ><NSelect
+            id="mistake-type"
+            v-model:value="filters.type"
+            :options="typeOptions"
+            aria-label="题型筛选"
+          />
+        </div>
         <label class="field"
           >知识点<input
             v-model="filters.knowledge_tag"
             aria-label="知识点筛选"
             placeholder="知识点标签"
         /></label>
-        <label class="field"
-          >掌握状态<select v-model="filters.mastered" aria-label="掌握状态">
-            <option value="">全部状态</option>
-            <option value="false">尚未掌握</option>
-            <option value="true">已掌握</option>
-          </select></label
-        >
-        <NButton attr-type="submit" :loading="loading">筛选错题</NButton>
+        <div class="field">
+          <label for="mistake-mastery">掌握情况</label
+          ><NSelect
+            id="mistake-mastery"
+            v-model:value="filters.mastered"
+            :options="masteryOptions"
+            aria-label="掌握状态"
+          />
+        </div>
+        <div class="filter-actions">
+          <NButton type="primary" attr-type="submit" :loading="loading">筛选错题</NButton
+          ><NButton :disabled="loading" @click="clearFilters">清除筛选</NButton>
+        </div>
       </form>
       <p class="muted mistake-scope">
         仅显示已公布、允许回看且有效的作答；撤回结果或资格失效后，相关错题暂不可见。
       </p>
       <div class="result-list" :aria-busy="loading">
+        <LoadingSkeleton v-if="loading" label="正在读取可见错题" />
         <article v-for="item in data?.items" :key="item.answer_id" class="mistake-row">
           <div class="mistake-row-meta">
             <span>{{ questionTypeLabels[item.type] }} · {{ item.subject }}</span
@@ -91,12 +113,12 @@ function filter(): void {
               >{{ item.exam_title }} · 第 {{ item.attempt_no }} 次 ·
               {{ item.knowledge_tags.join('、') || '未标注知识点' }}</span
             ><StatusBadge
-              :label="item.mastered ? '已掌握' : '尚未掌握'"
+              :label="item.mastered ? '已掌握' : '待复习'"
               :tone="item.mastered ? 'success' : 'neutral'"
             /><RouterLink :to="`/student/mistakes/${item.answer_id}`">查看错题</RouterLink>
           </div>
         </article>
-        <p v-if="!data?.items.length" class="result-empty" role="status">
+        <p v-if="!loading && !data?.items.length" class="result-empty" role="status">
           {{
             loading ? '正在读取可见错题…' : failure ? '错题暂不可读取。' : '暂无符合条件的错题。'
           }}
@@ -117,10 +139,15 @@ function filter(): void {
 <style scoped>
 .mistake-filters {
   display: grid;
-  grid-template-columns: 1.5fr repeat(4, 1fr) auto;
+  grid-template-columns: minmax(180px, 1.5fr) repeat(4, minmax(110px, 1fr));
   align-items: end;
   gap: 14px;
   font-size: 13px;
+}
+.filter-actions {
+  display: flex;
+  gap: 10px;
+  grid-column: 1 / -1;
 }
 .mistake-scope {
   font-size: 12px;
@@ -161,6 +188,9 @@ function filter(): void {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .mistake-filters label:first-child {
+    grid-column: 1 / -1;
+  }
+  .mistake-filters > label:first-child {
     grid-column: 1 / -1;
   }
   .mistake-row-footer {

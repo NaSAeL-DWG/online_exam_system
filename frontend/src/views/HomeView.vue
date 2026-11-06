@@ -4,6 +4,7 @@ import { useAuthStore } from '../stores/auth'
 import PageHeader from '../components/ui/PageHeader.vue'
 import StatusBadge from '../components/ui/StatusBadge.vue'
 import AppIcon from '../components/ui/AppIcon.vue'
+import HomeExamOverview from '../features/home/HomeExamOverview.vue'
 import { accessibleModules, roleLabels } from '../navigation/modules'
 
 const auth = useAuthStore()
@@ -20,7 +21,9 @@ const copy = computed(
 )
 const modules = computed(() => accessibleModules(auth.user))
 const workspace = computed(() =>
-  modules.value.filter((item) => item.group === 'workspace' && item.entry),
+  modules.value.filter(
+    (item) => auth.user?.user_type === 'ADMIN' && item.group === 'workspace' && item.entry,
+  ),
 )
 const preparation = computed(() =>
   modules.value.filter((item) => item.group === 'preparation' && item.entry),
@@ -36,16 +39,11 @@ const account = computed(() =>
     <PageHeader :title="copy.title" :description="copy.description"
       ><template #actions><StatusBadge label="账号已激活" tone="success" /></template
     ></PageHeader>
+    <HomeExamOverview />
     <section v-if="workspace.length" class="home-section">
       <header class="home-section-heading">
-        <h2>{{ auth.user?.user_type === 'STUDENT' ? '考试作答' : '人工阅卷' }}</h2>
-        <p>
-          {{
-            auth.user?.user_type === 'STUDENT'
-              ? '查看开放时间与作答机会'
-              : '整卷首阅、评分复核与任务处理'
-          }}
-        </p>
+        <h2>系统管理</h2>
+        <p>查看运行记录与操作审计</p>
       </header>
       <div class="home-task-list">
         <RouterLink v-for="item in workspace" :key="item.path" :to="item.path" class="home-task">
@@ -82,7 +80,7 @@ const account = computed(() =>
         </RouterLink>
       </div>
     </section>
-    <div class="home-secondary">
+    <div class="home-secondary" :class="{ 'home-secondary--single': !people.length }">
       <section v-if="people.length" class="home-section">
         <header class="home-section-heading">
           <h2>人员与教学</h2>

@@ -4,6 +4,7 @@ import { NAlert, NButton, NModal } from 'naive-ui'
 import { gradingApi, type GradingHistoryEntry } from '../../api/grading'
 import { errorMessage } from '../../api/client'
 import { examTime } from '../attempts/examAvailability'
+import LoadingSkeleton from '../../components/ui/LoadingSkeleton.vue'
 const props = defineProps<{ answerId: string }>()
 const emit = defineEmits<{ close: [] }>()
 const items = ref<GradingHistoryEntry[]>([])
@@ -33,7 +34,7 @@ onMounted(load)
     <NAlert v-if="failure" class="form-alert" type="error"
       >{{ failure }} <NButton size="small" @click="load">重试读取历史</NButton></NAlert
     >
-    <p v-if="loading" class="muted" role="status">正在读取评分历史…</p>
+    <LoadingSkeleton v-if="loading" label="正在读取评分历史" />
     <div v-else-if="items.length" class="history-list">
       <article v-for="entry in items" :key="entry.id">
         <header>

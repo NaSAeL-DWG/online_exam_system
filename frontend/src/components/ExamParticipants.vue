@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { h, onMounted, ref, useId } from 'vue'
 import { NAlert, NButton, NDataTable, NModal, type DataTableColumns } from 'naive-ui'
+import NSelect from './ui/AppSelect.vue'
 import { examParticipantsApi, type Participant } from '../api/examParticipants'
 import { ApiError, errorMessage } from '../api/client'
 import type { AudienceType, ExamStatus } from '../api/exams'
 import MemberPicker from './MemberPicker.vue'
 import ListPager from './ListPager.vue'
 import SurfacePanel from './ui/SurfacePanel.vue'
+import LoadingSkeleton from './ui/LoadingSkeleton.vue'
 import StatusBadge from './ui/StatusBadge.vue'
 import AppIcon from './ui/AppIcon.vue'
 import ClassAudiencePicker from '../features/exams/ClassAudiencePicker.vue'
@@ -241,15 +243,19 @@ onMounted(() => {
             @keydown.enter.prevent="changePage(1)" /></label
         ><label class="field qualification-field"
           ><span>资格状态</span
-          ><select v-model="filter" aria-label="筛选资格">
-            <option value="">全部资格</option>
-            <option value="ASSIGNED">有效资格</option>
-            <option value="CANCELLED">已撤销</option>
-          </select></label
+          ><NSelect
+            v-model:value="filter"
+            aria-label="筛选资格"
+            :options="[
+              { value: '', label: '全部资格' },
+              { value: 'ASSIGNED', label: '有效资格' },
+              { value: 'CANCELLED', label: '已撤销' },
+            ]" /></label
         ><NButton :loading="loading" @click="changePage(1)">查询参考名单</NButton>
       </div>
       <div data-testid="exam-participants">
-        <div class="table-region">
+        <LoadingSkeleton v-if="loading && !items.length" variant="table" label="正在加载参考名单" />
+        <div v-else class="table-region">
           <NDataTable
             :columns="columns"
             :data="items"
@@ -335,7 +341,7 @@ onMounted(() => {
 
 <style scoped>
 .field-error {
-  color: #b42318;
+  color: var(--red-600);
   font-size: 12px;
 }
 .participant-workspace {

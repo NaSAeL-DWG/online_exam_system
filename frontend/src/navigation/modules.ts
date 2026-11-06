@@ -21,7 +21,7 @@ export const navigationModules: NavigationModule[] = [
     label: '阅卷工作台',
     icon: 'check-circle',
     group: 'workspace',
-    roles: staff,
+    roles: ['TEACHER'],
     entry: {
       title: '处理人工阅卷',
       description: '完成整卷首阅，核对评分历史与后续更正。',

@@ -1,12 +1,14 @@
 <script setup lang="ts">
-import { nextTick, ref, useId } from 'vue'
+import { computed, nextTick, ref, useId } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { NAlert, NButton, NModal, useDialog } from 'naive-ui'
 import { examStatusLabels } from '../api/exams'
+import { useAuthStore } from '../stores/auth'
 import QuestionFields from '../components/QuestionFields.vue'
 import ExamParticipants from '../components/ExamParticipants.vue'
 import PageHeader from '../components/ui/PageHeader.vue'
 import SurfacePanel from '../components/ui/SurfacePanel.vue'
+import LoadingSkeleton from '../components/ui/LoadingSkeleton.vue'
 import StatusBadge from '../components/ui/StatusBadge.vue'
 import AppIcon from '../components/ui/AppIcon.vue'
 import ExamSettings from '../features/exams/ExamSettings.vue'
@@ -26,6 +28,8 @@ import {
 const route = useRoute()
 const router = useRouter()
 const dialog = useDialog()
+const auth = useAuthStore()
+const canGrade = computed(() => auth.user?.user_type === 'TEACHER')
 const {
   exam,
   form,
@@ -113,7 +117,11 @@ const tabs = [
   { label: '考试设置', icon: 'clock', id: 'exam-settings' },
   { label: '题目快照', icon: 'paper', id: 'exam-questions' },
   { label: '参考资格', icon: 'users', id: 'exam-eligibility' },
-  { label: '答卷与成绩', icon: 'check-circle', id: 'exam-grading' },
+  {
+    label: canGrade.value ? '答卷与成绩' : '阅卷进度与成绩',
+    icon: 'check-circle',
+    id: 'exam-grading',
+  },
   { label: '统计分析', icon: 'paper', id: 'exam-analytics' },
 ]
 const tabButtons = ref<HTMLButtonElement[]>([])
@@ -146,7 +154,15 @@ function confirmTransition(action: 'publish' | 'withdraw'): void {
         ><StatusBadge
           v-if="exam"
           :label="examStatusLabels[exam.status]"
-          :tone="isDraft ? 'warning' : exam.status === 'CANCELLED' ? 'danger' : 'success'"
+          :tone="
+            isDraft
+              ? 'warning'
+              : exam.status === 'CANCELLED'
+                ? 'danger'
+                : exam.status === 'RESULTS_PUBLISHED'
+                  ? 'success'
+                  : 'info'
+          "
         /><template v-if="isDraft"
           ><NButton
             form="exam-draft-form"
@@ -200,7 +216,7 @@ function confirmTransition(action: 'publish' | 'withdraw'): void {
       <p v-if="exam.cancelled_reason">{{ exam.cancelled_reason }}</p></NAlert
     >
     <NAlert v-for="warning in exam?.warnings" :key="warning" type="warning">{{ warning }}</NAlert>
-    <p v-if="loading && !exam" class="muted" role="status">正在加载考试…</p>
+    <LoadingSkeleton v-if="loading && !exam" variant="detail" label="正在加载考试" />
     <template v-if="form && exam">
       <div class="exam-overview">
         <div>
@@ -277,7 +293,9 @@ function confirmTransition(action: 'publish' | 'withdraw'): void {
               ref="snapshotFields"
               v-model="form.questions"
               :disabled="!isDraft || saving"
-              :allow-correction="exam.status === 'RELEASED' || exam.status === 'RESULTS_PUBLISHED'"
+              :allow-correction="
+                canGrade && (exam.status === 'RELEASED' || exam.status === 'RESULTS_PUBLISHED')
+              "
               @move="move"
               @edit="editQuestion"
               @add="addQuestion"
@@ -311,7 +329,7 @@ function confirmTransition(action: 'publish' | 'withdraw'): void {
       </section>
     </template>
     <StandardCorrection
-      v-if="exam && correctionIndex !== null"
+      v-if="canGrade && exam && correctionIndex !== null"
       :exam="exam"
       :question-index="correctionIndex"
       @close="correctionIndex = null"
@@ -395,7 +413,7 @@ function confirmTransition(action: 'publish' | 'withdraw'): void {
 </template>
 <style scoped>
 .field-error {
-  color: #b42318;
+  color: var(--red-600);
   font-size: 12px;
 }
 .cancel-exam-form {

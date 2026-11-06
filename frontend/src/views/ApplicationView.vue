@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
-import { NAlert, NButton, NForm, NInput, NSpin, useMessage } from 'naive-ui'
+import { NAlert, NButton, NForm, NInput, useMessage } from 'naive-ui'
 import { errorMessage } from '../api/client'
 import { identityApi } from '../api/identity'
 import { useAuthStore } from '../stores/auth'
 import type { StudentApplication } from '../types'
 import PageHeader from '../components/ui/PageHeader.vue'
 import SurfacePanel from '../components/ui/SurfacePanel.vue'
+import LoadingSkeleton from '../components/ui/LoadingSkeleton.vue'
 import AppIcon from '../components/ui/AppIcon.vue'
 import FormField from '../components/ui/FormField.vue'
 import { useFormValidation } from '../composables/useFormValidation'
@@ -63,113 +64,108 @@ onMounted(load)
         ><NButton :loading="loading" @click="load">刷新审核状态</NButton></template
       ></PageHeader
     >
-    <NSpin :show="loading">
-      <div class="page-stack">
-        <NAlert v-if="failure" type="error"
-          >{{ failure }}
-          <NButton v-if="!application" size="small" @click="load">重试加载</NButton></NAlert
-        >
-        <section
-          v-if="application"
-          class="application-status"
-          :class="{ 'application-status--rejected': application.status === 'REJECTED' }"
-          aria-label="审核结果"
-        >
-          <AppIcon
-            :name="
-              application.status === 'REJECTED'
-                ? 'alert'
+    <LoadingSkeleton v-if="loading && !application" variant="detail" label="正在读取审核状态" />
+    <div v-else class="page-stack" :aria-busy="loading">
+      <NAlert v-if="failure" type="error"
+        >{{ failure }}
+        <NButton v-if="!application" size="small" @click="load">重试加载</NButton></NAlert
+      >
+      <section
+        v-if="application"
+        class="application-status"
+        :class="{ 'application-status--rejected': application.status === 'REJECTED' }"
+        aria-label="审核结果"
+      >
+        <AppIcon
+          :name="
+            application.status === 'REJECTED'
+              ? 'alert'
+              : application.status === 'APPROVED'
+                ? 'check-circle'
+                : 'clock'
+          "
+          :size="30"
+        />
+        <div>
+          <h2>
+            {{
+              application.status === 'PENDING'
+                ? '申请审核中'
                 : application.status === 'APPROVED'
-                  ? 'check-circle'
-                  : 'clock'
-            "
-            :size="30"
-          />
-          <div>
-            <h2>
-              {{
-                application.status === 'PENDING'
-                  ? '申请审核中'
-                  : application.status === 'APPROVED'
-                    ? '身份审核已通过'
-                    : '申请未通过'
-              }}
-            </h2>
-            <p v-if="application.status === 'REJECTED'">{{ application.reason }}</p>
-            <p v-else-if="application.status === 'APPROVED'">重新登录后即可进入学生工作台。</p>
-            <p v-else>等待教师审核，审核期间仍可通过“联系方式”维护邮箱与手机号。</p>
-            <p class="application-date">
-              提交于 {{ new Date(application.submitted_at).toLocaleString('zh-CN') }}
-            </p>
-            <ol v-if="application.status !== 'REJECTED'" class="application-timeline">
-              <li class="complete"><span>1</span>提交申请</li>
-              <li :class="{ complete: application.status === 'APPROVED' }">
-                <span>2</span>教师审核
-              </li>
-              <li :class="{ complete: application.status === 'APPROVED' }">
-                <span>3</span>身份激活
-              </li>
-            </ol>
+                  ? '身份审核已通过'
+                  : '申请未通过'
+            }}
+          </h2>
+          <p v-if="application.status === 'REJECTED'">{{ application.reason }}</p>
+          <p v-else-if="application.status === 'APPROVED'">重新登录后即可进入学生工作台。</p>
+          <p v-else>等待教师审核，审核期间仍可通过“联系方式”维护邮箱与手机号。</p>
+          <p class="application-date">
+            提交于 {{ new Date(application.submitted_at).toLocaleString('zh-CN') }}
+          </p>
+          <ol v-if="application.status !== 'REJECTED'" class="application-timeline">
+            <li class="complete"><span>1</span>提交申请</li>
+            <li :class="{ complete: application.status === 'APPROVED' }"><span>2</span>教师审核</li>
+            <li :class="{ complete: application.status === 'APPROVED' }"><span>3</span>身份激活</li>
+          </ol>
+        </div>
+      </section>
+      <SurfacePanel
+        v-if="application?.status === 'REJECTED'"
+        title="更正后重新提交"
+        description="请根据拒绝原因核对下列资料。重新提交后将再次进入审核流程。"
+      >
+        <NForm :model="form" label-placement="top" novalidate @submit.prevent="resubmit">
+          <div class="form-grid two-columns">
+            <FormField
+              v-slot="{ inputProps }"
+              :validation="validation"
+              field="real_name"
+              label="姓名"
+              ><NInput v-model:value="form.real_name" :input-props="inputProps"
+            /></FormField>
+            <FormField
+              v-slot="{ inputProps }"
+              :validation="validation"
+              field="student_no"
+              label="学号"
+              ><NInput v-model:value="form.student_no" :input-props="inputProps"
+            /></FormField>
+            <FormField v-slot="{ inputProps }" :validation="validation" field="email" label="邮箱"
+              ><NInput v-model:value="form.email" :input-props="inputProps"
+            /></FormField>
+            <FormField
+              v-slot="{ inputProps }"
+              :validation="validation"
+              field="phone_number"
+              label="手机号"
+              ><NInput v-model:value="form.phone_number" :input-props="inputProps"
+            /></FormField>
           </div>
-        </section>
-        <SurfacePanel
-          v-if="application?.status === 'REJECTED'"
-          title="更正后重新提交"
-          description="请根据拒绝原因核对下列资料。重新提交后将再次进入审核流程。"
-        >
-          <NForm :model="form" label-placement="top" novalidate @submit.prevent="resubmit">
-            <div class="form-grid two-columns">
-              <FormField
-                v-slot="{ inputProps }"
-                :validation="validation"
-                field="real_name"
-                label="姓名"
-                ><NInput v-model:value="form.real_name" :input-props="inputProps"
-              /></FormField>
-              <FormField
-                v-slot="{ inputProps }"
-                :validation="validation"
-                field="student_no"
-                label="学号"
-                ><NInput v-model:value="form.student_no" :input-props="inputProps"
-              /></FormField>
-              <FormField v-slot="{ inputProps }" :validation="validation" field="email" label="邮箱"
-                ><NInput v-model:value="form.email" :input-props="inputProps"
-              /></FormField>
-              <FormField
-                v-slot="{ inputProps }"
-                :validation="validation"
-                field="phone_number"
-                label="手机号"
-                ><NInput v-model:value="form.phone_number" :input-props="inputProps"
-              /></FormField>
-            </div>
-            <div class="editor-actions">
-              <NButton attr-type="submit" type="primary" :loading="saving">重新提交审核</NButton>
-            </div>
-          </NForm>
-        </SurfacePanel>
-        <SurfacePanel v-if="application" title="提交资料"
-          ><dl class="profile-grid">
-            <div>
-              <dt>姓名</dt>
-              <dd>{{ application.submitted_profile.real_name }}</dd>
-            </div>
-            <div>
-              <dt>学号</dt>
-              <dd>{{ application.submitted_profile.student_no }}</dd>
-            </div>
-            <div>
-              <dt>邮箱</dt>
-              <dd>{{ application.submitted_profile.email }}</dd>
-            </div>
-            <div>
-              <dt>手机号</dt>
-              <dd>{{ application.submitted_profile.phone_number }}</dd>
-            </div>
-          </dl></SurfacePanel
-        >
-      </div>
-    </NSpin>
+          <div class="editor-actions">
+            <NButton attr-type="submit" type="primary" :loading="saving">重新提交审核</NButton>
+          </div>
+        </NForm>
+      </SurfacePanel>
+      <SurfacePanel v-if="application" title="提交资料"
+        ><dl class="profile-grid">
+          <div>
+            <dt>姓名</dt>
+            <dd>{{ application.submitted_profile.real_name }}</dd>
+          </div>
+          <div>
+            <dt>学号</dt>
+            <dd>{{ application.submitted_profile.student_no }}</dd>
+          </div>
+          <div>
+            <dt>邮箱</dt>
+            <dd>{{ application.submitted_profile.email }}</dd>
+          </div>
+          <div>
+            <dt>手机号</dt>
+            <dd>{{ application.submitted_profile.phone_number }}</dd>
+          </div>
+        </dl></SurfacePanel
+      >
+    </div>
   </div>
 </template>

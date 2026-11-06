@@ -3,6 +3,7 @@ import { onBeforeUnmount, ref, watch } from 'vue'
 import { NAlert, NButton, NModal } from 'naive-ui'
 import { ApiError, errorMessage } from '../../api/client'
 import { logsApi, type LogSettings } from '../../api/logs'
+import LoadingSkeleton from '../../components/ui/LoadingSkeleton.vue'
 
 const props = defineProps<{ show: boolean }>()
 const emit = defineEmits<{ 'update:show': [value: boolean]; 'access-denied': [] }>()
@@ -118,7 +119,7 @@ onBeforeUnmount(clear)
       >{{ failure }} <NButton size="small" @click="load">重新读取设置</NButton></NAlert
     >
     <NAlert v-if="notice" type="success" class="form-alert">{{ notice }}</NAlert>
-    <p v-if="!settings && !failure" role="status">正在读取采集设置…</p>
+    <LoadingSkeleton v-if="!settings && !failure" label="正在读取采集设置" />
     <template v-if="settings">
       <div class="logs-setting-section">
         <label class="logs-file-toggle"

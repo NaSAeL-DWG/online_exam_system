@@ -83,7 +83,7 @@ async function save(): Promise<void> {
 </template>
 <style scoped>
 .field-error {
-  color: #b42318;
+  color: var(--red-600);
   font-size: 12px;
 }
 .withdraw-form {

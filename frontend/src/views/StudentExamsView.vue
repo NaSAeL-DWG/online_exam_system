@@ -6,6 +6,7 @@ import PageHeader from '../components/ui/PageHeader.vue'
 import SurfacePanel from '../components/ui/SurfacePanel.vue'
 import StatusBadge from '../components/ui/StatusBadge.vue'
 import ListPager from '../components/ListPager.vue'
+import LoadingSkeleton from '../components/ui/LoadingSkeleton.vue'
 import { examPhase, examTime } from '../features/attempts/examAvailability'
 
 const { items, page, total, query, failure, loading, load, changePage } = usePagedList(
@@ -32,6 +33,7 @@ const { items, page, total, query, failure, loading, load, changePage } = usePag
       </form>
       <p class="muted attempt-list-note">仅点击开始作答才会使用一次考试机会。</p>
       <div class="student-exam-list" :aria-busy="loading">
+        <LoadingSkeleton v-if="loading" label="正在加载我的考试" />
         <article v-for="exam in items" :key="exam.id" class="student-exam-row">
           <div class="student-exam-copy">
             <RouterLink :to="`/student/exams/${exam.id}`" class="student-exam-title">{{
@@ -66,7 +68,7 @@ const { items, page, total, query, failure, loading, load, changePage } = usePag
             >
           </div>
         </article>
-        <p v-if="!items.length" class="empty-list muted">
+        <p v-if="!loading && !items.length" class="empty-list muted">
           {{ loading ? '正在加载考试…' : '暂无可查看的考试。' }}
         </p>
       </div>

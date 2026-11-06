@@ -57,6 +57,7 @@ defineProps<{ question: StaffAttemptQuestion; number: number }>()
 <style scoped>
 .question-header {
   display: flex;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
   margin-bottom: 22px;

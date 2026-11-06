@@ -1,6 +1,103 @@
 .home-section {
   min-width: 0;
 }
+.home-exam-overview {
+  display: grid;
+  gap: 20px;
+}
+.home-exam-focus {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 26px 28px;
+  background: var(--color-surface);
+  border: 1px solid var(--blue-200);
+  border-left: 4px solid var(--blue-600);
+  border-radius: 2px;
+}
+.home-exam-focus-copy {
+  min-width: 0;
+}
+.home-exam-kicker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--blue-700);
+  font-size: 12px;
+  font-weight: 600;
+}
+.home-exam-focus h2 {
+  margin: 10px 0 8px;
+  font-size: 24px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.home-exam-focus p {
+  margin: 0 0 15px;
+  color: var(--color-muted);
+  font-size: 13px;
+}
+.home-exam-focus-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 20px;
+  font-size: 13px;
+  color: var(--color-muted);
+}
+.home-overview-grid {
+  display: grid;
+  min-width: 0;
+  gap: 20px;
+}
+.home-overview-grid--split {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.home-overview-grid .surface-panel-actions {
+  font-size: 13px;
+}
+.home-record-list {
+  display: grid;
+}
+.home-record {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 17px 0;
+  border-bottom: 1px solid var(--color-border);
+  font-size: 13px;
+}
+.home-record:first-child {
+  padding-top: 0;
+}
+.home-record:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+.home-record-copy {
+  flex: 1;
+  min-width: 0;
+}
+.home-record h3 {
+  margin: 0 0 5px;
+  font-size: 14px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.home-record p {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 12px;
+}
+.home-record > a {
+  white-space: nowrap;
+}
+.home-empty {
+  margin: 6px 0;
+  color: var(--color-muted);
+  font-size: 14px;
+}
 .home-section-heading {
   display: flex;
   align-items: baseline;
@@ -37,8 +134,8 @@
 }
 .home-entry:hover {
   text-decoration: none;
-  border-color: #92b6a2;
-  background: #fbfdfb;
+  border-color: var(--blue-400);
+  background: var(--blue-50);
 }
 .home-entry-top {
   display: flex;
@@ -51,13 +148,13 @@
   height: 43px;
   display: grid;
   place-items: center;
-  color: #4b7865;
-  background: #edf4ee;
-  border-radius: 8px;
+  color: var(--blue-700);
+  background: var(--blue-50);
+  border-radius: 2px;
 }
 .home-entry-step {
   font-size: 11px;
-  color: #68766e;
+  color: var(--color-muted);
   font-variant-numeric: tabular-nums;
 }
 .home-entry h3 {
@@ -87,8 +184,20 @@
   gap: 28px;
   padding-top: 4px;
 }
-.home-secondary > .home-section:only-child {
-  max-width: 620px;
+.home-secondary--single {
+  grid-template-columns: minmax(0, 1fr);
+}
+.home-secondary--single .home-account {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 32px;
+}
+.home-secondary--single .home-account-links {
+  padding: 0;
+  border-top: 0;
+}
+.home-secondary--single .home-account-note {
+  grid-column: 1 / -1;
 }
 .home-task-list {
   background: #fff;
@@ -101,14 +210,14 @@
   display: flex;
   align-items: center;
   gap: 18px;
-  color: #617567;
+  color: var(--blue-600);
   border-bottom: 1px solid var(--color-border);
 }
 .home-task:last-child {
   border-bottom: 0;
 }
 .home-task:hover {
-  background: #f8faf7;
+  background: var(--neutral-50);
   text-decoration: none;
 }
 .home-task div {
@@ -142,12 +251,12 @@
 .home-account-avatar {
   width: 40px;
   height: 40px;
-  border-radius: 50%;
+  border-radius: 2px;
   display: grid;
   place-items: center;
-  color: #57715f;
-  background: #edf3ed;
-  border: 1px solid #dde7dc;
+  color: var(--blue-700);
+  background: var(--blue-50);
+  border: 1px solid var(--blue-200);
   font-weight: 600;
 }
 .home-account-identity strong {
@@ -169,7 +278,7 @@
   display: flex;
   align-items: center;
   gap: 11px;
-  color: #516d5a;
+  color: var(--color-primary);
   padding: 9px 0;
   font-size: 13px;
 }
@@ -184,6 +293,9 @@
   color: var(--color-muted);
 }
 @media (max-width: 1100px) {
+  .home-overview-grid--split {
+    grid-template-columns: minmax(0, 1fr);
+  }
   .home-preparation {
     gap: 12px;
   }
@@ -200,6 +312,23 @@
   }
 }
 @media (max-width: 700px) {
+  .home-secondary--single .home-account {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .home-exam-focus {
+    align-items: flex-start;
+    flex-direction: column;
+    padding: 22px 20px;
+  }
+  .home-exam-focus h2 {
+    font-size: 21px;
+  }
+  .home-record {
+    flex-wrap: wrap;
+  }
+  .home-record-copy {
+    flex-basis: 100%;
+  }
   .home-preparation {
     grid-template-columns: minmax(0, 1fr);
   }

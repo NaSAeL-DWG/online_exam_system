@@ -5,6 +5,7 @@ import { NAlert, NButton, useDialog } from 'naive-ui'
 import { gradingStatusLabels, taskStatusLabels, type StaffAttemptDetail } from '../api/grading'
 import PageHeader from '../components/ui/PageHeader.vue'
 import SurfacePanel from '../components/ui/SurfacePanel.vue'
+import LoadingSkeleton from '../components/ui/LoadingSkeleton.vue'
 import StatusBadge from '../components/ui/StatusBadge.vue'
 import GradingQuestion from '../features/grading/GradingQuestion.vue'
 import GradeForm from '../features/grading/GradeForm.vue'
@@ -12,6 +13,9 @@ import GradingHistory from '../features/grading/GradingHistory.vue'
 import ReassignTask from '../features/grading/ReassignTask.vue'
 import { useGradingWorkspace } from '../features/grading/useGradingWorkspace'
 import { useUnsavedChanges } from '../composables/useUnsavedChanges'
+import { useAuthStore } from '../stores/auth'
+const auth = useAuthStore()
+const canGrade = computed(() => auth.user?.user_type === 'TEACHER')
 const route = useRoute()
 const dialog = useDialog()
 const { attempt, loading, saving, failure, success, needsReload, load, grade } =
@@ -117,7 +121,7 @@ onMounted(load)
       }}</NButton></NAlert
     >
     <NAlert v-if="success" type="success">{{ success }}</NAlert>
-    <p v-if="loading && !attempt" class="muted" role="status">正在读取答卷…</p>
+    <LoadingSkeleton v-if="loading && !attempt" variant="detail" label="正在读取答卷" />
     <template v-if="attempt">
       <div class="attempt-overview">
         <div>
@@ -183,7 +187,7 @@ onMounted(load)
         </aside>
         <SurfacePanel
           ><GradingQuestion :question="current" :number="currentIndex + 1" /><GradeForm
-            v-if="current.can_grade && !attempt.results_published"
+            v-if="canGrade && current.can_grade && !attempt.results_published"
             :key="current.answer.id"
             :question="current"
             :saving="saving"

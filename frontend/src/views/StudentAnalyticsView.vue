@@ -5,6 +5,7 @@ import { analyticsApi } from '../api/analytics'
 import { questionTypeLabels } from '../api/questions'
 import PageHeader from '../components/ui/PageHeader.vue'
 import SurfacePanel from '../components/ui/SurfacePanel.vue'
+import LoadingSkeleton from '../components/ui/LoadingSkeleton.vue'
 import EChartView from '../features/analytics/EChartView.vue'
 import { barOption, formatRate, trendOption } from '../features/analytics/chartOptions'
 import { usePrivateResource } from '../features/results/usePrivateResource'
@@ -59,7 +60,7 @@ const knowledge = computed(() =>
     <NAlert v-if="failure" type="error"
       >{{ failure }} <NButton size="small" @click="load">重新加载分析</NButton></NAlert
     >
-    <p v-if="loading" class="muted" role="status">正在读取本人可见的分析数据…</p>
+    <LoadingSkeleton v-if="loading" variant="detail" label="正在读取本人可见的分析数据" />
     <template v-if="data">
       <SurfacePanel
         title="分析范围"

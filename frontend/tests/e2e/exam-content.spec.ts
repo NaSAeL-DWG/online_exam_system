@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
+import { selectNaiveOption } from './naive-select'
 
 const adminLogin = process.env.E2E_ADMIN_LOGIN
 const adminPassword = process.env.E2E_ADMIN_PASSWORD
@@ -16,7 +17,7 @@ test('教师编辑选择题和简答题时可安全预览 Markdown 与公式', a
   await login(page)
   await page.goto('/staff/questions')
   await page.getByRole('button', { name: '新建题目' }).click()
-  await page.getByLabel('题型', { exact: true }).selectOption('MULTIPLE_CHOICE')
+  await selectNaiveOption(page, page.getByRole('combobox', { name: '题型', exact: true }), '多选题')
   await page.getByLabel('科目', { exact: true }).fill('数学')
   const title = `安全预览 ${Date.now()}`
   await page
@@ -48,7 +49,7 @@ test('教师编辑选择题和简答题时可安全预览 Markdown 与公式', a
     .click()
   await expect(page.getByLabel('正确选项 1', { exact: true })).toBeChecked()
   await expect(page.getByLabel('正确选项 2', { exact: true })).toBeChecked()
-  await page.getByLabel('题型', { exact: true }).selectOption('SINGLE_CHOICE')
+  await selectNaiveOption(page, page.getByRole('combobox', { name: '题型', exact: true }), '单选题')
   await page.getByLabel('正确选项 1', { exact: true }).check()
   await page.getByRole('button', { name: '保存题目' }).click()
   await expect(page.getByRole('dialog')).toBeHidden()
@@ -57,7 +58,7 @@ test('教师编辑选择题和简答题时可安全预览 Markdown 与公式', a
     .filter({ hasText: title })
     .getByRole('button', { name: '编辑' })
     .click()
-  await page.getByLabel('题型', { exact: true }).selectOption('SHORT_ANSWER')
+  await selectNaiveOption(page, page.getByRole('combobox', { name: '题型', exact: true }), '简答题')
   await page.getByLabel('参考答案').fill('正数大于零')
   await page.getByRole('button', { name: '保存题目' }).click()
   await expect(page.getByRole('dialog')).toBeHidden()
