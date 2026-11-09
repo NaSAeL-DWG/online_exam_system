@@ -1,8 +1,8 @@
 # 快速启动指南
 
-本文档带你从零把**在线限时考试系统**在本地跑起来。
+本文档带你从零把 **在线限时考试系统** 在本地跑起来。
 
-整个系统**不需要 Docker**，本地运行包含 5 个部分：**PostgreSQL 数据库**、**Redis 缓存/队列**、**FastAPI 后端接口**、**ARQ 后台 Worker** 和 **Vite 前端页面**。
+整个系统 **不需要 Docker**，本地运行包含 5 个部分：**PostgreSQL 数据库**、**Redis 缓存/队列**、**FastAPI 后端接口**、**ARQ 后台 Worker** 和 **Vite 前端页面**。
 
 > **终端提示**：下方的手动配置命令默认使用 Bash 语法（Windows 用户推荐使用 Git Bash）。当你完成第一次环境配置和数据库迁移后，日常开发可以直接用我们提供的 PowerShell 脚本一键拉起所有服务。
 
@@ -10,7 +10,7 @@
 
 ## Windows 快速启动
 
-如果你**已经装好依赖、填好 `backend/.env` 并跑完数据库迁移**，日常启动不需要开一堆黑框，直接在仓库根目录运行：
+如果你 **已经装好依赖、填好 `backend/.env` 并跑完数据库迁移**，日常启动不需要开一堆黑框，直接在仓库根目录运行：
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\start-local.ps1
@@ -48,7 +48,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\start-local.ps1
 - **Redis**: `8`（Windows 下推荐在 WSL 中运行，需确保宿主机能访问其监听端口）
 
 **你需要提前准备好：**
-1. 在 PostgreSQL 中创建一个专门给本项目用的空数据库（**千万不要拿跑单测的测试库当日常业务库用**），并配好具备建表迁移权限的账号。
+1. 在 PostgreSQL 中创建一个专门给本项目用的空数据库（ **千万不要拿跑单测的测试库当日常业务库用** ），并配好具备建表迁移权限的账号。
 2. 启动开启了密码认证的 Redis 实例。
 3. **端口参考**：本地示例通常使用 PostgreSQL `55432`、Redis `16379`、后端 API `18000`、前端 `5173`。如果你机器上已有现成实例，使用你自己的实际端口即可。
 
@@ -82,7 +82,7 @@ test -f .env || cp .env.example .env
 
 > **安全提醒**：本地 HTTP 开发时保持 `COOKIE_SECURE=false`；正式上生产环境必须启用 HTTPS，并将 `ENVIRONMENT=production`、`COOKIE_SECURE=true`。`.env` 文件已被 Git 忽略，切勿把真实密码提交到代码库或写在命令行参数里。
 
-配置保存后，依次执行**数据库建表迁移 → 初始化管理员账号 → 启动 API 服务**：
+配置保存后，依次执行 **数据库建表迁移 → 初始化管理员账号 → 启动 API 服务**：
 
 ```bash
 uv run alembic upgrade head
@@ -90,7 +90,7 @@ uv run python -m app.cli init-admin
 uv run uvicorn app.main:app --host 127.0.0.1 --port 18000
 ```
 
-- **关于管理员账号**：系统没有网页端“注册管理员”的入口，必须通过上面的 `init-admin` 命令创建。如果数据库里已经有这个管理员了，再次运行 `init-admin` **不会**覆盖已有密码。万一忘了管理员密码，直接改 `.env` 是没用的，请按[运维指南：管理员密码重置](operations.md#管理员与会话恢复)执行重置命令。
+- **关于管理员账号**：系统没有网页端“注册管理员”的入口，必须通过上面的 `init-admin` 命令创建。如果数据库里已经有这个管理员了，再次运行 `init-admin` **不会** 覆盖已有密码。万一忘了管理员密码，直接改 `.env` 是没用的，请按[运维指南：管理员密码重置](operations.md#管理员与会话恢复)执行重置命令。
 
 ---
 

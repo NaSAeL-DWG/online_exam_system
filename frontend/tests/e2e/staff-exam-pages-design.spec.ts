@@ -396,10 +396,12 @@ test('管理员在考试详情查看进度和改派任务，不能进入评分�
 })
 
 test('保存参考稿截图用于逐页目检', async ({ page }, info) => {
+  const referenceUrl = new URL(
+    '../../../tech-docs/ui-c3-archive/design/ui-redesign/color.html',
+    import.meta.url,
+  )
   for (const name of ['staff-home', 'staff-exams', 'staff-detail', 'grading', 'grade']) {
-    await page.goto(
-      `file:///D:/codex_workspace/online-exam-system/design/ui-redesign/color.html?page=${name}`,
-    )
+    await page.goto(`${referenceUrl.href}?page=${name}`)
     await page.setViewportSize({ width: 1440, height: 1000 })
     await page.screenshot({
       path: info.outputPath(`reference-${name}-1440.png`),

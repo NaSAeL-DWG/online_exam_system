@@ -1,98 +1,103 @@
-# 前端开发说明
+# 前端工程与开发指南 (`frontend/`)
 
-前端使用 Vue 3、Vite、TypeScript、Naive UI、Vue Router、Pinia、ECharts 和 Playwright。依赖版本已锁定在 `package-lock.json`。
+本目录包含 **在线限时考试系统** 的 Vue 3 前端工程，基于 **Vue 3.5 + Vite 8 + TypeScript 5.9 + Naive UI + Vue Router 5 + Pinia 4 + ECharts 6 + KaTeX + Playwright** 构建，依赖版本严格锁定在 `package-lock.json` 中。
 
-## 页面结构与扩展
+> **全局文档索引**：首次启动步骤请看 **[快速启动指南 (`../docs/quick-start.md`)](../docs/quick-start.md)**；视觉层级与配色规范请看 **[UI 视觉设计规范 (`../docs/ui-design.md`)](../docs/ui-design.md)**。
 
-本轮整体重构的范围、设计要求和验证证据见[前端重构迭代](../docs/前端重构迭代.md)。前端按以下职责组织：
+---
 
-- `src/design/theme.ts` 与 `src/styles/`：Naive UI 主题、设计 token、共用基础样式和应用布局。页面内使用语义 token，新增样式优先放所属组件的 scoped 区域。
-- `src/components/ui/`：统一页面标题、内容面板、状态徽标和 SVG 图标；不在这些基础组件中加入业务请求。
-- `src/navigation/`：角色可见性、业务分组、当前模块和工作台入口。导航与首页共用模块声明，权限受限账号只显示其可用入口。
-- `src/views/`：页面组合及路由入口；`src/features/`：题目编辑、试卷编排等业务状态与局部界面。复杂编辑流程按职责组合，避免将所有表单和状态塞入一个页面。
-- `src/composables/usePagedList.ts`：列表页的分页、加载、失败及请求竞争处理；筛选条件和 API 调用仍由所属业务提供。
-- `src/api/` 与 `src/stores/`：公开通信契约和身份状态，视觉组件不直接处理 Cookie、刷新凭据或原始 fetch。
+## 一、目录职责与代码组织
 
-新增后续业务时，先实现对应 API 与业务模块，在 `router.ts` 声明路由及访问条件，再在 `navigation/modules.ts` 登记实际可用的入口。导航隐藏不能替代路由和后端权限检查。迭代 5 已实现公布、历史、回看、错题、教师统计与学生学习分析页面。
+前端按 **“路由视图 (`views`) + 领域特性 (`features`) + 基础组件 (`components`) + 强类型通信 (`api`)”** 分层组织，避免把几百行表单校验、并发锁协调和网络请求全部塞进单个 `.vue` 页面文件中：
 
-页面采用一个明确的 `h1`；详情页优先突出当前对象名称，状态用徽标表达。主操作放在标题区，筛选和辅助操作使用次级强调。编辑表单保留可访问标签和失败反馈，长表格局部滚动，小屏不能通过固定页面最小宽度处理。
-
-## 本地启动
-
-后端默认监听 `http://127.0.0.1:18000`，前端开发服务器会把 `/api` 代理到该地址。
-
-```bash
-npm ci
-npm run dev
+```text
+frontend/src/
+├── api/                  # 强类型 HTTP 客户端、CSRF 注入、跨标签页 Token 刷新协调、后端字段错误中文映射
+├── components/           # 全站复用的无状态/基础 UI 组件
+│   ├── ui/               # PageHeader、SurfacePanel、StatusBadge、AppSelect、LoadingSkeleton、PasswordIndicator 等
+│   └── ...               # SafeMarkdown（Markdown+KaTeX 安全渲染）、ListPager、QuestionFields、MemberPicker 等
+├── composables/          # 通用组合式函数（usePagedList 分页竞态管理、useFormValidation 就近校验、useUnsavedChanges 离开保护）
+├── design/ & styles/     # C3 视觉系统：tokens.css 色阶变量、theme.ts Naive UI 主题映射、全局布局与基础样式
+├── features/             # 按业务领域内聚的复杂状态与局部界面
+│   ├── attempts/         # 学生作答工作台：Web Locks 单页面租约、BroadcastChannel 接管协调、本地草稿与单调时钟倒计时
+│   ├── grading/          # 教师阅卷工作台：整卷读取、逐题打分表单、改分历史、标准答案更正、管理员任务改派
+│   ├── results/          # 成绩公布、撤回及敏感结果防缓存/防迟到响应回填控制
+│   ├── analytics/        # ECharts SVG 按需加载运行时、教师统计柱状图、学生趋势折线图与数据配置
+│   ├── exams/            # 考试设置表单、来源试卷选择、班级名单导入、考试快照预览
+│   ├── papers/           # 组卷编辑器、选题弹窗、题序调整与小数分值计算
+│   ├── questions/        # 题目编辑器、四类题型动态答案表单、分类标签与校验规则
+│   ├── identity/         # 账号名录、学生注册审核与密码/资料表单校验规则
+│   ├── classes/          # 教学班名录与成员维护逻辑
+│   ├── home/             # 角色工作台考试概览组件
+│   └── logs/             # 管理员系统日志查看器、实时跟随/翻阅暂停、临时 DEBUG 与文件落盘设置
+├── layouts/              # AppLayout（主工作区布局，含 204px 纯白直角侧栏）与 AuthLayout（登录/注册公共布局）
+├── navigation/           # 角色导航菜单分组声明与权限过滤（与首页工作台共用入口定义）
+├── stores/               # Pinia 认证状态存储（当前登录用户身份，绝不向 localStorage 写入敏感凭据）
+├── views/                # 30 个路由级页面视图（串联具体用户任务）
+└── router.ts             # 路由表、登录态拦截、强制改密重定向与待审核学生访问限制
 ```
 
-浏览器访问 `http://127.0.0.1:5173`。如需修改后端地址，复制 `.env.example` 为 `.env.local` 并更改 `VITE_API_TARGET`。
+---
 
-## 检查与流程测试
+## 二、核心前端机制说明
+
+### 1. C3 视觉规范与无障碍交互约定
+
+- **色彩与几何边界**：全局画布使用极浅冷灰 `#F6F7F9`（Neutral 50），内容卡片与侧栏/顶栏使用纯白 `#FFFFFF`，主操作按钮与焦点边框使用清亮蓝 Blue 600 `#2164CE`。左侧导航栏菜单项采用 **严格直角（`0 px` 圆角）+ `3 px` 蓝色内侧定位条**。新增样式必须引用 `src/styles/tokens.css` 中的语义变量，严禁硬编码旧版绿色或野生色值。
+- **自定义下拉与骨架屏**：全站下拉框统一使用 `AppSelect.vue`（带浮层阴影、支持搜索多选与完整键盘方向键/Enter/Esc 操作）；加载状态统一使用 `LoadingSkeleton.vue`（内置 3.2 秒周期的白光横扫动画，自动遵循系统“减少动态效果”偏好）。
+- **双端响应式（桌面端 + 390px 窄屏）**：每个页面保持单一明确的 `h1` 标题。宽数据表格在 390px 手机屏幕下采用 **表格容器内部局部横向滚动**，严禁设置死板的整页最小宽度导致整页出现水平滚动条。
+
+### 2. HttpOnly Cookie 认证、CSRF 与跨标签页并发刷新
+
+- `src/api/client.ts` 统一封装了所有 HTTP 通信：视图组件不直接调原生 `fetch`，也不触碰 Cookie 或 Token。
+- 所有写请求（`POST`/`PUT`/`PATCH`/`DELETE`）自动获取并携带 `X-CSRF-Token` 请求头。
+- 当 Access Token 过期需要调用 `/api/auth/refresh` 轮换单次 Refresh Token 时，客户端通过 **标签页内 Promise 合并 + 跨标签页 Web Locks** 严格串行化刷新请求，避免多个标签页同时拿同一个旧凭证去刷新而触发后端的重放吊销保护。
+
+### 3. 学生限时作答：单页面写租约与防丢草稿 (`features/attempts/`)
+
+- **详情不耗次数，开始才建答卷**：浏览 `StudentExamDetailView` 只读考试元信息，点击“开始考试”才消耗机会创建答卷。
+- **Web Locks + BroadcastChannel 单页面写保护（`pageLease.ts`）**：
+  - 每次页面加载生成独立的内存实例标识；普通刷新通过 `sessionStorage` 保留当前标签页令牌并恢复写锁。
+  - 复制出来的标签页即使带了相同 `sessionStorage` 也拿不到浏览器 Web Lock，只能处于 **只读状态**。
+  - 换设备或新开无令牌标签页进入已激活答卷时，默认只读并提示 **“主动接管”**；接管后递增服务端令牌代次（`token_generation`），通过 `BroadcastChannel` 通知旧页面立即释放写锁并转为只读。
+- **服务端权威倒计时与防抖交卷**：倒计时基于服务端返回的 `server_now`、`deadline_at` 与浏览器单调时钟（`performance.now()`）推算，修改本地电脑系统时间无法延长作答。点击手动交卷时，先等待正在防抖或传输中的保存请求完成，再列出未作答题目供考生确认。
+
+### 4. 阅卷工作台、成绩撤回防回填与按需图表 (`features/grading/` & `results/` & `analytics/`)
+
+- **专注阅卷与版本冲突保护**：`StaffAttemptView` 进入隐藏全局侧栏的 `1248 px` 专注评分工作区。首次整卷完成前仅指定阅卷教师可打分（由 API `can_grade` 控制）；首阅完成后其他激活教师可填写改分原因复核改分。若遇多人并发打分触发版本冲突，页面会保留当前老师刚填的输入并提示刷新核对，防止盲目覆盖。
+- **敏感成绩零缓存与防迟到响应回填**：历史成绩、答卷回看与错题绝不存入全局持久化缓存。每次重新读取或窗口切回重刷时，先清空旧数据并递增请求代次；如果老师刚刚撤回了成绩，此前在途的迟到旧响应会被直接丢弃，绝不会把已撤回的分数重新渲染回页面上。
+- **ECharts SVG 按需加载**：`features/analytics/` 拆分了图表运行时与柱状图/折线图按需注册模块（采用轻量清晰的 SVG 渲染器），并提供可展开的完整数据表格与统计口径说明。
+
+### 5. 故障反馈与未保存内容保护
+
+- **写操作结果不确定时的安全提示**：当修改密码或联系方式的请求发出后遭遇网络中断、无法确认服务端是否已落库时，界面会明确提示用户“请先用新密码尝试登录 / 重新读取资料核对结果”，而不是盲目诱导用户重复提交。当响应头包含 `X-Session-Cleanup: pending` 时，正常提示操作已完成。
+- **未保存离开拦截（`useUnsavedChanges.ts`）**：编辑题目、组卷、考试配置、打分或写错题笔记时，若有未保存修改，切换路由、关闭弹窗或刷新页面都会弹窗确认；但当登录会话失效或成绩被撤回失去查看权限时，会立即按安全规则退出或清空，不受离开弹窗阻拦。
+
+---
+
+## 三、本地开发、构建与端到端测试命令
+
+所有命令在 `frontend/` 目录下运行（Node.js 24）：
 
 ```bash
+# 1. 安装锁定依赖
+npm ci
+
+# 2. 启动本地开发服务器（默认监听 http://127.0.0.1:5173，并将 /api 代理到 http://127.0.0.1:18000）
+npm run dev
+
+# 3. TypeScript 类型检查与生产环境打包构建
 npm run build
+
+# 4. 代码格式检查与自动格式化（Prettier）
 npm run format:check
+npm run format
+
+# 5. 运行 Playwright 真实浏览器端到端测试（需先启动后端服务并配置 ../.local/e2e.env）
 set -a
 source ../.local/e2e.env
 set +a
-npm run test:e2e
+npm run test:e2e -- tests/e2e/student-attempt.spec.ts --workers=1
 ```
 
-浏览器流程连接真实 API、PostgreSQL 和 Redis。管理员凭据通过 `E2E_ADMIN_LOGIN`、`E2E_ADMIN_PASSWORD` 注入，不能写入仓库。`E2E_BASE_URL` 可覆盖前端地址，未提供时 Playwright 会自行启动 5173 端口的开发服务器。
-
-## API 与列表约定
-
-`src/api/auth.ts`、`identity.ts`、`teachingClasses.ts` 提供带输入和输出类型的业务操作。视图不自行拼接请求、处理 Cookie 或轮换凭据。`client.ts` 统一处理 CSRF、HttpOnly Cookie 请求、标签页内刷新合并和 Web Locks 跨标签页协调；不向 localStorage 写入认证凭据。
-
-账号、审核、教学班和教师／学生候选统一发送 `page`、`page_size`、可选 `q`，读取 `{ items, total, page, page_size }`。账号角色筛选由服务端完成；候选接口显式筛选已激活账号。列表与候选每页 20 条，通过搜索或翻页访问后续结果，不循环拉取全量数据。已选教师独立于候选页保留，编辑时从班级详情恢复姓名和 ID。班级详情的现有成员仍按需一次读取，与列表只返回人数的契约保持一致。
-
-## 故障与成功反馈
-
-- 写入成功且 `X-Session-Cleanup: pending` 时，展示“已完成，旧登录状态正在清理”等成功反馈，不重新发送业务操作。
-- 写请求已发出后连接中断，或成功响应的 JSON 无法读取时，结果可能已经保存。界面提示先核对结果；改密通过新密码重新登录确认，联系方式通过重新读取资料确认。
-- 刷新前的 503 保留当前页面并允许手动重试。刷新请求的交付中断提示重新登录，避免自动重放单次凭据。停用和失效会话清除本地身份并回到登录页；匿名访问注册页不被误跳转。
-
-## 验证范围
-
-原有 4 条注册、拒绝重申、教师首次改密、教学班维护流程继续使用真实服务。`server-pagination.spec.ts` 通过公开 API 创建 21 名教师，验证账号 20+1 分页、跨页关联和再次编辑，不替换真实业务响应。
-
-`pagination.spec.ts` 在 HTTP 边界提供确定分页数据，验证筛选、搜索复位、候选保留和列表故障重试。`auth-reliability.spec.ts` 连接真实认证及写入，只在 HTTP 交付边界注入待清理响应头、连接中断、损坏 JSON 和 503；通过用户界面及公开 API 核对结果，不 mock 内部模块或查询数据库。测试会创建独立账号及班级，建议使用本地测试环境。截图输出到 `test-results/visual/`。
-
-## 学生作答扩展
-
-学生考试列表、详情和作答分别由 `StudentExamsView`、`StudentExamDetailView`、`StudentAttemptView` 组合。`api/studentExams.ts` 对齐[迭代 3 接口契约](../docs/迭代3接口契约.md)，详情不读取题目，主动开始才使用机会。最新提交只显示收据与待判分／人工阅卷／已批改状态；提交后清空题目界面，已批改也不提前开放回看或成绩。
-
-`features/attempts/` 按实际职责拆分：`AttemptQuestion.vue` 展示四类题和保存状态；`useAttemptWorkspace.ts` 编排读取、逐题保存、冲突反馈和交卷；`pageLease.ts` 持有按用户与作答命名的 Web Lock，通过 BroadcastChannel 协调主动接管；`answerDrafts.ts` 管理答案空值、草稿与版本；`examAvailability.ts` 提供时间和资格反馈。
-
-页面实例标识每次加载重新生成，不放进可复制的 sessionStorage。普通刷新保留原令牌，取得浏览器写锁后恢复；复制标签页即使复制了令牌也只能只读。新浏览器或设备没有原令牌时，已激活的答卷默认只读，必须主动接管；首次自动激活携带 `expected_generation: 0`，由服务端锁内比较防止两台新设备同时抢到初始权限。主动接管释放旧页面写锁，并使用服务端新令牌代次；先读取服务器答案，放弃陈旧草稿。离开页面会停止写入，浏览器返回缓存页面时重新取得锁并确认令牌。每次加载和权限变更递增前端代次，在途响应不能修改下一代页面状态或草稿。
-
-本地草稿以用户、考试、作答命名，并记录逐题已确认答案版本、最新输入，以及响应不确定时已发出的值与版本。重试和刷新先通过 HTTP 核对服务器版本，仍在截止前才保存；用户改回旧值或清空也保留最新意图。倒计时使用服务器 `server_now`、固定 `deadline_at` 和浏览器单调时钟展示，设备时间变化不能延长作答。交卷先同步防抖和在途保存，再列出空题确认；到期只显示服务端自动交卷事实，未上传草稿不能补传。待检查标记仅作为当前作答辅助，保存在页面会话中。
-
-`student-attempt.spec.ts` 连接真实 PostgreSQL、Redis、API 和 worker，覆盖开始、四类答案、刷新、固定截止时间、防抖交卷、空题确认、复制页接管、响应丢失及离线恢复、截止拒绝、版本冲突、资格撤销和整场取消。故障只在浏览器网络或公开 HTTP 交付边界注入。保持单 worker，并指定独立输出目录，避免多个测试进程争用产物：
-
-```bash
-PLAYWRIGHT_EXTERNAL_SERVER=1 npm run test:e2e -- tests/e2e/student-attempt.spec.ts --workers=1 --output=../.local/iteration3-frontend/check --reporter=list
-```
-
-运行前按上文从 `.local/e2e.env` 加载私有凭据，不将凭据或本地报告提交到仓库。
-
-## 自动判分与人工阅卷
-
-`api/grading.ts` 对齐[迭代 4 接口契约](../docs/迭代4接口契约.md)，集中定义答卷、任务、单题评分、历史和最终成绩的类型。`GradingTasksView` 提供我的任务、待指派、完成与全部任务；管理员默认待指派，教师默认自己的任务。考试详情中的答卷与成绩区域按需挂载 `ExamAttemptList` 或 `ExamFinalResults`，保留服务端分页与学生搜索。最终成绩先选择最后一次有效提交；该次待批改时不展示此前成绩。
-
-`StaffAttemptView` 组合整卷概览、题目导航、答案与评分表单。`features/grading/useGradingWorkspace.ts` 编排整卷读取和逐题保存；评分成功以服务端完整答卷更新单题、任务、权限与总分。`GradeForm` 只处理分值、评语、改分原因和未保存状态；首次整卷完成前的指定教师权限直接使用 API 的 `can_grade`。版本冲突保留输入并阻止旧版本重试，明确确认后重新读取。纯客观题或全空简答不显示首阅限制。
-
-`GradingHistory` 按需读取单题历史；`ReassignTask` 为管理员提供分页激活教师候选和必填改派原因。`StandardCorrection` 仅编辑标准答案、简答依据、解析与更正原因，题干、选项和分值仍锁定；重判中的旧题分清楚标注为旧依据评分。`WithdrawResults` 提供先撤回再更正的入口，`features/results/PublishResults.vue` 提供独立的整场公布操作，前置检查以服务端为准。
-
-`grading-workspace.spec.ts` 通过真实公开 HTTP 创建独立教师、学生、快照与提交，浏览器验证整卷首阅、后续改分、并发冲突、历史、停用改派、依据更正、最终成绩和学生收据可见性。测试不访问数据库或 mock 内部模块，后台正常运行；本地证据统一输出到 `.local/iteration4-frontend/`，不提交凭据与运行产物。
-
-## 结果、错题与学习分析
-
-`api/results.ts`、`mistakes.ts`、`analytics.ts` 集中定义结果与统计契约。`features/results/` 负责结果状态、快照展示和当前页面敏感数据请求；每次重读先清空旧结果，取消旧请求，并阻止过期响应恢复已隐藏内容。历史、错题使用服务端筛选分页，不在全局 store 缓存成绩或标准答案。
-
-`features/analytics/` 拆分教师统计面板、图表选项、共用 ECharts 运行时和柱形／折线注册模块，采用 SVG 渲染器。教师柱图不预先加载折线模块；学生分析展示各场最终得分率趋势、题型表现和知识点错题分布，并保留可展开的完整数据表。无样本显示空态，公开考试不显示虚构应考分母，禁止回看的场次只进入本人总分趋势。
-
-2026-10-09 完成迭代 5：学生分析 red → green；13 条真实浏览器组合回归（本轮 9 条、相关旧流程 4 条）通过，构建、格式及 6 个页面的 1280／390 px 截图验收通过。结果表格支持局部横向滚动，手机直接显示作答与得分。独立边界测试 `results-boundaries.spec.ts` 通过真实响应延迟交付验证撤回后旧内容不会回填，并检查公布失败与回看限制；不 mock 业务。
-
-最终证据在 `.local/iteration5-resume/`，完整记录见本地 `docs/迭代5验证记录.md`。此前暂停交接仅作为过程记录，不能用其未完成项覆盖本次最终状态。`docs/` 不再由 Git 追踪，服务结束后按用户要求关闭。
+> **提示**：如果需要自定义后端 API 代理地址，可复制 `.env.example` 为 `.env.local` 并修改 `VITE_API_TARGET`。浏览器访问请全程固定使用 `http://127.0.0.1:5173`，切勿与 `localhost` 混用。更多测试说明请参阅 **[测试与验证指南 (`../docs/testing.md`)](../docs/testing.md)**。

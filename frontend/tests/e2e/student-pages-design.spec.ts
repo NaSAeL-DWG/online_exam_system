@@ -409,10 +409,16 @@ test('交卷完成展示真实提交类型与后续入口', async ({ page }, inf
 })
 
 test('生成本地设计稿逐页参考截图供目检', async ({ page }, info) => {
-  const html = await readFile(
-    new URL('../../../design/ui-redesign/color.html', import.meta.url),
-    'utf8',
+  const referenceUrl = new URL(
+    '../../../tech-docs/ui-c3-archive/design/ui-redesign/color.html',
+    import.meta.url,
   )
+  let html = ''
+  try {
+    html = await readFile(referenceUrl, 'utf8')
+  } catch {
+    test.skip(true, '本地归档参考稿未找到，跳过参考截图生成')
+  }
   await page.route('http://c3-reference.local/**', (route) =>
     route.fulfill({ contentType: 'text/html', body: html }),
   )

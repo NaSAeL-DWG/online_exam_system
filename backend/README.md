@@ -1,68 +1,114 @@
-# 后端维护说明
+# 后端工程与维护指南 (`backend/`)
 
-业务按模块组织于 `app/modules/`，身份、认证、教学班以及题库、试卷、考试、作答和阅卷各自维护职责。HTTP 路由负责参数、依赖和 Cookie；顶层业务用例持有事务；CRUD 负责 ORM 读写、锁刷新、分页和聚合。`app/models.py` 仅注册 Alembic 元数据，`app/config.py`、`app/db.py` 保留已有基础设施导入兼容入口。被替换的旧文件归档在项目 `.deletedfiles/backend-round1/`。
+本目录包含 **在线限时考试系统** 的 FastAPI 后端服务、ARQ 异步 Worker、CLI 运维工具、Alembic 数据库迁移及 HTTP 集成测试。
 
-身份依赖使用独立只读 Session，输出包含公开资料和认证版本的不可变快照。写用例用新 Session 事务重读身份，按用例取得共享或排他锁并使用 `populate_existing` 后检查状态、角色和版本。CLI 的前置读取明确 rollback，随后复用同一密码重置用例。下级组合操作不提交事务；业务数据、认证版本和审计一起提交。
+> **全局文档索引**：首次配置环境变量与启动步骤请看 **[快速启动指南 (`../docs/quick-start.md`)](../docs/quick-start.md)**；全局架构规范请看 **[架构设计与开发规范 (`../docs/development.md`)](../docs/development.md)**。
 
-列表统一接受 `page`（默认 1）、`page_size`（默认 20，最大 100）、`q`，返回 `items/total/page/page_size`。原角色、状态过滤保持不变。教学班列表只聚合学生人数，批量读取教师；详情才读取学生。带教师的 1 班与 4 班列表均为 6 次 SELECT（含认证身份读取），响应映射不执行查询。班级详情成员暂不分页。
+---
 
-## 会话清理补偿
+## 一、目录结构与模块划分
 
-迁移 `0002_session_cleanup` 增加持久任务，和改密、联系方式、账号状态或密码重置同事务提交。数据库提交后清理失败仍返回原 200/204 成功状态，响应头 `X-Session-Cleanup: pending` 表示待补偿，`complete` 表示清理完成。浏览器不应重放已经完成的写操作。允许的跨源请求可读取该响应头。
+后端采用 **按业务领域切分的三层模块化单体架构**，所有业务模块位于 `app/modules/` 下：
 
-数据库 `auth_version` 持续拒绝旧会话，即使 Redis 旧行尚未清理。任务记录撤销版本上界，Redis Lua 仅删除版本低于该上界的会话；迟到重试不删除重置后新登录的会话。联系方式任务只清理密码验证计数。
-
-在配置好对应环境后运行：
-
-```bash
-uv run alembic upgrade head
-uv run python -m app.cli retry-session-cleanups --limit 100
+```text
+backend/
+├── app/
+│   ├── core/                 # 全局基础设施（配置、数据库连接、时钟、错误码、统一中文校验转换、运行日志缓冲）
+│   ├── modules/              # 12 个独立业务模块（每个模块内含 router / service / crud / models / schemas）
+│   │   ├── auth/             # 登录、HttpOnly Cookie 签发、单次 Refresh Token 轮换、CSRF、会话清理补偿
+│   │   ├── identity/         # 管理员/教师/学生账号、学生注册审核、密码重置、操作审计记录
+│   │   ├── teaching_class/   # 教学班管理、多教师关联、班级学生成员维护
+│   │   ├── asset/            # 题目图片上传、本地持久化存储与实时鉴权读取
+│   │   ├── question/         # 共享题库（单选/多选/判断/简答）、分类筛选、关闭归档
+│   │   ├── paper/            # 共享试卷编排、题序调整、小数分值汇总
+│   │   ├── exam/             # 考试创建、独立考试快照深拷贝、考生资格名单、发布/撤回/取消、结果公布
+│   │   ├── attempt/          # 学生限时作答、固定截止时间、单页面写租约（Page Lease）、逐题保存、交卷
+│   │   ├── grading/          # 客观题自动判分、整卷人工阅卷任务均分、首阅与留痕改分、标准答案更正重判
+│   │   ├── results/          # 学生成绩历史、最终成绩计算（取最后一次有效提交）、受保护快照回看
+│   │   ├── mistake/          # 错题自动归集、多维筛选、个人复习笔记与“已掌握”标记
+│   │   ├── analytics/        # 教师端考试统计分布、学生端个人得分率趋势与知识点掌握分析
+│   │   └── logging/          # 管理员运行日志查询、累加等级过滤、15 分钟临时 DEBUG 采集、文件轮转导出
+│   ├── workers/              # ARQ 异步任务与纯 PostgreSQL 故障恢复命令（attempts / grading / recovery）
+│   ├── demo/                 # 通过公开 HTTP 接口生成可重复演示数据的工具（python -m app.demo）
+│   ├── cli.py                # 运维 CLI（init-admin / reset-admin / retry-session-cleanups / logging-check）
+│   └── main.py               # FastAPI 应用入口与中间件挂载
+├── migrations/               # Alembic 数据库版本迁移（0001 ~ 0018）
+├── scripts/                  # 100 人并发压测脚本（verify_concurrency.py）与启动脚本测试
+└── tests/                    # 基于真实 PostgreSQL / Redis 的 HTTP 集成测试套件
 ```
 
-该命令每次处理最多 100 个待完成任务，输出 `attempted/completed/pending/failed` JSON。部署维护程序应定期调用，并监测 pending/failed；本轮未加入进程内定时器或自动调度器。单次恢复后若 pending 大于零，继续执行直至清空。每次尝试记录 attempts、last_attempt_at、last_error（仅异常类型），成功记录 completed_at；重复执行不产生重复业务审计。Redis 暂时不可用时任务继续保留，命令仍输出待处理数量；不能只根据进程退出码判断是否全部恢复。任务保留用于运维观察，暂未增加自动清理历史任务的策略。
+### 核心分层铁律
+1. **三层边界（`router → service → crud`）**：
+   - `router` 只管请求参数、依赖注入、CSRF 和 Cookie，不直接查 ORM、不提交事务。
+   - `service` 掌管资源权限校验、状态流转、操作审计和 **顶层数据库事务（一个写用例一次 `commit`）**，下级被调用的函数严禁私自提前 `commit`。
+   - `crud` 只管 SQLAlchemy/SQLModel 查询、行锁（`with_for_update`）、分页与 `flush`，不做业务权限判断。
+2. **读写会话与行锁刷新**：
+   - 鉴权依赖使用独立的只读 Session，返回包含公开资料与 `auth_version` 的不可变身份快照。
+   - 写操作在独立的新事务 Session 中重新锁定并读取实体（配合 `populate_existing`），拿到数据库最新状态和版本号后再执行业务判断。
+3. **统一分页与精度约定**：
+   - 所有列表接口统一接收 `page`（默认 1）、`page_size`（默认 20，最大 100）和可选搜索词 `q`，返回 `{ items, total, page, page_size }`。
+   - 拒绝 N+1 查询：例如教学班列表仅聚合学生人数并批量读取关联教师，进入班级详情时才按需读取学生名单。
+   - 所有分值与比率在 JSON 中一律使用十进制字符串传输，后端内部一律使用 `Decimal` 计算。
 
-## 刷新与故障边界
+---
 
-刷新先读取会话，再锁定用户并校验状态和版本，构造响应及 Access Token，最后执行 Redis 原子 CAS。数据库检查失败返回 `503 DATABASE_UNAVAILABLE`，原刷新凭据可重试。与停用、重置的用户行锁形成明确先后关系，旧版本即使已取得 Access Token 也不能继续访问。Redis 故障返回 `503 AUTH_SERVICE_UNAVAILABLE`，认证失败关闭。
+## 二、核心技术机制说明
 
-Refresh Token 单次使用：CAS 竞争仅一个请求成功，旧凭据重放会撤销该会话。若 CAS 成功后响应丢失，服务端不能判断浏览器是否拿到新 Cookie；旧凭据重试得到 `401 SESSION_INVALID`，用户需要重新登录。此策略不承诺无感网络恢复。客户端必须协调并发刷新。
+### 1. 认证安全、Refresh Token 单次轮换与会话清理补偿
+- **Refresh Token 原子轮换（CAS）**：刷新令牌时先读取会话，再加锁校验数据库用户状态与 `auth_version`，最后通过 Redis Lua 脚本执行原子 CAS 替换。旧 Refresh Token 一旦被重放会立即吊销整条会话；若刷新途中数据库暂不可用返回 `503 DATABASE_UNAVAILABLE`（原令牌仍可重试），若 Redis 不可用则返回 `503 AUTH_SERVICE_UNAVAILABLE`（绝不降级放行）。
+- **会话清理异步补偿（`0002_session_cleanup`）**：当修改密码、重置密码或停用账号在 PostgreSQL 事务中提交成功（`auth_version` 已递增并能立即拦截旧请求），但随后清理 Redis 旧会话时网络闪断，接口仍正常返回 `200`/`204` 并附带响应头 `X-Session-Cleanup: pending`（告知前端业务已生效，切勿重发写请求）。Redis 恢复后可通过 CLI 批量补偿清理：
+  ```bash
+  uv run python -m app.cli retry-session-cleanups --limit 100
+  ```
+  *(注：Lua 脚本仅清理版本号低于撤销时上界的旧会话，不会误删用户用新密码重新登录产生的新会话。)*
 
-## 验证
+### 2. 限时作答、客观题判分与人工阅卷恢复
+- **作答与写租约（`attempt`）**：服务端固定计算 `deadline_at`（取个人时长与考试结束时间较早值），通过 `page_token` 与 `active_token_generation` 代次保证同一份答卷同时只有一个活动页面拥有写权限，每次保存校验答案修订号。
+- **判分与派单（`grading`）**：学生交卷后向 ARQ 队列投递带评分修订号的任务；等整场考试结束且所有有效答卷均完成交卷和客观题自动判分后，系统自动将含非空简答题的答卷按“整份答卷”均分给指定的激活阅卷教师。教师更正单道题的评分标准时，仅重判受影响题目，完好保留其他题目的得分与首阅完成事实。
+- **队列故障纯数据库补偿**：如果 Redis 队列暂时不可用，已落库的答卷绝不丢失。常驻 Worker 每 30 秒扫描一次数据库待办；运维也可直接运行纯依赖 PostgreSQL 的手动补偿命令：
+  ```bash
+  # 常驻 Worker 启动命令
+  uv run arq app.workers.attempts.WorkerSettings
 
-按变更范围选择相关测试文件，不要求每次执行全部测试。完整测试入口及静态检查如下：
+  # Redis 队列故障时的手动补偿命令（仅依赖 PostgreSQL）
+  uv run python -m app.workers recover-attempts --limit 100
+  uv run python -m app.workers recover-grading --limit 100
+  ```
+
+### 3. 成绩公布、错题与学习分析
+- **成绩公布与撤回（`exam/publication.py` & `results`）**：在考试行锁下确认全部有效答卷及人工阅卷任务完成后，才允许公布结果。最终成绩严格取每名学生 **最后一次有效提交** （若该次仍在批改中，最终成绩为空/待批改，绝不回退展示上一次的旧分数）。撤回结果、撤销资格、取消考试或关闭回看开关，都会同步拦截答卷详情、受保护题目图片与学习分析的读取。
+- **错题与统计（`mistake` & `analytics`）**：已公布且允许回看的有效答卷中，未满分的题目自动进入错题本（个人笔记与掌握标记存储在独立的 `0015_mistake_annotations` 表中，不影响原答卷）。统计模块实时查询数据库，公开考试不虚构应考人数分母，无样本指标返回空值。
+
+---
+
+## 三、常用开发、迁移与测试命令
+
+所有命令在 `backend/` 目录下运行（依赖由 `uv.lock` 锁定在 Python 3.13）：
 
 ```bash
+# 1. 安装/同步锁定依赖
+uv sync --locked --python 3.13
+
+# 2. 数据库迁移与模型一致性检查
+uv run alembic upgrade head
+uv run alembic check
+
+# 3. 初始化或重置系统管理员（读取 backend/.env 中的 ADMIN_* 配置）
+uv run python -m app.cli init-admin
+uv run python -m app.cli reset-admin
+
+# 4. 启动本地开发 API 服务
+uv run uvicorn app.main:app --host 127.0.0.1 --port 18000
+
+# 5. 代码静态检查与格式化检查
+uv run ruff check app tests migrations
+uv run ruff format --check app tests migrations
+
+# 6. 运行真实 PostgreSQL / Redis 集成测试（需先准备隔离的 ../.local/backend-test.env）
 set -a
 source ../.local/backend-test.env
 set +a
 uv run python -m pytest -q --tb=short
-uv run ruff check app tests migrations
-uv run ruff format --check app tests migrations
 ```
 
-测试依赖真实 PostgreSQL/Redis；`--tb=short` 避免失败时展示包含连接配置的 fixture 局部变量。保留迭代 1 的 18 项 HTTP 验收；本轮另有响应白名单/OpenAPI、依赖方向、分页 SQL 数量、提交后故障和 CLI 重试、刷新数据库故障/重放/竞态、先认证再并发重置或停用的用例。各次真实红绿结果由项目 `docs/` 统一记录。
-
-## 作答、判分与人工阅卷
-
-`attempt` 负责固定截止、单页面写权限、答案版本和可靠提交；`grading` 负责自动题分、整卷任务、人工改分、不可变历史和最终成绩查询。HTTP 与独立 `workers` 复用公开业务用例，跨模块通过服务能力组合，数据库作为业务状态依据。完整契约见[迭代 3](../docs/迭代3接口契约.md)与[迭代 4](../docs/迭代4接口契约.md)。
-
-交卷后投递包含评分修订的任务，持久扫描补偿队列失败。考试结束且有效作答提交／自动判分完成后才均分人工任务；`grading_assignment_pending` 使每轮扫描只读取待办。更正单题只使该题失效，保留无关题分和首次整卷完成事实，当前任务完成状态与新修订的答卷汇总一致。最后有效提交尚未判完时最终成绩为空。
-
-API 与 worker 分进程启动，执行 `uv run alembic upgrade head` 迁移到 `0015` 后运行：
-
-```bash
-uv run python -m app.workers worker
-# 队列不可用时，按顺序补交、补判；命令仅依赖 PostgreSQL 业务状态。
-uv run python -m app.workers recover-attempts --limit 100
-uv run python -m app.workers recover-grading --limit 100
-```
-
-详细运行配置、恢复输出和最终验证范围见本地[运行文档](../docs/本地运行.md)及[迭代 4 验证记录](../docs/迭代4验证记录.md)。学生收据保持只展示提交／判分进度；授权后的成绩由独立结果 API 提供。
-
-## 结果公布与学习反馈
-
-`exam/publication.py` 在考试事务锁下检查全部有效作答与人工任务完成后公布；`results` 统一本人结果可见性，提供历史与持久快照回看；`mistake` 按全部可见错误答案提供分页、备注与掌握标记，迁移 `0015` 仅新增独立标记表。撤回、资格撤销、取消和回看开关同样限制图片与分析读取。
-
-`analytics` 查询当前数据库状态，教师统计使用每人最后一次有效提交，未判完不回退旧分或按零分计算；学生总分趋势仅纳入已公布有效结果，题型和知识点细节还要求允许回看。分值用十进制字符串，比率为 0—1 四位小数字符串，无样本指标返回空值。
-
-2026-10-09 完成迭代 5 验收。后端核心及相关回归 12 项、独立 HTTP 验收 7 项通过，独立空库迁移往返和模型检查通过；本次前端续接未修改后端，沿用这些证据并通过最终真实浏览器联调。详细命令与验证记录保存在本地 `docs/迭代5验证记录.md`，`docs/` 不再提交到仓库。
+> **提示**：日常开发请根据你修改的模块按需选择 `tests/test_*_api.py` 运行，不必每次跑全量测试。`--tb=short` 可避免测试报错回溯时打印包含连接串的 fixture 局部变量。更多测试细节请参阅 **[测试与验证指南 (`../docs/testing.md`)](../docs/testing.md)**。

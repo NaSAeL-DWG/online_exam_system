@@ -1,6 +1,6 @@
 # 测试与验证指南
 
-本项目坚持**测试驱动开发（TDD）**与**真实环境验证**。
+本项目坚持 **测试驱动开发（TDD）** 与 **真实环境验证**。
 
 简单来说，我们的测试有两条铁律：
 1. **先红后绿**：新增或修改公开行为时，先写一个会失败的测试，再写实现代码让它通过。
@@ -38,7 +38,7 @@ uv run python -m pytest -q tests/test_results_api.py tests/test_analytics_api.py
 ```
 
 **测试类型说明：**
-- 如果你改了**学生作答 (`attempt`) 或阅卷 (`grading`)**，请务必跑上对应的并发锁、权限边界或独立 Worker 恢复测试。
+- 如果你改了 **学生作答 (`attempt`) 或阅卷 (`grading`)**，请务必跑上对应的并发锁、权限边界或独立 Worker 恢复测试。
 - 大多数 `test_*_api.py` 通过进程内 ASGI 客户端直接调用真实数据库和 Redis；文件名带 `recovery` 的可靠性测试则会真实拉起独立的 API / Worker 子进程来验证崩溃恢复。
 
 ### 3. 静态代码检查与迁移一致性检查
@@ -49,14 +49,14 @@ uv run ruff check app tests
 uv run alembic check
 ```
 
-> **提示**：运行 `alembic check` 前，需要先确保当前环境变量指向的开发库或测试库已经执行过 `uv run alembic upgrade head`，否则它会提示数据库版本落后。如果你想测试迁移脚本的“升级 → 降级 → 再升级”往返是否无误，请务必在一个**新建的、可随时丢弃的空库**里操作，详见 **[日常运维与故障恢复：数据库升级与回滚](operations.md#数据库升级与回滚)**。
+> **提示**：运行 `alembic check` 前，需要先确保当前环境变量指向的开发库或测试库已经执行过 `uv run alembic upgrade head`，否则它会提示数据库版本落后。如果你想测试迁移脚本的“升级 → 降级 → 再升级”往返是否无误，请务必在一个 **新建的、可随时丢弃的空库** 里操作，详见 **[日常运维与故障恢复：数据库升级与回滚](operations.md#数据库升级与回滚)**。
 
 ---
 
 ## 二、前端构建检查与 Playwright 浏览器测试
 
 ### 1. 启动被测环境与准备凭据
-Playwright 端到端（E2E）测试需要连接真实运行的后端 API、ARQ Worker、PostgreSQL 和 Redis（测试过程中会自动通过公开 API 创建带唯一标识的测试账号、试卷、考试和答卷，**严禁对着生产环境跑 E2E 测试**）。
+Playwright 端到端（E2E）测试需要连接真实运行的后端 API、ARQ Worker、PostgreSQL 和 Redis（测试过程中会自动通过公开 API 创建带唯一标识的测试账号、试卷、考试和答卷，**严禁对着生产环境跑 E2E 测试** ）。
 
 先在 `.local/e2e.env` 中配好测试环境的管理员账号密码：
 
