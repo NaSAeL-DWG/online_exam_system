@@ -60,6 +60,7 @@ async function submit(): Promise<void> {
 <template>
   <div class="auth-form">
     <header class="auth-task-header">
+      <div class="page-eyebrow">WELCOME BACK</div>
       <h1>账号登录</h1>
       <p>使用学号、工号或管理员账号登录。</p>
     </header>
@@ -88,5 +89,6 @@ async function submit(): Promise<void> {
     <p class="auth-switch">
       <span>首次使用的学生</span><RouterLink to="/register">学生注册</RouterLink>
     </p>
+    <p class="auth-login-help">忘记密码或无法登录时，请联系管理员核验身份或重置密码。</p>
   </div>
 </template>

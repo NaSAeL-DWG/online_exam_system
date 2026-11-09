@@ -6,6 +6,7 @@ import QuestionPicker from '../components/QuestionPicker.vue'
 import ListPager from '../components/ListPager.vue'
 import PageHeader from '../components/ui/PageHeader.vue'
 import SurfacePanel from '../components/ui/SurfacePanel.vue'
+import LoadingSkeleton from '../components/ui/LoadingSkeleton.vue'
 import StatusBadge from '../components/ui/StatusBadge.vue'
 import AppIcon from '../components/ui/AppIcon.vue'
 import PaperQuestionList from '../features/papers/PaperQuestionList.vue'
@@ -38,6 +39,7 @@ const {
   persist,
 } = usePaperEditor(load)
 const formRoot = ref<HTMLFormElement | null>(null)
+const pickerVisible = ref(false)
 const questionList = ref<InstanceType<typeof PaperQuestionList> | null>(null)
 const errorPrefix = useId()
 const { errors, validate, resetValidation } = useContentValidation(() => {
@@ -74,7 +76,11 @@ function archive(): void {
 </script>
 <template>
   <div class="page-stack">
-    <PageHeader title="共享试卷" description="挑选题目，安排顺序与分值，为考试准备试卷。"
+    <PageHeader
+      v-if="!visible"
+      eyebrow="PREPARATION / PAPERS"
+      title="共享试卷"
+      description="从题库挑选题目、设置分值，组合为可重复使用的试卷。"
       ><template #actions
         ><NButton type="primary" @click="create"
           ><template #icon><AppIcon name="plus" :size="17" /></template>新建试卷</NButton
@@ -85,7 +91,7 @@ function archive(): void {
       >{{ failure || editorFailure }}
       <NButton size="small" @click="load">重新加载试卷</NButton></NAlert
     >
-    <SurfacePanel>
+    <template v-if="!visible">
       <form class="toolbar" @submit.prevent="changePage(1)">
         <input
           v-model="query"
@@ -95,66 +101,74 @@ function archive(): void {
         /><NButton attr-type="submit" :loading="loading">查询试卷</NButton
         ><span class="toolbar-meta">共 {{ total }} 张试卷</span>
       </form>
-      <div class="table-region" :aria-busy="loading">
-        <table class="paper-table">
-          <thead>
-            <tr>
-              <th>试卷名称</th>
-              <th>题数</th>
-              <th>总分</th>
-              <th>状态</th>
-              <th class="action-cell">操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="paper in items" :key="paper.id">
-              <td>
-                <strong>{{ paper.title }}</strong>
-                <p v-if="paper.description" class="paper-description">{{ paper.description }}</p>
-              </td>
-              <td>{{ paper.question_count }} 道</td>
-              <td>
-                <span class="score">{{ paper.total_score }}</span
-                ><span class="muted"> 分</span>
-              </td>
-              <td>
-                <StatusBadge
-                  :label="paper.status === 'ACTIVE' ? '使用中' : '已归档'"
-                  :tone="paper.status === 'ACTIVE' ? 'success' : 'neutral'"
-                />
-              </td>
-              <td class="action-cell">
-                <NButton size="small" @click="edit(paper.id)">编辑</NButton>
-              </td>
-            </tr>
-            <tr v-if="!items.length">
-              <td colspan="5" class="empty-state">
-                {{ loading ? '正在加载试卷…' : '没有找到试卷，可调整搜索或新建试卷。' }}
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      <ListPager
-        label="试卷"
-        :page="page"
-        :page-size="20"
-        :total="total"
-        :loading="loading"
-        @change="changePage"
-      />
-    </SurfacePanel>
-    <NModal
-      :show="visible"
-      @update:show="closeEditor"
-      preset="card"
-      :title="selected ? '编辑试卷' : '新建试卷'"
-      class="responsive-modal responsive-modal--composer"
-      :content-style="{ minHeight: '0', overflow: 'auto' }"
-      :mask-closable="false"
-      :closable="!saving"
-      :close-on-esc="!saving"
-    >
+      <SurfacePanel class="paper-list-panel">
+        <LoadingSkeleton v-if="loading && !items.length" variant="table" label="正在加载试卷" />
+        <div v-else class="table-region" :aria-busy="loading">
+          <table class="paper-table">
+            <thead>
+              <tr>
+                <th>试卷名称</th>
+                <th>题量 / 总分</th>
+                <th>状态</th>
+                <th class="action-cell">操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="paper in items" :key="paper.id">
+                <td>
+                  <strong>{{ paper.title }}</strong>
+                  <p v-if="paper.description" class="paper-description">{{ paper.description }}</p>
+                </td>
+                <td>
+                  {{ paper.question_count }} 题 / <span class="score">{{ paper.total_score }}</span
+                  ><span class="muted"> 分</span>
+                </td>
+                <td>
+                  <StatusBadge
+                    :label="paper.status === 'ACTIVE' ? '使用中' : '已归档'"
+                    :tone="paper.status === 'ACTIVE' ? 'success' : 'neutral'"
+                  />
+                </td>
+                <td class="action-cell">
+                  <NButton size="small" @click="edit(paper.id)">编辑组卷</NButton>
+                </td>
+              </tr>
+              <tr v-if="!items.length">
+                <td colspan="4" class="empty-state">
+                  {{ loading ? '正在加载试卷…' : '没有找到试卷，可调整搜索或新建试卷。' }}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <ListPager
+          label="试卷"
+          :page="page"
+          :page-size="20"
+          :total="total"
+          :loading="loading"
+          @change="changePage"
+        />
+      </SurfacePanel>
+    </template>
+    <template v-else>
+      <PageHeader
+        eyebrow="PREPARATION / COMPOSE"
+        :title="selected ? title : '新建试卷'"
+        description="挑选、排序和设分，完成后可用此试卷创建考试。"
+      >
+        <template #actions
+          ><NButton :disabled="saving" @click="closeEditor">← 返回试卷</NButton
+          ><NButton
+            v-if="!archived"
+            type="primary"
+            :loading="saving"
+            :disabled="conflict"
+            @click="savePaper"
+            >保存试卷</NButton
+          ></template
+        >
+      </PageHeader>
       <NAlert v-if="editorFailure" class="form-alert" type="error"
         >{{ editorFailure }}
         <NButton v-if="conflict && selected" @click="edit(selected.id)"
@@ -170,6 +184,13 @@ function archive(): void {
         @submit.prevent="savePaper"
       >
         <fieldset :disabled="saving || archived" class="paper-basics">
+          <h2>试卷概况</h2>
+          <dl class="paper-summary">
+            <dt>题目数量</dt>
+            <dd>{{ questions.length }} 题</dd>
+            <dt>当前总分</dt>
+            <dd>{{ draftTotal }} 分</dd>
+          </dl>
           <label class="field"
             >试卷名称<input
               v-model="title"
@@ -206,19 +227,21 @@ function archive(): void {
               >{{ errors.description }}</span
             >
           </label>
+          <div class="snapshot-note">
+            <strong>独立考试快照</strong>
+            <p>从试卷创建考试时复制题目与分值，此后修改试卷不会联动已有考试。</p>
+          </div>
         </fieldset>
         <div class="composer-workspace" :class="{ 'composer-workspace--archived': archived }">
-          <QuestionPicker
-            v-if="!archived"
-            :excluded-ids="questions.map((item) => item.question.id)"
-            @add="questions.push({ question: $event, score: '1.0' })"
-          />
           <section class="selected-column">
             <header class="selected-heading">
-              <h3>已选题目</h3>
+              <h2>试卷题目</h2>
               <p role="status" aria-label="试卷分值汇总">
                 {{ questions.length }} 道题 · 总分 {{ draftTotal }} 分
               </p>
+              <NButton v-if="!archived" :disabled="saving" @click="pickerVisible = true"
+                ><template #icon><AppIcon name="plus" :size="16" /></template>从题库添加</NButton
+              >
             </header>
             <PaperQuestionList
               ref="questionList"
@@ -229,29 +252,37 @@ function archive(): void {
           </section>
         </div>
       </form>
-      <template #footer
-        ><div v-if="!archived" class="editor-actions editor-actions--split">
-          <span class="muted">同一道题只能加入一次；分值支持一位小数。</span>
-          <div class="action-buttons">
-            <NButton v-if="selected" type="warning" :disabled="conflict || saving" @click="archive"
-              >归档试卷</NButton
-            ><NButton
-              form="paper-editor-form"
-              attr-type="submit"
-              type="primary"
-              :loading="saving"
-              :disabled="conflict"
-              >保存试卷</NButton
-            >
-          </div>
-        </div></template
+      <div v-if="!archived" class="editor-actions editor-actions--split">
+        <span class="muted">同一道题只能加入一次；分值支持一位小数。</span>
+        <div class="action-buttons">
+          <NButton v-if="selected" type="warning" :disabled="conflict || saving" @click="archive"
+            >归档试卷</NButton
+          >
+        </div>
+      </div>
+      <NModal
+        v-model:show="pickerVisible"
+        preset="card"
+        title="从共享题库添加"
+        class="responsive-modal--wide"
       >
-    </NModal>
+        <QuestionPicker
+          v-if="pickerVisible"
+          :excluded-ids="questions.map((item) => item.question.id)"
+          @add="questions.push({ question: $event, score: '1.0' })"
+        />
+        <template #footer
+          ><div class="editor-actions">
+            <NButton @click="pickerVisible = false">完成选题</NButton>
+          </div></template
+        >
+      </NModal>
+    </template>
   </div>
 </template>
 <style scoped>
 .field-error {
-  color: #b42318;
+  color: var(--red-600);
   font-size: 12px;
 }
 .paper-search {
@@ -306,22 +337,68 @@ td:first-child strong {
 }
 .paper-form {
   display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
   gap: 24px;
+  align-items: start;
 }
 .paper-basics {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-column: 2;
+  grid-row: 1;
+  min-width: 0;
   gap: 18px;
-  padding: 0;
-  border: 0;
+  padding: 24px;
+  margin: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
 }
 .composer-workspace {
+  grid-column: 1;
+  grid-row: 1;
+  min-width: 0;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+.paper-list-panel :deep(.surface-panel-body) {
+  padding: 0;
+}
+.paper-list-panel :deep(.list-pager) {
+  padding: 18px 22px;
+}
+.paper-basics h2,
+.selected-heading h2 {
+  font-size: 15px;
+  margin: 0;
+}
+.paper-summary {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 26px;
+  grid-template-columns: 1fr auto;
+  margin: 0;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--color-border);
+  gap: 14px;
+  font-size: 13px;
+}
+.paper-summary dt {
+  color: var(--color-muted);
+}
+.paper-summary dd {
+  margin: 0;
+  font-family: Consolas, monospace;
+  font-weight: 600;
+}
+.snapshot-note {
   border-top: 1px solid var(--color-border);
-  padding-top: 24px;
-  align-items: start;
+  padding-top: 20px;
+  font-size: 13px;
+}
+.snapshot-note p {
+  margin: 8px 0 0;
+  color: var(--color-muted);
+  line-height: 1.8;
 }
 .selected-column {
   min-width: 0;
@@ -335,7 +412,8 @@ td:first-child strong {
   align-items: baseline;
   flex-wrap: wrap;
   gap: 8px;
-  margin-bottom: 16px;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--color-border);
 }
 .selected-heading h3 {
   margin: 0;
@@ -355,12 +433,12 @@ td:first-child strong {
   gap: 10px;
 }
 @media (max-width: 900px) {
-  .composer-workspace {
+  .paper-form {
     grid-template-columns: 1fr;
   }
-  .selected-column {
-    border-top: 1px solid var(--color-border);
-    padding-top: 22px;
+  .paper-basics {
+    grid-column: 1;
+    grid-row: 2;
   }
 }
 @media (max-width: 600px) {

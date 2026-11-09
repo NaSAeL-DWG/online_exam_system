@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { NAlert, NButton, NInput, NSelect } from 'naive-ui'
+import { NAlert, NButton, NInput } from 'naive-ui'
+import NSelect from './ui/AppSelect.vue'
 import { identityApi } from '../api/identity'
 import { errorMessage } from '../api/client'
 import type { UserSummary } from '../types'

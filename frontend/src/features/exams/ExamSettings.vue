@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, useId, watch } from 'vue'
+import NSelect from '../../components/ui/AppSelect.vue'
 import type { Exam } from '../../api/exams'
 import MemberPicker from '../../components/MemberPicker.vue'
 import SurfacePanel from '../../components/ui/SurfacePanel.vue'
@@ -79,10 +80,14 @@ defineExpose({ validate, resetValidation })
             >{{ errors.title }}</span
           ></label
         ><label class="field"
-          >参考范围<select v-model="model.audience_type" aria-label="参考范围">
-            <option value="RESTRICTED">限定名单</option>
-            <option value="PUBLIC">全部激活学生</option>
-          </select></label
+          >参考范围<NSelect
+            v-model:value="model.audience_type"
+            aria-label="参考范围"
+            :disabled="disabled"
+            :options="[
+              { value: 'RESTRICTED', label: '限定名单' },
+              { value: 'PUBLIC', label: '全部激活学生' },
+            ]" /></label
         ><label class="field full-width"
           >考试说明<textarea
             v-model="model.description"
@@ -170,10 +175,14 @@ defineExpose({ validate, resetValidation })
     <SurfacePanel title="评分与展示"
       ><fieldset :disabled="disabled" class="settings-fields">
         <label class="field"
-          >多选评分<select v-model="model.multiple_choice_mode" aria-label="多选评分">
-            <option value="EXACT">完全一致得分</option>
-            <option value="PARTIAL">无错选按比例得分</option>
-          </select></label
+          >多选评分<NSelect
+            v-model:value="model.multiple_choice_mode"
+            aria-label="多选评分"
+            :disabled="disabled"
+            :options="[
+              { value: 'EXACT', label: '完全一致得分' },
+              { value: 'PARTIAL', label: '无错选按比例得分' },
+            ]" /></label
         ><label class="field"
           >及格百分比<input
             v-model="model.pass_percentage"
@@ -242,13 +251,13 @@ defineExpose({ validate, resetValidation })
 </template>
 <style scoped>
 .field-error {
-  color: #b42318;
+  color: var(--red-600);
   font-size: 12px;
 }
 .settings-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 20px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 24px;
   align-items: start;
 }
 .settings-fields {

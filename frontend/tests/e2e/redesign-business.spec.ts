@@ -28,6 +28,7 @@ test('组卷时教师可即时核对总分，调整顺序并保存后重新读�
   await page.goto('/staff/papers')
   await page.getByRole('button', { name: '新建试卷' }).click()
   await page.getByLabel('试卷名称').fill(`分值试卷 ${suffix}`)
+  await page.getByRole('button', { name: '从题库添加', exact: true }).click()
   await page.getByLabel('搜索可用题目').fill(String(suffix))
   await page.getByRole('button', { name: '查询可用题目' }).click()
   for (const index of [1, 2]) {
@@ -42,6 +43,7 @@ test('组卷时教师可即时核对总分，调整顺序并保存后重新读�
   await page.getByLabel('搜索可用题目').press('Enter')
   await expect(page.getByRole('row').filter({ hasText: `分值核对 ${suffix}-2` })).toBeHidden()
   await expect(page.getByRole('dialog')).toBeVisible()
+  await page.getByRole('button', { name: '完成选题', exact: true }).click()
   await selected.getByLabel('第 1 题分值').fill('2.5')
   await selected.getByLabel('第 2 题分值').fill('3.5')
   await expect(page.getByRole('status', { name: '试卷分值汇总' })).toHaveText(
@@ -49,9 +51,9 @@ test('组卷时教师可即时核对总分，调整顺序并保存后重新读�
   )
   await selected.getByRole('button', { name: '上移第 2 题' }).click()
   await page.getByRole('button', { name: '保存试卷' }).click()
-  await expect(page.getByRole('dialog')).toBeHidden()
+  await expect(page.getByRole('heading', { name: '共享试卷', exact: true })).toBeVisible()
   const row = page.getByRole('row').filter({ hasText: `分值试卷 ${suffix}` })
-  await row.getByRole('button', { name: '编辑', exact: true }).click()
+  await row.getByRole('button', { name: '编辑组卷', exact: true }).click()
   await expect(selected.locator('article').first()).toContainText(`分值核对 ${suffix}-2`)
   await expect(selected.getByLabel('第 1 题分值')).toHaveValue('3.5')
 })
@@ -94,7 +96,7 @@ test('考试草稿跨设置、快照和资格分区切换时保留修改，保�
   expect(examResponse.ok()).toBeTruthy()
   const exam = await examResponse.json()
   await page.goto(`/staff/exams/${exam.id}`)
-  await page.getByRole('tab', { name: '考试设置', exact: true }).click()
+  await page.getByRole('tab', { name: '考试配置', exact: true }).click()
   await page.getByLabel('考试说明', { exact: true }).fill('设置与快照应一起保存')
   await page.getByLabel('作答时长（分钟）').fill('45')
   await page.getByRole('tab', { name: '题目快照', exact: true }).click()
@@ -103,13 +105,13 @@ test('考试草稿跨设置、快照和资格分区切换时保留修改，保�
   await page.getByRole('button', { name: '应用题目修改' }).click()
   await page.getByLabel('快照第 1 题分值').fill('3.5')
   await page.getByRole('tab', { name: '参考资格', exact: true }).click()
-  await page.getByRole('tab', { name: '考试设置', exact: true }).click()
+  await page.getByRole('tab', { name: '考试配置', exact: true }).click()
   await expect(page.getByLabel('考试说明', { exact: true })).toHaveValue('设置与快照应一起保存')
   await expect(page.getByLabel('作答时长（分钟）')).toHaveValue('45')
   await page.getByLabel('考试名称', { exact: true }).fill('')
   await page.getByRole('tab', { name: '题目快照', exact: true }).click()
   await page.getByRole('button', { name: '保存考试草稿' }).click()
-  await expect(page.getByRole('tab', { name: '考试设置', exact: true })).toHaveAttribute(
+  await expect(page.getByRole('tab', { name: '考试配置', exact: true })).toHaveAttribute(
     'aria-selected',
     'true',
   )

@@ -51,8 +51,10 @@ export const examStatusLabels: Record<ExamStatus, string> = {
   CANCELLED: '已取消',
 }
 export const examsApi = {
-  list(query: PageQuery): Promise<PageResult<ExamSummary>> {
-    return request(`/staff/exams?${pageQuery(query)}`)
+  list(query: PageQuery & { status?: ExamStatus }): Promise<PageResult<ExamSummary>> {
+    const search = new URLSearchParams(pageQuery(query))
+    if (query.status) search.set('status', query.status)
+    return request(`/staff/exams?${search}`)
   },
   get(id: string): Promise<Exam> {
     return request(`/staff/exams/${id}`)

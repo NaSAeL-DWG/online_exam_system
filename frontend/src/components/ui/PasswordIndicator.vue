@@ -6,8 +6,9 @@ const props = withDefaults(
     password: string
     confirmation?: string
     mode?: 'strength' | 'match'
+    showRequirementsHint?: boolean
   }>(),
-  { mode: 'strength', confirmation: '' },
+  { mode: 'strength', confirmation: '', showRequirementsHint: true },
 )
 
 const indicator = computed(() => {
@@ -40,7 +41,7 @@ const indicator = computed(() => {
       <span :style="{ width: `${indicator.width}%` }" />
     </div>
     <span>{{ indicator.label }}</span>
-    <small v-if="mode === 'strength'">仅作参考，密码需10—256个字符</small>
+    <small v-if="mode === 'strength' && showRequirementsHint">仅作参考，密码需10—256个字符</small>
   </div>
 </template>
 
@@ -54,7 +55,7 @@ const indicator = computed(() => {
 }
 .password-meter {
   height: 4px;
-  background: #e7ebe8;
+  background: var(--neutral-200);
   border-radius: 2px;
   overflow: hidden;
   margin-bottom: 5px;
@@ -62,17 +63,17 @@ const indicator = computed(() => {
 .password-meter span {
   display: block;
   height: 100%;
-  background: #86958c;
+  background: var(--neutral-500);
   transition: width 160ms ease;
 }
 .password-feedback--weak .password-meter span {
-  background: #b8514b;
+  background: var(--red-600);
 }
 .password-feedback--medium .password-meter span {
-  background: #a47a28;
+  background: var(--amber-600);
 }
 .password-feedback--strong .password-meter span {
-  background: #4b8672;
+  background: var(--green-600);
 }
 .password-feedback small {
   display: block;

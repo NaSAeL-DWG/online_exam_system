@@ -13,12 +13,20 @@ async function login(page: Page) {
 
 test('管理员从独立入口查看运行日志与操作审计', async ({ page }) => {
   await login(page)
-  await page.getByRole('link', { name: '系统日志', exact: true }).click()
+  await page
+    .getByRole('navigation', { name: '主导航' })
+    .getByRole('link', { name: '系统日志', exact: true })
+    .click()
   await expect(page).toHaveURL('/admin/logs')
   await expect(page.getByRole('heading', { name: '系统日志', exact: true })).toBeVisible()
   await expect(page.getByLabel('自动刷新')).toBeChecked()
   await expect(page.getByLabel('自动滚动')).toBeChecked()
-  await expect(page.getByLabel('日志等级')).toHaveValue('INFO')
+  await page.getByText('高级筛选', { exact: true }).click()
+  await expect(
+    page
+      .locator('.field')
+      .filter({ has: page.getByRole('combobox', { name: '日志等级', exact: true }) }),
+  ).toContainText('INFO · 仅信息')
   await page.getByRole('tab', { name: '操作审计' }).click()
   await expect(page.getByLabel('操作者 ID')).toBeVisible()
   await expect(page.getByLabel('操作类型')).toBeVisible()

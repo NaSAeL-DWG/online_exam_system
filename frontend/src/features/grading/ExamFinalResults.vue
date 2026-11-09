@@ -1,10 +1,15 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { NAlert, NButton } from 'naive-ui'
 import { gradingApi, gradingStatusLabels } from '../../api/grading'
 import { usePagedList } from '../../composables/usePagedList'
 import StatusBadge from '../../components/ui/StatusBadge.vue'
+import LoadingSkeleton from '../../components/ui/LoadingSkeleton.vue'
 import ListPager from '../../components/ListPager.vue'
 import './grading.css'
+import { useAuthStore } from '../../stores/auth'
+const auth = useAuthStore()
+const canGrade = computed(() => auth.user?.user_type === 'TEACHER')
 const props = defineProps<{ examId: string }>()
 const { items, page, total, query, loading, failure, load, changePage } = usePagedList((query) =>
   gradingApi.finalResults(props.examId, query),
@@ -23,7 +28,8 @@ const { items, page, total, query, loading, failure, load, changePage } = usePag
   <NAlert v-if="failure" type="error"
     >{{ failure }} <NButton size="small" @click="load">重试加载成绩</NButton></NAlert
   >
-  <div class="table-region" :aria-busy="loading">
+  <LoadingSkeleton v-if="loading && !items.length" variant="table" label="正在读取最终成绩" />
+  <div v-else class="table-region" :aria-busy="loading">
     <table class="grading-table final-results-table">
       <thead>
         <tr>
@@ -31,7 +37,7 @@ const { items, page, total, query, loading, failure, load, changePage } = usePag
           <th>最终成绩</th>
           <th>最后有效提交</th>
           <th>判分状态</th>
-          <th>操作</th>
+          <th v-if="canGrade">操作</th>
         </tr>
       </thead>
       <tbody>
@@ -56,14 +62,14 @@ const { items, page, total, query, loading, failure, load, changePage } = usePag
               :tone="result.grading_status === 'GRADED' ? 'success' : 'warning'"
             />
           </td>
-          <td>
+          <td v-if="canGrade">
             <RouterLink v-if="result.attempt_id" :to="`/staff/attempts/${result.attempt_id}`"
               >查看本次答卷 →</RouterLink
             ><span v-else class="muted">—</span>
           </td>
         </tr>
         <tr v-if="!items.length">
-          <td colspan="5" class="empty-state">
+          <td :colspan="canGrade ? 5 : 4" class="empty-state">
             {{ loading ? '正在读取成绩…' : '暂无有效参考学生。' }}
           </td>
         </tr>

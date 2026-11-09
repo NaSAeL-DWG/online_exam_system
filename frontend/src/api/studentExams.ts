@@ -67,8 +67,8 @@ export interface PagePermission {
 }
 
 export const studentExamsApi = {
-  list(query: PageQuery): Promise<PageResult<StudentExam>> {
-    return request(`/student/exams?${pageQuery(query)}`)
+  list(query: PageQuery, signal?: AbortSignal): Promise<PageResult<StudentExam>> {
+    return request(`/student/exams?${pageQuery(query)}`, { signal, cache: 'no-store' })
   },
   get(id: string): Promise<StudentExam> {
     return request(`/student/exams/${id}`)
@@ -76,8 +76,8 @@ export const studentExamsApi = {
   start(id: string): Promise<AttemptDetail> {
     return request(`/student/exams/${id}/attempts`, { method: 'POST', body: '{}' })
   },
-  attempt(id: string): Promise<AttemptDetail> {
-    return request(`/student/attempts/${id}`)
+  attempt(id: string, signal?: AbortSignal): Promise<AttemptDetail> {
+    return request(`/student/attempts/${id}`, { signal, cache: 'no-store' })
   },
   activate(
     id: string,

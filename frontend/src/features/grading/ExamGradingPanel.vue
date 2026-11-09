@@ -1,12 +1,15 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { NAlert, NButton } from 'naive-ui'
 import { gradingApi } from '../../api/grading'
 import { errorMessage } from '../../api/client'
+import { useAuthStore } from '../../stores/auth'
 import SurfacePanel from '../../components/ui/SurfacePanel.vue'
 import ExamAttemptList from './ExamAttemptList.vue'
 import ExamFinalResults from './ExamFinalResults.vue'
 const props = defineProps<{ examId: string; cancelled: boolean }>()
+const auth = useAuthStore()
+const canGrade = computed(() => auth.user?.user_type === 'TEACHER')
 const mode = ref<'attempts' | 'results'>('attempts')
 const refreshKey = ref(0)
 const syncing = ref(false)
@@ -30,8 +33,12 @@ async function synchronize(): Promise<void> {
 </script>
 <template>
   <SurfacePanel
-    title="答卷与成绩"
-    description="教师共享查看全部有效答卷；成绩公布前仅工作人员可见。"
+    :title="canGrade ? '答卷与成绩' : '阅卷进度与成绩'"
+    :description="
+      canGrade
+        ? '查看有效答卷，进入教师评分或核对最终成绩。'
+        : '查看判分状态、指定教师与最终成绩，跟进考试阅卷进度。'
+    "
   >
     <template #actions
       ><NButton :disabled="cancelled" :loading="syncing" @click="synchronize"

@@ -9,11 +9,11 @@ for (const destination of ['/home', '/']) {
     await page.getByRole('button', { name: '登录', exact: true }).click()
 
     await expect(page).toHaveURL('/home')
-    await expect(page.getByRole('heading', { name: '管理工作台' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: '考试工作台' })).toBeVisible()
 
     // 已登录时重新打开站点根地址，也应显示工作台而非空登录布局。
     await page.goto('/')
     await expect(page).toHaveURL('/home')
-    await expect(page.getByRole('heading', { name: '管理工作台' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: '考试工作台' })).toBeVisible()
   })
 }

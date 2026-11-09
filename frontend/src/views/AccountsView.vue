@@ -8,15 +8,14 @@ import {
   NFormItem,
   NInput,
   NModal,
-  NSelect,
   NSpace,
-  NRadioButton,
-  NRadioGroup,
   type DataTableColumns,
 } from 'naive-ui'
 import ListPager from '../components/ListPager.vue'
+import NSelect from '../components/ui/AppSelect.vue'
 import PageHeader from '../components/ui/PageHeader.vue'
 import SurfacePanel from '../components/ui/SurfacePanel.vue'
+import LoadingSkeleton from '../components/ui/LoadingSkeleton.vue'
 import StatusBadge from '../components/ui/StatusBadge.vue'
 import AppIcon from '../components/ui/AppIcon.vue'
 import FormField from '../components/ui/FormField.vue'
@@ -66,7 +65,6 @@ const columns: DataTableColumns<User> = [
     minWidth: 210,
     render: (row) =>
       h('div', { class: 'person-cell' }, [
-        h('span', { class: 'person-initial', 'aria-hidden': 'true' }, row.real_name.slice(0, 1)),
         h('div', [
           h('strong', row.real_name),
           h('small', { class: 'table-subtitle' }, row.login_name),
@@ -122,8 +120,9 @@ const columns: DataTableColumns<User> = [
 <template>
   <div class="page-stack">
     <PageHeader
+      eyebrow="ADMIN / ACCOUNTS"
       title="账号管理"
-      description="创建教师账号，核验身份后更正资料、调整状态或人工重置密码。"
+      description="管理身份与账号状态，为考试与阅卷提供支撑。"
     >
       <template #actions
         ><NButton type="primary" @click="createVisible = true"
@@ -134,27 +133,29 @@ const columns: DataTableColumns<User> = [
     <NAlert v-if="failure" type="error"
       >{{ failure }} <NButton size="small" @click="load">重试加载</NButton></NAlert
     >
-    <SurfacePanel title="账号目录" description="学生注册申请由审核流程激活，资料更正不会跳过审核。">
-      <div class="directory-tools">
-        <NRadioGroup
-          :value="role"
-          name="account-role"
-          aria-label="账号角色"
-          @update:value="changeRole"
-          ><NRadioButton value="all">全部账号</NRadioButton
-          ><NRadioButton value="TEACHER">教师</NRadioButton
-          ><NRadioButton value="STUDENT">学生</NRadioButton></NRadioGroup
-        >
-        <form class="directory-search" @submit.prevent="search">
-          <NInput
-            v-model:value="query"
-            :input-props="{ 'aria-label': '搜索账号' }"
-            placeholder="搜索账号或姓名"
-            ><template #prefix><AppIcon name="search" :size="16" /></template></NInput
-          ><NButton attr-type="submit" :loading="loading">查询账号</NButton>
-        </form>
-      </div>
-      <div class="table-region">
+    <div class="account-filters">
+      <NSelect
+        :value="role"
+        aria-label="账号角色"
+        :options="[
+          { value: 'all', label: '全部角色' },
+          { value: 'TEACHER', label: '教师' },
+          { value: 'STUDENT', label: '学生' },
+        ]"
+        @update:value="changeRole"
+      />
+      <form class="directory-search" @submit.prevent="search">
+        <NInput
+          v-model:value="query"
+          :input-props="{ 'aria-label': '搜索账号' }"
+          placeholder="搜索账号或姓名"
+          ><template #prefix><AppIcon name="search" :size="16" /></template></NInput
+        ><NButton attr-type="submit" :loading="loading">查询账号</NButton>
+      </form>
+    </div>
+    <SurfacePanel class="account-list-panel">
+      <LoadingSkeleton v-if="loading && !users.length" variant="table" label="正在加载账号目录" />
+      <div v-else class="table-region">
         <NDataTable
           :columns="columns"
           :data="users"
@@ -312,3 +313,35 @@ const columns: DataTableColumns<User> = [
     </NModal>
   </div>
 </template>
+<style scoped>
+.account-filters {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.account-filters > :first-child {
+  width: 160px;
+  order: 2;
+}
+.account-filters .directory-search {
+  flex: 1;
+  max-width: 560px;
+}
+.account-list-panel :deep(.surface-panel-body) {
+  padding: 0;
+}
+.account-list-panel :deep(.list-pager) {
+  padding: 18px 22px;
+}
+:deep(.table-subtitle) {
+  font-family: Consolas, monospace;
+}
+@media (max-width: 600px) {
+  .account-filters {
+    flex-wrap: wrap;
+  }
+  .account-filters .directory-search {
+    flex-basis: 100%;
+  }
+}
+</style>

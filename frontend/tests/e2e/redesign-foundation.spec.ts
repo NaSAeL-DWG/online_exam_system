@@ -38,10 +38,7 @@ test('手机用户可用键盘打开主导航并进入教学班', async ({ page 
 test('工作台的考试准备入口直接进入已实现的共享题库', async ({ page }) => {
   test.skip(!process.env.E2E_ADMIN_LOGIN || !process.env.E2E_ADMIN_PASSWORD, '需要管理员测试凭据')
   await loginAsAdmin(page)
-  await page
-    .getByRole('main')
-    .getByRole('link', { name: /准备共享题目/ })
-    .click()
+  await page.getByRole('main').getByRole('link', { name: '共享题库', exact: true }).click()
   await expect(page).toHaveURL('/staff/questions')
   await expect(page.getByRole('heading', { level: 1, name: '共享题库', exact: true })).toBeVisible()
 })

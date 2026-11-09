@@ -25,13 +25,13 @@ const routes: RouteRecordRaw[] = [
         path: 'staff/grading-tasks',
         name: 'grading-tasks',
         component: () => import('./views/GradingTasksView.vue'),
-        meta: { roles: ['TEACHER', 'ADMIN'], active: true },
+        meta: { roles: ['TEACHER'], active: true },
       },
       {
         path: 'staff/attempts/:id',
         name: 'staff-attempt',
         component: () => import('./views/StaffAttemptView.vue'),
-        meta: { roles: ['TEACHER', 'ADMIN'], active: true },
+        meta: { roles: ['TEACHER'], active: true },
       },
       {
         path: 'student/analytics',
@@ -178,6 +178,12 @@ router.beforeEach(async (to) => {
     if (!allowed.has(String(to.name))) return { name: 'application' }
   }
   const roles = to.meta.roles as string[] | undefined
+  // 管理员保留考试与阅卷进度，旧评分链接统一回到考试管理入口。
+  if (
+    auth.user.user_type === 'ADMIN' &&
+    (to.name === 'grading-tasks' || to.name === 'staff-attempt')
+  )
+    return { name: 'exams' }
   if (roles && !roles.includes(auth.user.user_type)) return landingRoute(auth)
   if (to.meta.active && auth.user.status !== 'ACTIVATED') return landingRoute(auth)
   return true

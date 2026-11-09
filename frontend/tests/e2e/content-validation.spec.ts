@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
+import { selectNaiveOption } from './naive-select'
 import {
   apiWrite,
   fixturePassword,
@@ -78,7 +79,7 @@ test('题目空白字段与多选答案在本地校验，正确填写后放行',
   await openAdmin(page)
   await page.goto('/staff/questions')
   await page.getByRole('button', { name: '新建题目', exact: true }).click()
-  await page.getByLabel('题型', { exact: true }).selectOption('MULTIPLE_CHOICE')
+  await selectNaiveOption(page, page.getByRole('combobox', { name: '题型', exact: true }), '多选题')
   await page.getByLabel('科目', { exact: true }).fill('   ')
   await page.getByLabel('题干', { exact: true }).fill(`多选校验 ${Date.now()}`)
   await page.getByLabel('选项 1', { exact: true }).fill('   ')
@@ -157,7 +158,7 @@ test('试卷名称和题分提供中文校验，合法一位小数可保存', as
   await page
     .getByRole('row')
     .filter({ hasText: paper.title })
-    .getByRole('button', { name: '编辑', exact: true })
+    .getByRole('button', { name: '编辑组卷', exact: true })
     .click()
   const writes: string[] = []
   page.on('request', (request) => {
@@ -179,7 +180,7 @@ test('试卷名称和题分提供中文校验，合法一位小数可保存', as
   expect(writes).toHaveLength(0)
   await page.getByLabel('第 1 题分值').fill('2.5')
   await page.getByRole('button', { name: '保存试卷', exact: true }).click()
-  await expect(page.getByRole('dialog')).toBeHidden()
+  await expect(page.getByRole('heading', { name: '共享试卷', exact: true })).toBeVisible()
   const saved = await (await page.request.get(`/api/staff/papers/${paper.id}`)).json()
   expect(saved.questions[0].score).toBe('2.5')
   expect(saved.title).toBe('卷'.repeat(200))
@@ -197,7 +198,7 @@ test('考试草稿跨分区定位数值错误，空时间和合法半分钟可�
   await page.getByLabel('最多作答次数').fill('101')
   await page.getByRole('tab', { name: '题目快照', exact: true }).click()
   await page.getByRole('button', { name: '保存考试草稿', exact: true }).click()
-  await expect(page.getByRole('tab', { name: '考试设置', exact: true })).toHaveAttribute(
+  await expect(page.getByRole('tab', { name: '考试配置', exact: true })).toHaveAttribute(
     'aria-selected',
     'true',
   )
@@ -222,7 +223,7 @@ test('考试草稿跨分区定位数值错误，空时间和合法半分钟可�
   expect(saved.pass_percentage).toBe('60.25')
   await page.getByRole('tab', { name: '题目快照', exact: true }).click()
   await page.getByLabel('快照第 1 题分值').fill('1.25')
-  await page.getByRole('tab', { name: '考试设置', exact: true }).click()
+  await page.getByRole('tab', { name: '考试配置', exact: true }).click()
   await page.getByRole('button', { name: '保存考试草稿', exact: true }).click()
   await expect(page.getByRole('tab', { name: '题目快照', exact: true })).toHaveAttribute(
     'aria-selected',
@@ -247,8 +248,12 @@ test('创建考试定位名称与来源，取消原因空白时就近说明', as
   await page.getByLabel('考试名称', { exact: true }).fill(`创建校验 ${Date.now()}`)
   await page.getByRole('button', { name: '建立考试快照', exact: true }).click()
   await expect(page.getByText('请选择来源试卷。', { exact: true })).toBeVisible()
-  await expect(page.getByLabel('来源试卷', { exact: true })).toBeFocused()
-  await page.getByLabel('来源试卷', { exact: true }).selectOption(paper.id)
+  await expect(page.getByRole('combobox', { name: '来源试卷', exact: true })).toBeFocused()
+  await selectNaiveOption(
+    page,
+    page.getByRole('combobox', { name: '来源试卷', exact: true }),
+    paper.title,
+  )
   await page.getByRole('button', { name: '建立考试快照', exact: true }).click()
   await expect(page).toHaveURL(/\/staff\/exams\/[^/]+$/)
   await page.getByRole('button', { name: '取消整场考试', exact: true }).click()
@@ -264,17 +269,28 @@ test('改派、评分依据更正和结果撤回表单就近说明必填原因',
   await openAdmin(page)
   const fixture = await gradingFixture(page, browser, 3)
   await waitForTask(page, fixture.exam.id, fixture.attemptId)
-  await page.goto(`/staff/attempts/${fixture.attemptId}`)
-  await page.getByRole('button', { name: '改派阅卷任务', exact: true }).click()
+  await page.goto(`/staff/exams/${fixture.exam.id}`)
+  await page.getByRole('tab', { name: '阅卷进度与成绩', exact: true }).click()
+  await page.getByRole('button', { name: '改派任务', exact: true }).click()
   await expect(page.getByRole('button', { name: '确认改派', exact: true })).toBeEnabled()
   await page.getByRole('button', { name: '确认改派', exact: true }).click()
   await expect(page.getByText('请选择阅卷教师。', { exact: true })).toBeVisible()
-  await expect(page.getByLabel('选择阅卷教师', { exact: true })).toBeFocused()
-  await page.getByLabel('选择阅卷教师', { exact: true }).selectOption(fixture.teachers[0]!.id)
+  await expect(page.getByRole('combobox', { name: '选择阅卷教师', exact: true })).toBeFocused()
+  await selectNaiveOption(
+    page,
+    page.getByRole('combobox', { name: '选择阅卷教师', exact: true }),
+    `首阅测试教师（${fixture.teachers[0]!.loginName}）`,
+  )
   await page.getByLabel('改派原因', { exact: true }).fill('   ')
   await page.getByRole('button', { name: '确认改派', exact: true }).click()
   await expect(page.getByText('请填写改派原因。', { exact: true })).toBeVisible()
   await page.getByRole('button', { name: '取消改派', exact: true }).click()
+  // 管理员仅管理进度；评分依据由教师会话更正。
+  await apiWrite(page.request, '/auth/logout', {})
+  await apiWrite(page.request, '/auth/login', {
+    login_name: fixture.teachers[0]!.loginName,
+    password: fixturePassword,
+  })
   await page.goto(`/staff/exams/${fixture.exam.id}`)
   await page.getByRole('tab', { name: '题目快照', exact: true }).click()
   await page.getByRole('button', { name: '更正第 1 题评分依据', exact: true }).click()
@@ -295,6 +311,11 @@ test('改派、评分依据更正和结果撤回表单就近说明必填原因',
   } finally {
     await context.close()
   }
+  await apiWrite(page.request, '/auth/logout', {})
+  await apiWrite(page.request, '/auth/login', {
+    login_name: process.env.E2E_ADMIN_LOGIN,
+    password: process.env.E2E_ADMIN_PASSWORD,
+  })
   const exam = await (await page.request.get(`/api/staff/exams/${fixture.exam.id}`)).json()
   await apiWrite(page.request, `/staff/exams/${fixture.exam.id}/publish-results`, {
     version: exam.version,

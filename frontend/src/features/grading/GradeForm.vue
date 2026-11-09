@@ -63,7 +63,6 @@ function save(): void {
 <template>
   <form ref="formRoot" class="grade-form" novalidate @submit.prevent="save">
     <div class="grade-form-header">
-      <h3>{{ requiresReason ? '更正本题评分' : '人工评分' }}</h3>
       <span>支持 0—{{ question.score }} 分，一位小数。</span>
     </div>
     <label class="field grade-score-field"
@@ -140,12 +139,10 @@ function save(): void {
 .grade-form {
   display: grid;
   gap: 20px;
-  margin-top: 24px;
-  padding-top: 24px;
-  border-top: 1px solid var(--color-border);
+  margin: 0;
 }
 .field-error {
-  color: #b42318;
+  color: var(--red-600);
   font-size: 12px;
 }
 .grade-form-header {
@@ -155,10 +152,28 @@ function save(): void {
   align-items: baseline;
   flex-wrap: wrap;
 }
-h3 {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 650;
+.grade-score-field .score-input {
+  position: relative;
+}
+.grade-score-field .score-input input {
+  max-width: none;
+  height: 60px;
+  padding-right: 70px;
+  font:
+    28px Consolas,
+    monospace;
+}
+.grade-score-field .score-input > span {
+  position: absolute;
+  right: 14px;
+  font-size: 12px;
+  pointer-events: none;
+}
+.grade-actions :deep(.n-button) {
+  width: 100%;
+}
+.grade-actions span {
+  line-height: 1.8;
 }
 .grade-form-header span,
 .grade-actions span {
@@ -182,7 +197,7 @@ h3 {
 .grade-actions {
   display: flex;
   gap: 14px;
-  align-items: center;
-  flex-wrap: wrap;
+  align-items: stretch;
+  flex-direction: column;
 }
 </style>

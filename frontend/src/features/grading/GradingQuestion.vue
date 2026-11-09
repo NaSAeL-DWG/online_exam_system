@@ -11,10 +11,10 @@ defineProps<{ question: StaffAttemptQuestion; number: number }>()
   <article class="grading-question">
     <header class="question-header">
       <div>
+        <h2>第 {{ number }} 题</h2>
         <span class="question-eyebrow"
           >{{ questionTypeLabels[question.type] }} · 满分 {{ question.score }} 分</span
         >
-        <h2>第 {{ number }} 题</h2>
       </div>
       <StatusBadge
         :label="gradingStatusLabels[question.answer.grading_status]"
@@ -31,7 +31,7 @@ defineProps<{ question: StaffAttemptQuestion; number: number }>()
       />
     </section>
     <section class="grading-reference">
-      <h3>{{ question.type === 'SHORT_ANSWER' ? '评分依据' : '标准答案' }}</h3>
+      <h3>{{ question.type === 'SHORT_ANSWER' ? '参考答案与评分依据' : '标准答案' }}</h3>
       <AnswerContent
         :type="question.type"
         :options="question.options"
@@ -57,18 +57,31 @@ defineProps<{ question: StaffAttemptQuestion; number: number }>()
 <style scoped>
 .question-header {
   display: flex;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
   margin-bottom: 22px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--color-border);
+}
+.question-header > div {
+  display: flex;
+  gap: 14px;
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+.grading-question > :deep(.safe-markdown) {
+  font-size: 16px;
+  line-height: 1.9;
 }
 .question-eyebrow {
   color: var(--color-muted);
   font-size: 12px;
 }
 h2 {
-  font-size: 19px;
-  margin: 6px 0 0;
-  font-weight: 650;
+  font-size: 22px;
+  margin: 0;
+  font-weight: 500;
 }
 h3,
 h4 {
@@ -78,9 +91,12 @@ h4 {
 }
 .student-answer {
   margin-top: 24px;
-  padding: 20px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
+  padding: 0;
+}
+.student-answer :deep(.answer-text),
+.student-answer :deep(.answer-options) {
+  padding: 18px 20px;
+  border-left: 2px solid var(--color-muted);
   background: var(--color-bg);
 }
 .grading-reference {

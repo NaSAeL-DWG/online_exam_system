@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, useId } from 'vue'
 import { NAlert, NButton, NModal, useDialog } from 'naive-ui'
+import NSelect from '../../components/ui/AppSelect.vue'
 import { examsApi, type Exam } from '../../api/exams'
 import { ApiError, errorMessage, isWriteResultUnknown } from '../../api/client'
 import type { QuestionInput } from '../../api/questions'
@@ -139,15 +140,16 @@ function reload(): void {
         </p>
       </div>
       <label v-else-if="question.type === 'TRUE_FALSE'" class="field"
-        >判断标准答案<select
-          v-model="standard"
+        >判断标准答案<NSelect
+          :value="standard === true ? 'true' : 'false'"
           aria-label="判断标准答案"
           :disabled="saving || needsReload"
-        >
-          <option :value="true">真</option>
-          <option :value="false">假</option>
-        </select></label
-      >
+          :options="[
+            { value: 'true', label: '真' },
+            { value: 'false', label: '假' },
+          ]"
+          @update:value="standard = $event === 'true'"
+      /></label>
       <label v-else class="field"
         >简答评分依据（可选）<textarea
           :value="typeof standard === 'string' ? standard : ''"
@@ -209,7 +211,7 @@ function reload(): void {
 </template>
 <style scoped>
 .field-error {
-  color: #b42318;
+  color: var(--red-600);
   font-size: 12px;
 }
 .correction-form {

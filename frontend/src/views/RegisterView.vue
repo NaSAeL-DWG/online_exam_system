@@ -6,6 +6,7 @@ import { errorMessage } from '../api/client'
 import { useAuthStore } from '../stores/auth'
 import FormField from '../components/ui/FormField.vue'
 import PasswordIndicator from '../components/ui/PasswordIndicator.vue'
+import PasswordRequirements from '../components/ui/PasswordRequirements.vue'
 import { useFormValidation } from '../composables/useFormValidation'
 import { profileRules, passwordRule, confirmationRule } from '../features/identity/formRules'
 
@@ -67,12 +68,14 @@ async function submit(): Promise<void> {
       <NButton type="primary" @click="$router.push('/login')">登录查看审核状态</NButton>
     </div>
     <template v-else>
+      <RouterLink class="register-back" to="/login">← 返回登录</RouterLink>
       <header class="auth-task-header">
+        <div class="page-eyebrow">ACCOUNT / REGISTER</div>
         <h1>学生注册</h1>
         <p>填写真实资料，提交后登录查看身份审核进度。</p>
       </header>
-      <NAlert v-if="failure" type="error" class="form-alert">{{ failure }}</NAlert>
-      <NForm :model="form" size="large" novalidate @submit.prevent="submit">
+      <NForm :model="form" class="register-panel" novalidate @submit.prevent="submit">
+        <NAlert v-if="failure" type="error" class="form-alert">{{ failure }}</NAlert>
         <div class="form-grid two-columns">
           <FormField v-slot="{ inputProps }" :validation="validation" field="real_name" label="姓名"
             ><NInput
@@ -113,7 +116,7 @@ async function submit(): Promise<void> {
                 :input-props="inputProps"
                 type="password"
                 show-password-on="click"
-              /><PasswordIndicator :password="form.password" /></div
+              /><PasswordIndicator :password="form.password" :show-requirements-hint="false" /></div
           ></FormField>
           <FormField
             v-slot="{ inputProps }"
@@ -133,9 +136,11 @@ async function submit(): Promise<void> {
               /></div
           ></FormField>
         </div>
-        <NButton attr-type="submit" type="primary" block :loading="loading">提交注册</NButton>
+        <PasswordRequirements />
+        <div class="editor-actions">
+          <NButton attr-type="submit" type="primary" :loading="loading">提交注册</NButton>
+        </div>
       </NForm>
-      <p class="auth-switch"><span>已有账号</span><RouterLink to="/login">返回登录</RouterLink></p>
     </template>
   </div>
 </template>

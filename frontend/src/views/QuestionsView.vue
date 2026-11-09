@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { reactive, ref, watch } from 'vue'
-import { NAlert, NButton, NModal, useDialog } from 'naive-ui'
+import { NAlert, NButton, useDialog } from 'naive-ui'
+import NSelect from '../components/ui/AppSelect.vue'
 import { questionsApi, questionTypeLabels } from '../api/questions'
 import ListPager from '../components/ListPager.vue'
 import QuestionFields from '../components/QuestionFields.vue'
 import PageHeader from '../components/ui/PageHeader.vue'
 import SurfacePanel from '../components/ui/SurfacePanel.vue'
+import LoadingSkeleton from '../components/ui/LoadingSkeleton.vue'
 import StatusBadge from '../components/ui/StatusBadge.vue'
 import AppIcon from '../components/ui/AppIcon.vue'
 import { usePagedList } from '../composables/usePagedList'
@@ -58,7 +60,12 @@ function resetFilters(): void {
 
 <template>
   <div class="page-stack">
-    <PageHeader title="共享题库" description="按科目、题型和知识点查找并维护共享题目。">
+    <PageHeader
+      v-if="!visible"
+      eyebrow="PREPARATION / QUESTION BANK"
+      title="共享题库"
+      description="维护可复用题目；已创建考试中的题目快照保持独立。"
+    >
       <template #actions
         ><NButton type="primary" @click="create"
           ><template #icon><AppIcon name="plus" :size="17" /></template>新建题目</NButton
@@ -69,7 +76,7 @@ function resetFilters(): void {
       >{{ failure || editorFailure }}
       <NButton size="small" @click="load">重新加载题库</NButton></NAlert
     >
-    <SurfacePanel>
+    <template v-if="!visible">
       <form class="filter-workspace" @submit.prevent="changePage(1)">
         <div class="search-line">
           <label class="search-box"
@@ -87,102 +94,110 @@ function resetFilters(): void {
             v-model="filters.subject"
             aria-label="筛选科目"
             placeholder="全部科目"
-          /><select class="form-control" v-model="filters.type" aria-label="筛选题型">
-            <option value="">全部题型</option>
-            <option v-for="(label, type) in questionTypeLabels" :key="type" :value="type">
-              {{ label }}
-            </option></select
-          ><select class="form-control" v-model="filters.difficulty" aria-label="筛选难度">
-            <option value="">全部难度</option>
-            <option
-              v-for="(label, difficulty) in difficultyLabels"
-              :key="difficulty"
-              :value="difficulty"
-            >
-              {{ label }}
-            </option></select
-          ><input
+          /><NSelect
+            v-model:value="filters.type"
+            aria-label="筛选题型"
+            :options="[
+              { value: '', label: '全部题型' },
+              ...Object.entries(questionTypeLabels).map(([value, label]) => ({ value, label })),
+            ]"
+          /><NSelect
+            v-model:value="filters.difficulty"
+            aria-label="筛选难度"
+            :options="[
+              { value: '', label: '全部难度' },
+              ...Object.entries(difficultyLabels).map(([value, label]) => ({ value, label })),
+            ]"
+          /><input
             class="form-control"
             v-model="filters.tag"
             aria-label="筛选知识点"
             placeholder="知识点标签"
-          /><select class="form-control" v-model="filters.status" aria-label="筛选状态">
-            <option value="">全部状态</option>
-            <option value="ACTIVE">使用中</option>
-            <option value="CLOSED">已关闭</option>
-          </select>
+          /><NSelect
+            v-model:value="filters.status"
+            aria-label="筛选状态"
+            :options="[
+              { value: '', label: '全部状态' },
+              { value: 'ACTIVE', label: '使用中' },
+              { value: 'CLOSED', label: '已关闭' },
+            ]"
+          />
         </div>
       </form>
-      <div class="list-heading">
-        <h2>题目列表</h2>
-        <span class="muted">共 {{ total }} 道题</span>
-      </div>
-      <div class="table-region" :aria-busy="loading">
-        <table class="question-table">
-          <thead>
-            <tr>
-              <th>题目</th>
-              <th>分类</th>
-              <th>状态</th>
-              <th class="action-cell">操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="item in items" :key="item.id">
-              <td>
-                <p class="question-summary">{{ questionSummary(item.content) }}</p>
-                <span class="question-type">{{ questionTypeLabels[item.type] }}</span>
-              </td>
-              <td>
-                <strong>{{ item.subject }}</strong>
-                <p class="row-meta">
-                  {{ difficultyLabels[item.difficulty]
-                  }}<template v-if="item.knowledge_tags.length">
-                    · {{ item.knowledge_tags.join('、') }}</template
-                  >
-                </p>
-              </td>
-              <td>
-                <StatusBadge
-                  :label="item.status === 'ACTIVE' ? '使用中' : '已关闭'"
-                  :tone="item.status === 'ACTIVE' ? 'success' : 'neutral'"
-                />
-              </td>
-              <td class="action-cell"><NButton size="small" @click="edit(item)">编辑</NButton></td>
-            </tr>
-            <tr v-if="!items.length">
-              <td colspan="4" class="empty-state">
-                {{
-                  loading
-                    ? '正在加载题目…'
-                    : failure
-                      ? '题库暂时无法读取，请重试。'
-                      : '没有找到题目，可调整筛选或新建题目。'
-                }}
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      <ListPager
-        label="题库"
-        :page="page"
-        :page-size="20"
-        :total="total"
-        :loading="loading"
-        @change="changePage"
-      />
-    </SurfacePanel>
-    <NModal
-      :show="visible"
-      @update:show="closeEditor"
-      preset="card"
-      :title="selected ? '编辑题目' : '新建题目'"
-      class="responsive-modal responsive-modal--editor"
-      :mask-closable="false"
-      :closable="!saving && !uploading"
-      :close-on-esc="!saving && !uploading"
-    >
+      <SurfacePanel class="question-list-panel">
+        <LoadingSkeleton v-if="loading && !items.length" variant="table" label="正在加载题库" />
+        <div v-else class="table-region" :aria-busy="loading">
+          <table class="question-table">
+            <thead>
+              <tr>
+                <th>题目</th>
+                <th>科目 / 知识点</th>
+                <th>题型</th>
+                <th>难度</th>
+                <th>状态</th>
+                <th class="action-cell">操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="item in items" :key="item.id">
+                <td>
+                  <p class="question-summary">{{ questionSummary(item.content) }}</p>
+                  <span class="question-id">{{ item.id }}</span>
+                </td>
+                <td>
+                  <strong>{{ item.subject }}</strong>
+                  <p class="row-meta">
+                    {{ item.knowledge_tags.join('、') || '未设置知识点' }}
+                  </p>
+                </td>
+                <td>{{ questionTypeLabels[item.type] }}</td>
+                <td>{{ difficultyLabels[item.difficulty] }}</td>
+                <td>
+                  <StatusBadge
+                    :label="item.status === 'ACTIVE' ? '使用中' : '已关闭'"
+                    :tone="item.status === 'ACTIVE' ? 'success' : 'neutral'"
+                  />
+                </td>
+                <td class="action-cell">
+                  <NButton size="small" @click="edit(item)">编辑</NButton>
+                </td>
+              </tr>
+              <tr v-if="!items.length">
+                <td colspan="6" class="empty-state">
+                  {{
+                    loading
+                      ? '正在加载题目…'
+                      : failure
+                        ? '题库暂时无法读取，请重试。'
+                        : '没有找到题目，可调整筛选或新建题目。'
+                  }}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <ListPager
+          label="题库"
+          :page="page"
+          :page-size="20"
+          :total="total"
+          :loading="loading"
+          @change="changePage"
+        />
+      </SurfacePanel>
+    </template>
+    <template v-else>
+      <PageHeader
+        eyebrow="PREPARATION / EDIT QUESTION"
+        :title="selected ? '编辑题目' : '新建题目'"
+        description="题干与解析支持公式；学生简答内容为纯文本。"
+      >
+        <template #actions
+          ><NButton :disabled="saving || uploading" @click="closeEditor"
+            >← 返回题库</NButton
+          ></template
+        >
+      </PageHeader>
       <NAlert v-if="editorFailure" class="form-alert" type="error"
         >{{ editorFailure }}
         <NButton v-if="conflict && selected" @click="edit(selected)"
@@ -190,7 +205,12 @@ function resetFilters(): void {
         ></NAlert
       >
       <form class="question-form" novalidate @submit.prevent="saveQuestion">
-        <QuestionFields ref="questionFields" v-model="form" @uploading="uploading = $event" />
+        <QuestionFields
+          ref="questionFields"
+          v-model="form"
+          page-layout
+          @uploading="uploading = $event"
+        />
         <div class="editor-actions">
           <span class="muted">{{
             selected ? '修改将更新共享题库；既有考试快照保持不变。' : '保存后可用于手动组卷。'
@@ -202,6 +222,7 @@ function resetFilters(): void {
               :disabled="saving || conflict || uploading"
               @click="closeQuestion"
               >关闭题目</NButton
+            ><NButton :disabled="saving || uploading" @click="closeEditor">取消</NButton
             ><NButton
               attr-type="submit"
               type="primary"
@@ -212,13 +233,30 @@ function resetFilters(): void {
           </div>
         </div>
       </form>
-    </NModal>
+    </template>
   </div>
 </template>
 <style scoped>
 .filter-workspace {
   display: grid;
   gap: 12px;
+}
+.question-list-panel :deep(.surface-panel-body) {
+  padding: 0;
+}
+.question-list-panel :deep(.list-pager) {
+  padding: 18px 22px;
+}
+.question-id {
+  display: block;
+  max-width: 260px;
+  color: var(--color-muted);
+  font:
+    11px Consolas,
+    monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .search-line {
   display: flex;
@@ -240,6 +278,14 @@ function resetFilters(): void {
   min-width: 0;
   background: transparent;
 }
+.search-box:focus-within {
+  border-color: var(--color-primary);
+  box-shadow: inset 0 0 0 1px var(--color-primary);
+}
+.search-box input:focus {
+  border: 0;
+  box-shadow: none;
+}
 .filter-grid {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -259,7 +305,7 @@ function resetFilters(): void {
   font-size: 13px;
 }
 .question-table {
-  min-width: 650px;
+  min-width: 850px;
   width: 100%;
   border-collapse: collapse;
   text-align: left;
@@ -277,10 +323,10 @@ td {
   vertical-align: middle;
 }
 td:first-child {
-  width: 52%;
+  width: 36%;
 }
 td:nth-child(2) {
-  width: 25%;
+  width: 23%;
 }
 td strong {
   font-size: 13px;
@@ -319,6 +365,10 @@ td strong {
 }
 .editor-actions {
   justify-content: space-between;
+  padding: 20px 26px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
 }
 .editor-actions > span {
   font-size: 12px;
@@ -331,7 +381,7 @@ td strong {
   .filter-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  .filter-grid select:last-child {
+  .filter-grid > :last-child {
     grid-column: 1 / -1;
   }
   .search-line {

@@ -8,6 +8,7 @@ import {
   waitForTask,
 } from './grading-fixtures'
 import { publishFixture, resultsFixture } from './results-fixtures'
+import { selectNaiveOption } from './naive-select'
 
 /** 在既有业务流程的稳定状态下采集桌面和小屏，数据表允许局部滚动。 */
 async function captureResponsive(page: Page, testInfo: TestInfo, name: string): Promise<void> {
@@ -117,9 +118,7 @@ test('学生回看持久快照与部分得分，撤回刷新不保留答案解�
   )
   const studentPage = await fixture.context.newPage()
   await studentPage.goto(`/student/attempts/${fixture.firstId}/review`)
-  await expect(
-    studentPage.getByRole('heading', { name: fixture.exam.title, level: 1 }),
-  ).toBeVisible()
+  await expect(studentPage.getByRole('heading', { name: '答卷回看', level: 1 })).toBeVisible()
   await expect(studentPage.getByText(source.content, { exact: true })).toBeVisible()
   await expect(
     studentPage.getByText('快照解析1：依据定义与计算过程。', { exact: true }),
@@ -155,12 +154,16 @@ test('错题保留前次部分得分并支持筛选备注与掌握，撤回后�
   await expect(entry).toBeVisible()
   await entry.click()
   await studentPage.getByLabel('科目筛选').fill('结果学习测试')
-  await studentPage.getByLabel('题型筛选').selectOption('MULTIPLE_CHOICE')
+  await selectNaiveOption(
+    studentPage,
+    studentPage.getByRole('combobox', { name: '题型筛选' }),
+    '多选题',
+  )
   await studentPage.getByLabel('知识点筛选').fill('函数')
   await studentPage.getByRole('button', { name: '筛选错题', exact: true }).click()
   await expect(studentPage.getByText(fixture.questions[2].content, { exact: true })).toBeVisible()
-  await expect(studentPage.getByText('2.5 / 5.0 分', { exact: true })).toBeVisible()
-  await studentPage.getByRole('link', { name: '查看错题', exact: true }).click()
+  await expect(studentPage.getByText('2.5 / 5.0 分', { exact: false })).toBeVisible()
+  await studentPage.getByRole('link', { name: '复习 →', exact: true }).click()
   await studentPage.getByLabel('学习备注').fill('少选有部分分，复习两个正确条件。')
   await studentPage.getByLabel('已掌握本题').check()
   await studentPage.getByRole('button', { name: '保存学习标记', exact: true }).click()
@@ -262,7 +265,9 @@ test('学生分析使用最终得分率与多标签错题计数，撤回或关�
     lockedPage.getByRole('img', { name: '最终得分率趋势图' }).locator('svg'),
   ).toBeVisible()
   await expect(lockedPage.getByText('暂无允许回看的题型数据。', { exact: true })).toBeVisible()
-  await expect(lockedPage.getByText('暂无可见的知识点错题记录。', { exact: true })).toBeVisible()
+  await expect(
+    lockedPage.getByText('暂无可见的知识点错题记录。', { exact: true }).first(),
+  ).toBeVisible()
   await expect(lockedPage.getByRole('img', { name: '题型得分率图' })).toHaveCount(0)
   await lockedPage.goto(`/student/results/${locked.exam.id}`)
   await expect(lockedPage.getByText(/本场未开放答卷回看/)).toBeVisible()

@@ -31,9 +31,11 @@
   font-size: 13px;
 }
 .result-score {
-  font-size: 26px;
+  font-size: 40px;
   font-weight: 650;
   font-variant-numeric: tabular-nums;
+  color: var(--blue-700);
+  line-height: 1.4;
 }
 .result-score small {
   font-size: 14px;
@@ -43,7 +45,7 @@
 .result-facts {
   display: flex;
   flex-wrap: wrap;
-  gap: 30px;
+  gap: 12px 30px;
   margin-top: 16px;
   font-size: 13px;
   color: var(--color-muted);

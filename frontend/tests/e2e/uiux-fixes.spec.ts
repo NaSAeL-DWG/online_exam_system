@@ -84,7 +84,7 @@ test('题目编辑器关闭前确认未保存修改，取消关闭后仍能保�
   await page.getByLabel('科目', { exact: true }).fill('离开保护')
   const content = `尚未保存的题干 ${Date.now()}`
   await page.getByLabel('题干', { exact: true }).fill(content)
-  await page.getByRole('dialog').getByRole('button', { name: 'close', exact: true }).click()
+  await page.getByRole('button', { name: '← 返回题库', exact: true }).click()
   await expect(page.getByText('放弃未保存修改？', { exact: true })).toBeVisible()
   await page.getByRole('button', { name: '继续编辑', exact: true }).click()
   await expect(page.getByLabel('题干', { exact: true })).toHaveValue(content)
@@ -95,18 +95,18 @@ test('题目编辑器关闭前确认未保存修改，取消关闭后仍能保�
   await expect(page.getByRole('row').filter({ hasText: content })).toBeVisible()
 })
 
-test('试卷编辑器按 Esc 时保留未保存输入，明确放弃后才关闭', async ({ page }) => {
+test('试卷编辑页返回时保留未保存输入，明确放弃后才关闭', async ({ page }) => {
   test.skip(!process.env.E2E_ADMIN_LOGIN || !process.env.E2E_ADMIN_PASSWORD, '需要管理员测试凭据')
   await createDraft(page)
   await page.goto('/staff/papers')
   await page.getByRole('button', { name: '新建试卷' }).click()
   await page.getByLabel('试卷名称', { exact: true }).fill('未保存的组卷工作')
-  await page.keyboard.press('Escape')
+  await page.getByRole('button', { name: '← 返回试卷', exact: true }).click()
   await expect(page.getByText('放弃未保存修改？', { exact: true })).toBeVisible()
   await page.getByRole('button', { name: '继续编辑', exact: true }).click()
   await expect(page.getByLabel('试卷名称', { exact: true })).toHaveValue('未保存的组卷工作')
   await expect(page.getByText('放弃未保存修改？', { exact: true })).toBeHidden()
-  await page.getByRole('dialog').getByRole('button', { name: 'close', exact: true }).click()
+  await page.getByRole('button', { name: '← 返回试卷', exact: true }).click()
   await page.getByRole('button', { name: '放弃修改并离开', exact: true }).click()
   await expect(page.getByRole('dialog')).toHaveCount(0)
   await page.getByRole('button', { name: '新建试卷' }).click()

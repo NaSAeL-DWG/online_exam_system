@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
+import { selectNaiveOption } from './naive-select'
 import {
   apiWrite,
   fixturePassword,
@@ -69,12 +70,39 @@ async function login(page: Page, name: string, password: string): Promise<void> 
   await expect(page).toHaveURL('/home')
 }
 
+async function becomeTeacher(page: Page): Promise<void> {
+  const loginName = `C3T${Date.now()}${Math.floor(Math.random() * 1000)}`
+  const temporaryPassword = 'Temporary123!'
+  await apiWrite(page.request, '/admin/teachers', {
+    teacher_no: loginName,
+    real_name: '阅卷入口教师',
+    email: `${loginName}@example.com`,
+    phone_number: '13800000000',
+    temporary_password: temporaryPassword,
+  })
+  await apiWrite(page.request, '/auth/logout', {})
+  await apiWrite(page.request, '/auth/login', {
+    login_name: loginName,
+    password: temporaryPassword,
+  })
+  await apiWrite(
+    page.request,
+    '/auth/password',
+    { current_password: temporaryPassword, new_password: fixturePassword },
+    'PUT',
+  )
+  // 密码更新会撤销旧登录会话，重新登录后再进入教师工作区。
+  await apiWrite(page.request, '/auth/login', { login_name: loginName, password: fixturePassword })
+  await page.goto('/home')
+}
+
 test.beforeEach(() => {
   test.skip(!process.env.E2E_ADMIN_LOGIN || !process.env.E2E_ADMIN_PASSWORD, '需要管理员测试凭据')
 })
 
-test('工作人员从主导航进入阅卷工作台并区分任务范围', async ({ page }) => {
+test('教师从主导航进入阅卷工作台并区分任务范围', async ({ page }) => {
   await login(page, process.env.E2E_ADMIN_LOGIN!, process.env.E2E_ADMIN_PASSWORD!)
+  await becomeTeacher(page)
   await page
     .getByRole('navigation', { name: '主导航' })
     .getByRole('link', { name: '阅卷工作台', exact: true })
@@ -89,7 +117,7 @@ test('共享考试有独立答卷与最终成绩区域并明确最后有效提�
   await login(page, process.env.E2E_ADMIN_LOGIN!, process.env.E2E_ADMIN_PASSWORD!)
   const exam = await createPublishedExam(page)
   await page.goto(`/staff/exams/${exam.id}`)
-  await page.getByRole('tab', { name: '答卷与成绩', exact: true }).click()
+  await page.getByRole('tab', { name: '阅卷进度与成绩', exact: true }).click()
   await expect(page.getByRole('button', { name: '全部答卷', exact: true })).toBeVisible()
   await page.getByRole('button', { name: '最终成绩', exact: true }).click()
   await expect(
@@ -97,30 +125,53 @@ test('共享考试有独立答卷与最终成绩区域并明确最后有效提�
   ).toBeVisible()
 })
 
-test('工作人员共享读取提交答卷与评分依据，管理员首阅保持只读', async ({ page, browser }) => {
+test('教师共享读取答卷与评分依据，管理员只提供阅卷进度', async ({ page, browser }) => {
   test.setTimeout(60_000)
   await login(page, process.env.E2E_ADMIN_LOGIN!, process.env.E2E_ADMIN_PASSWORD!)
   const fixture = await gradingFixture(page, browser, 3)
   await waitForTask(page, fixture.exam.id, fixture.attemptId)
-  await page.goto(`/staff/attempts/${fixture.attemptId}`)
-  await expect(page.getByRole('heading', { name: fixture.exam.title, level: 1 })).toBeVisible()
-  await expect(page.getByText('第一题学生论证', { exact: true })).toBeVisible()
-  await expect(page.getByText('评分依据1', { exact: true })).toBeVisible()
-  await expect(page.getByRole('button', { name: '保存本题评分', exact: true })).toHaveCount(0)
-  await expect(page.getByText(/仅指定教师可完成整卷首阅/)).toBeVisible()
+  await page.goto(`/staff/exams/${fixture.exam.id}`)
+  await page.getByRole('tab', { name: '阅卷进度与成绩', exact: true }).click()
+  await expect(page.getByRole('link', { name: '查看答卷 →', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: '改派任务', exact: true })).toBeVisible()
+  const context = await signedContext(
+    browser,
+    new URL(page.url()).origin,
+    fixture.teachers[1]!.loginName,
+    fixturePassword,
+  )
+  try {
+    const teacher = await context.newPage()
+    await teacher.goto(`/staff/attempts/${fixture.attemptId}`)
+    await expect(teacher.getByText('第一题学生论证', { exact: true })).toBeVisible()
+    await expect(teacher.getByText('评分依据1', { exact: true })).toBeVisible()
+    await expect(teacher.getByRole('button', { name: '保存本题评分', exact: true })).toHaveCount(0)
+    await expect(teacher.getByText(/仅指定教师可完成整卷首阅/)).toBeVisible()
+  } finally {
+    await context.close()
+  }
 })
 
 test('已发布快照通过专门评分依据表单更正且必须填写原因', async ({ page }, testInfo) => {
   await login(page, process.env.E2E_ADMIN_LOGIN!, process.env.E2E_ADMIN_PASSWORD!)
+  await becomeTeacher(page)
   const exam = await createPublishedExam(page)
   await page.goto(`/staff/exams/${exam.id}`)
   await page.getByRole('tab', { name: '题目快照', exact: true }).click()
   await page.getByRole('button', { name: '更正第 1 题评分依据', exact: true }).click()
   await expect(page.getByRole('heading', { name: '更正评分依据', exact: true })).toBeVisible()
-  await expect(page.getByRole('button', { name: '保存依据并重判', exact: true })).toBeDisabled()
+  await expect(page.getByRole('button', { name: '保存依据并重判', exact: true })).toBeEnabled()
   await expect(page.getByLabel('更正原因', { exact: true })).toBeVisible()
-  await expect(page.getByLabel('判断标准答案', { exact: true })).toHaveValue('false')
-  await page.getByLabel('判断标准答案', { exact: true }).selectOption('true')
+  await expect(
+    page
+      .locator('.field')
+      .filter({ has: page.getByRole('combobox', { name: '判断标准答案', exact: true }) }),
+  ).toContainText('假')
+  await selectNaiveOption(
+    page,
+    page.getByRole('combobox', { name: '判断标准答案', exact: true }),
+    '真',
+  )
   await page.getByLabel('更正原因', { exact: true }).fill('标准答案录入错误，修正为真。')
   await page.screenshot({
     path: testInfo.outputPath('standard-correction-desktop.png'),
@@ -144,9 +195,10 @@ test('指定教师整卷首阅完成后其他教师才可改分并必须记录�
   page,
   browser,
 }, testInfo) => {
-  test.setTimeout(60_000)
+  test.setTimeout(90_000)
   await login(page, process.env.E2E_ADMIN_LOGIN!, process.env.E2E_ADMIN_PASSWORD!)
-  const fixture = await gradingFixture(page, browser, 4)
+  // 真实服务下预留登录和逐题保存时间，避免 4 秒窗口在夹具提交前结束。
+  const fixture = await gradingFixture(page, browser, 12)
   await waitForTask(page, fixture.exam.id, fixture.attemptId)
   const firstContext = await signedContext(
     browser,
@@ -189,7 +241,8 @@ test('指定教师整卷首阅完成后其他教师才可改分并必须记录�
     await expect(first.getByText('12.5 分', { exact: true })).toBeVisible()
     await other.reload()
     await other.getByLabel('评分分值', { exact: true }).fill('2.0')
-    await expect(other.getByRole('button', { name: '保存本题评分', exact: true })).toBeDisabled()
+    await other.getByRole('button', { name: '保存本题评分', exact: true }).click()
+    await expect(other.getByText('请填写改分原因。', { exact: true })).toBeVisible()
     await other.getByLabel('改分原因', { exact: true }).fill('复核后未充分说明关键概念，调整分值。')
     await other.getByRole('button', { name: '保存本题评分', exact: true }).click()
     await expect(other.getByText('11.0 分', { exact: true })).toBeVisible()
@@ -293,15 +346,18 @@ test('共享评分历史展示评分人、前后分值与更正原因', async ({
       comment: '补充针对性评语。',
       reason: '复核论证质量，修正人工评分。',
     })
-    await page.goto(`/staff/attempts/${fixture.attemptId}`)
-    await expect(page.getByRole('button', { name: '查看本题评分历史', exact: true })).toBeVisible()
-    await page.getByRole('button', { name: '查看本题评分历史', exact: true }).click()
-    const history = page.getByRole('dialog')
+    const teacher = await firstContext.newPage()
+    await teacher.goto(`/staff/attempts/${fixture.attemptId}`)
+    await expect(
+      teacher.getByRole('button', { name: '查看本题评分历史', exact: true }),
+    ).toBeVisible()
+    await teacher.getByRole('button', { name: '查看本题评分历史', exact: true }).click()
+    const history = teacher.getByRole('dialog')
     await expect(history.getByText('4.0 → 2.5 分', { exact: true })).toBeVisible()
     await expect(history.getByText('复核论证质量，修正人工评分。', { exact: true })).toBeVisible()
     await expect(history.getByText('首阅测试教师', { exact: true }).first()).toBeVisible()
     await expect(history.getByText('补充针对性评语。', { exact: true })).toBeVisible()
-    await page.screenshot({ path: testInfo.outputPath('grading-history.png'), fullPage: true })
+    await teacher.screenshot({ path: testInfo.outputPath('grading-history.png'), fullPage: true })
   } finally {
     await firstContext.close()
   }
@@ -340,25 +396,28 @@ test('指定教师停用后管理员改派必须说明原因并保留已评题�
       },
       'PATCH',
     )
-    await page.goto(`/staff/attempts/${fixture.attemptId}`)
-    await expect(page.getByText('待指派', { exact: true })).toBeVisible()
-    await expect(page.getByRole('button', { name: '改派阅卷任务', exact: true })).toBeVisible()
-    await page.getByRole('button', { name: '改派阅卷任务', exact: true }).click()
+    await page.goto(`/staff/exams/${fixture.exam.id}`)
+    await page.getByRole('tab', { name: '阅卷进度与成绩', exact: true }).click()
+    await expect(
+      page.getByRole('row').filter({ hasText: fixture.student.loginName }),
+    ).toContainText('待指派')
+    await expect(page.getByRole('button', { name: '改派任务', exact: true })).toBeVisible()
+    await page.getByRole('button', { name: '改派任务', exact: true }).click()
     const modal = page.getByRole('dialog')
     await modal.getByLabel('搜索阅卷教师', { exact: true }).fill(fixture.teachers[1]!.loginName)
     await modal.getByRole('button', { name: '查询阅卷教师', exact: true }).click()
-    await modal.getByLabel('选择阅卷教师', { exact: true }).selectOption(fixture.teachers[1]!.id)
-    await expect(modal.getByRole('button', { name: '确认改派', exact: true })).toBeDisabled()
+    await selectNaiveOption(
+      page,
+      modal.getByRole('combobox', { name: '选择阅卷教师', exact: true }),
+      `共享改分教师（${fixture.teachers[1]!.loginName}）`,
+    )
     await modal
       .getByLabel('改派原因', { exact: true })
       .fill('原阅卷教师停用，交由另一位激活教师继续整卷首阅。')
     await page.screenshot({ path: testInfo.outputPath('grading-reassignment.png'), fullPage: true })
     await modal.getByRole('button', { name: '确认改派', exact: true }).click()
-    await expect(
-      page.getByText('阅卷任务已改派，已有题分和评分历史已保留。', { exact: true }),
-    ).toBeVisible()
+    await expect(modal).toBeHidden()
     await expect(page.getByText('共享改分教师', { exact: true })).toBeVisible()
-    await expect(page.getByText('已有首题评分应保留。', { exact: true })).toBeVisible()
     const latest = await (await page.request.get(`/api/staff/attempts/${fixture.attemptId}`)).json()
     expect(latest.questions[0].answer.score).toBe('3.5')
     expect(latest.task.assigned_teacher.id).toBe(fixture.teachers[1]!.id)
@@ -395,7 +454,7 @@ test('最终成绩等待最后有效提交判完再取低分，学生已批改�
     await waitForTask(page, fixture.exam.id, fixture.attemptId)
     await gradeWholeAttempt(teacherContext.request, fixture.attemptId)
     await page.goto(`/staff/exams/${fixture.exam.id}`)
-    await page.getByRole('tab', { name: '答卷与成绩', exact: true }).click()
+    await page.getByRole('tab', { name: '阅卷进度与成绩', exact: true }).click()
     await page.getByRole('button', { name: '最终成绩', exact: true }).click()
     await page.getByLabel('搜索成绩学生', { exact: true }).fill(fixture.student.loginName)
     await page.getByRole('button', { name: '查询最终成绩', exact: true }).click()
@@ -456,6 +515,11 @@ test('简答依据更正重开已完成任务且保留首阅事实，其他教�
   )
   try {
     const before = await gradeWholeAttempt(firstContext.request, fixture.attemptId)
+    await apiWrite(page.request, '/auth/logout', {})
+    await apiWrite(page.request, '/auth/login', {
+      login_name: fixture.teachers[0]!.loginName,
+      password: fixturePassword,
+    })
     await page.goto(`/staff/exams/${fixture.exam.id}`)
     await page.getByRole('tab', { name: '题目快照', exact: true }).click()
     await page.getByRole('button', { name: '更正第 1 题评分依据', exact: true }).click()
@@ -499,7 +563,10 @@ test('简答依据更正重开已完成任务且保留首阅事实，其他教�
   }
 })
 
-test('纯客观答卷无需人工首阅，管理员任务默认显示待指派', async ({ page, browser }, testInfo) => {
+test('纯客观答卷自动形成成绩，管理员从考试进度查看且不进入评分', async ({
+  page,
+  browser,
+}, testInfo) => {
   await login(page, process.env.E2E_ADMIN_LOGIN!, process.env.E2E_ADMIN_PASSWORD!)
   const exam = await createPublishedExam(page)
   const loginName = `I4A${Date.now()}${Math.floor(Math.random() * 1000)}`
@@ -521,13 +588,17 @@ test('纯客观答卷无需人工首阅，管理员任务默认显示待指派',
     fixturePassword,
   )
   try {
-    const submitted = await submitAttempt(studentContext.request, exam.id, [false])
+    await submitAttempt(studentContext.request, exam.id, [false])
     await apiWrite(page.request, `/staff/exams/${exam.id}/grading/refresh`, {})
-    await page.goto(`/staff/attempts/${submitted.id}`)
-    await expect(page.getByText('5.0 分', { exact: true })).toBeVisible()
-    await expect(page.getByText('无需人工阅卷', { exact: true })).toBeVisible()
-    await expect(page.getByText('无需首阅', { exact: true })).toBeVisible()
-    await expect(page.getByText(/仅指定教师可完成整卷首阅/)).toHaveCount(0)
+    await page.goto(`/staff/exams/${exam.id}`)
+    await page.getByRole('tab', { name: '阅卷进度与成绩', exact: true }).click()
+    await page.getByLabel('搜索答卷学生').fill(loginName)
+    await page.getByRole('button', { name: '查询答卷', exact: true }).click()
+    await expect(
+      page.getByRole('row').filter({ hasText: loginName }).getByText('5.0 分', { exact: true }),
+    ).toBeVisible()
+    await expect(page.getByText('无需人工任务或等待分配', { exact: true })).toBeVisible()
+    await expect(page.getByRole('link', { name: '查看答卷 →', exact: true })).toHaveCount(0)
     await page.evaluate(() => {
       if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
       window.scrollTo(0, 0)
@@ -536,12 +607,7 @@ test('纯客观答卷无需人工首阅，管理员任务默认显示待指派',
       path: testInfo.outputPath('automatic-grading-no-review.png'),
       fullPage: true,
     })
-    await page.goto('/staff/grading-tasks')
-    await expect(page.getByRole('button', { name: '待指派', exact: true })).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    )
-    await page.screenshot({ path: testInfo.outputPath('admin-tasks-default.png'), fullPage: true })
+    await expect(page.getByRole('link', { name: '阅卷工作台', exact: true })).toHaveCount(0)
   } finally {
     await studentContext.close()
   }

@@ -4,6 +4,7 @@ import { NAlert, NButton } from 'naive-ui'
 import { analyticsApi } from '../../api/analytics'
 import { questionTypeLabels } from '../../api/questions'
 import SurfacePanel from '../../components/ui/SurfacePanel.vue'
+import LoadingSkeleton from '../../components/ui/LoadingSkeleton.vue'
 import { usePrivateResource } from '../results/usePrivateResource'
 import EChartView from './EChartView.vue'
 import { barOption, formatRate } from './chartOptions'
@@ -31,7 +32,7 @@ const distribution = computed(() =>
     <NAlert v-if="failure" type="error"
       >{{ failure }} <NButton size="small" @click="load">重新加载统计</NButton></NAlert
     >
-    <p v-if="loading" class="muted" role="status">正在汇总本场考试…</p>
+    <LoadingSkeleton v-if="loading && !data" variant="detail" label="正在汇总本场考试" />
     <template v-if="data">
       <SurfacePanel
         title="人数统计"

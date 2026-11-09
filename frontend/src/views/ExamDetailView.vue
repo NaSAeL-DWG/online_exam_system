@@ -1,12 +1,14 @@
 <script setup lang="ts">
-import { nextTick, ref, useId } from 'vue'
+import { computed, nextTick, ref, useId } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { NAlert, NButton, NModal, useDialog } from 'naive-ui'
 import { examStatusLabels } from '../api/exams'
+import { useAuthStore } from '../stores/auth'
 import QuestionFields from '../components/QuestionFields.vue'
 import ExamParticipants from '../components/ExamParticipants.vue'
 import PageHeader from '../components/ui/PageHeader.vue'
 import SurfacePanel from '../components/ui/SurfacePanel.vue'
+import LoadingSkeleton from '../components/ui/LoadingSkeleton.vue'
 import StatusBadge from '../components/ui/StatusBadge.vue'
 import AppIcon from '../components/ui/AppIcon.vue'
 import ExamSettings from '../features/exams/ExamSettings.vue'
@@ -26,6 +28,8 @@ import {
 const route = useRoute()
 const router = useRouter()
 const dialog = useDialog()
+const auth = useAuthStore()
+const canGrade = computed(() => auth.user?.user_type === 'TEACHER')
 const {
   exam,
   form,
@@ -110,10 +114,14 @@ async function confirmCancel(): Promise<void> {
   if (await cancel(cancelReason.value)) cancelVisible.value = false
 }
 const tabs = [
-  { label: '考试设置', icon: 'clock', id: 'exam-settings' },
+  { label: '考试配置', icon: 'clock', id: 'exam-settings' },
   { label: '题目快照', icon: 'paper', id: 'exam-questions' },
   { label: '参考资格', icon: 'users', id: 'exam-eligibility' },
-  { label: '答卷与成绩', icon: 'check-circle', id: 'exam-grading' },
+  {
+    label: canGrade.value ? '答卷与成绩' : '阅卷进度与成绩',
+    icon: 'check-circle',
+    id: 'exam-grading',
+  },
   { label: '统计分析', icon: 'paper', id: 'exam-analytics' },
 ]
 const tabButtons = ref<HTMLButtonElement[]>([])
@@ -141,49 +149,32 @@ function confirmTransition(action: 'publish' | 'withdraw'): void {
         ><template #icon><AppIcon name="arrow-left" :size="16" /></template>返回考试列表</NButton
       >
     </div>
-    <PageHeader :title="exam?.title || '考试详情'">
+    <PageHeader
+      eyebrow="STAFF / EXAM CONFIG"
+      :title="exam?.title || '考试详情'"
+      :description="exam ? `独立试卷快照 · ${exam.id}` : undefined"
+    >
       <template #actions
         ><StatusBadge
           v-if="exam"
           :label="examStatusLabels[exam.status]"
-          :tone="isDraft ? 'warning' : exam.status === 'CANCELLED' ? 'danger' : 'success'"
-        /><template v-if="isDraft"
-          ><NButton
-            form="exam-draft-form"
-            attr-type="submit"
-            :type="dirty ? 'primary' : 'default'"
-            :loading="saving"
-            :disabled="conflict"
-            >保存考试草稿</NButton
-          ><NButton
-            :type="dirty ? 'default' : 'primary'"
-            :disabled="dirty || conflict || saving"
-            @click="confirmTransition('publish')"
-            >发布考试</NButton
-          ></template
-        ><NButton
-          v-else-if="exam?.status === 'RELEASED'"
-          :loading="saving"
-          @click="confirmTransition('withdraw')"
-          >撤回考试发布</NButton
-        ><NButton
-          v-if="exam?.status === 'RELEASED'"
+          :tone="
+            isDraft
+              ? 'warning'
+              : exam.status === 'CANCELLED'
+                ? 'danger'
+                : exam.status === 'RESULTS_PUBLISHED'
+                  ? 'success'
+                  : 'info'
+          "
+        /><NButton
+          v-if="isDraft && activeTab !== 0"
+          form="exam-draft-form"
+          attr-type="submit"
           type="primary"
-          :disabled="saving || conflict"
-          @click="publishResultsVisible = true"
-          >公布整场结果</NButton
-        ><NButton
-          v-if="exam?.status === 'RESULTS_PUBLISHED'"
-          :disabled="saving"
-          @click="withdrawResultsVisible = true"
-          >撤回已公布结果</NButton
-        ><NButton
-          v-if="exam && exam.status !== 'CANCELLED'"
-          type="error"
-          secondary
-          :disabled="saving || conflict"
-          @click="openCancel"
-          >取消整场考试</NButton
+          :loading="saving"
+          :disabled="conflict"
+          >保存考试草稿</NButton
         ></template
       >
     </PageHeader>
@@ -200,9 +191,9 @@ function confirmTransition(action: 'publish' | 'withdraw'): void {
       <p v-if="exam.cancelled_reason">{{ exam.cancelled_reason }}</p></NAlert
     >
     <NAlert v-for="warning in exam?.warnings" :key="warning" type="warning">{{ warning }}</NAlert>
-    <p v-if="loading && !exam" class="muted" role="status">正在加载考试…</p>
+    <LoadingSkeleton v-if="loading && !exam" variant="detail" label="正在加载考试" />
     <template v-if="form && exam">
-      <div class="exam-overview">
+      <div v-if="activeTab !== 0" class="exam-overview">
         <div>
           <span class="muted">题目</span
           ><strong>{{ form.questions.length }} <small>道</small></strong>
@@ -252,17 +243,106 @@ function confirmTransition(action: 'publish' | 'withdraw'): void {
           role="tabpanel"
           aria-labelledby="exam-settings-tab"
         >
-          <NAlert v-if="!isDraft && exam.status !== 'CANCELLED'" class="form-alert" type="info"
-            >已发布配置已锁定。尚无人开始时可撤回发布后修改。</NAlert
-          ><ExamSettings
-            ref="settingsFields"
-            v-model="form"
-            v-model:start="start"
-            v-model:end="end"
-            v-model:duration="duration"
-            :disabled="!isDraft || saving"
-            :saved-exam="exam"
-          />
+          <div class="exam-config-layout">
+            <div class="exam-config-main">
+              <NAlert v-if="!isDraft && exam.status !== 'CANCELLED'" class="form-alert" type="info"
+                >已发布配置已锁定。尚无人开始时可撤回发布后修改。</NAlert
+              ><ExamSettings
+                ref="settingsFields"
+                v-model="form"
+                v-model:start="start"
+                v-model:end="end"
+                v-model:duration="duration"
+                :disabled="!isDraft || saving"
+                :saved-exam="exam"
+              />
+            </div>
+            <aside class="exam-config-aside">
+              <SurfacePanel title="发布检查">
+                <ol class="publish-checks">
+                  <li>
+                    <div>
+                      <strong>独立试卷快照</strong
+                      ><span>{{ form.questions.length }} 题 · 总分 {{ draftTotal }} 分</span>
+                    </div>
+                  </li>
+                  <li>
+                    <div>
+                      <strong>考试时间与规则</strong
+                      ><span
+                        >{{ start && end ? '已配置起止时间' : '请完善考试起止时间' }} · 最多
+                        {{ form.max_attempts }} 次作答</span
+                      >
+                    </div>
+                  </li>
+                  <li>
+                    <div>
+                      <strong>参考范围与阅卷人</strong
+                      ><span
+                        >{{ form.audience_type === 'PUBLIC' ? '全部激活学生' : '限定参考名单' }} ·
+                        {{ form.grader_ids.length }} 位阅卷教师</span
+                      >
+                    </div>
+                  </li>
+                </ol>
+                <p v-if="dirty" class="draft-save-note">有未保存修改，请先保存草稿。</p>
+                <div class="publish-actions">
+                  <template v-if="isDraft"
+                    ><NButton
+                      form="exam-draft-form"
+                      attr-type="submit"
+                      :loading="saving"
+                      :disabled="conflict"
+                      >保存考试草稿</NButton
+                    ><NButton
+                      type="primary"
+                      :disabled="dirty || conflict || saving"
+                      @click="confirmTransition('publish')"
+                      >发布考试 →</NButton
+                    ></template
+                  >
+                  <NButton
+                    v-else-if="exam.status === 'RELEASED'"
+                    type="primary"
+                    :disabled="saving || conflict"
+                    @click="publishResultsVisible = true"
+                    >公布整场结果</NButton
+                  >
+                  <NButton
+                    v-else-if="exam.status === 'RESULTS_PUBLISHED'"
+                    :disabled="saving"
+                    @click="withdrawResultsVisible = true"
+                    >撤回已公布结果</NButton
+                  >
+                  <NButton v-else disabled>考试已取消</NButton>
+                </div>
+                <p class="publish-hint">发布时会检查完整配置；公布结果前需完成全部有效答卷判分。</p>
+              </SurfacePanel>
+              <div class="publish-notice">
+                <h3>发布与公布的区别</h3>
+                <p>发布考试后学生可按时间规则参加；公布结果后学生才能查看成绩。</p>
+              </div>
+              <SurfacePanel v-if="exam.status !== 'CANCELLED'" title="考试操作">
+                <p class="publish-hint">
+                  尚无人开始时可以撤回发布。取消整场考试将废弃全部作答，且无法恢复。
+                </p>
+                <div class="publish-actions">
+                  <NButton
+                    v-if="exam.status === 'RELEASED'"
+                    :loading="saving"
+                    @click="confirmTransition('withdraw')"
+                    >撤回考试发布</NButton
+                  ><NButton
+                    type="error"
+                    secondary
+                    :disabled="saving || conflict"
+                    @click="openCancel"
+                    >取消整场考试</NButton
+                  >
+                </div>
+              </SurfacePanel>
+            </aside>
+          </div>
         </section>
         <section
           v-show="activeTab === 1"
@@ -277,7 +357,9 @@ function confirmTransition(action: 'publish' | 'withdraw'): void {
               ref="snapshotFields"
               v-model="form.questions"
               :disabled="!isDraft || saving"
-              :allow-correction="exam.status === 'RELEASED' || exam.status === 'RESULTS_PUBLISHED'"
+              :allow-correction="
+                canGrade && (exam.status === 'RELEASED' || exam.status === 'RESULTS_PUBLISHED')
+              "
               @move="move"
               @edit="editQuestion"
               @add="addQuestion"
@@ -311,7 +393,7 @@ function confirmTransition(action: 'publish' | 'withdraw'): void {
       </section>
     </template>
     <StandardCorrection
-      v-if="exam && correctionIndex !== null"
+      v-if="canGrade && exam && correctionIndex !== null"
       :exam="exam"
       :question-index="correctionIndex"
       @close="correctionIndex = null"
@@ -395,7 +477,7 @@ function confirmTransition(action: 'publish' | 'withdraw'): void {
 </template>
 <style scoped>
 .field-error {
-  color: #b42318;
+  color: var(--red-600);
   font-size: 12px;
 }
 .cancel-exam-form {
@@ -405,6 +487,79 @@ function confirmTransition(action: 'publish' | 'withdraw'): void {
 }
 .detail-back {
   margin-bottom: -12px;
+}
+.exam-config-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 24px;
+  align-items: start;
+}
+.exam-config-main {
+  min-width: 0;
+}
+.exam-config-aside {
+  display: grid;
+  gap: 24px;
+}
+.publish-checks {
+  counter-reset: checks;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.publish-checks li {
+  counter-increment: checks;
+  display: flex;
+  gap: 16px;
+  margin-bottom: 23px;
+  font-size: 12px;
+  line-height: 1.8;
+}
+.publish-checks li::before {
+  content: counter(checks, decimal-leading-zero);
+  color: var(--color-muted);
+  font:
+    12px/1.8 Consolas,
+    monospace;
+}
+.publish-checks strong {
+  display: block;
+  margin-bottom: 5px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.publish-checks span,
+.publish-hint {
+  color: var(--color-muted);
+  font-size: 12px;
+  line-height: 1.8;
+}
+.publish-actions {
+  display: grid;
+  gap: 10px;
+  margin-top: 18px;
+}
+.publish-hint {
+  margin: 14px 0 0;
+}
+.draft-save-note {
+  color: var(--color-primary);
+  font-size: 12px;
+}
+.publish-notice {
+  padding: 20px 24px;
+  border: 1px solid var(--blue-200);
+  background: var(--blue-50);
+}
+.publish-notice h3 {
+  margin: 0 0 8px;
+  font-size: 13px;
+}
+.publish-notice p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.9;
+  color: var(--color-muted);
 }
 .exam-overview {
   display: grid;
@@ -451,6 +606,7 @@ function confirmTransition(action: 'publish' | 'withdraw'): void {
   display: flex;
   gap: 30px;
   border-bottom: 1px solid var(--color-border);
+  overflow-x: auto;
 }
 .exam-tabs button {
   display: flex;
@@ -462,6 +618,8 @@ function confirmTransition(action: 'publish' | 'withdraw'): void {
   padding: 12px 2px;
   color: var(--color-muted);
   font-size: 14px;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 .exam-tabs button[aria-selected='true'] {
   color: var(--color-primary);
@@ -488,6 +646,9 @@ function confirmTransition(action: 'publish' | 'withdraw'): void {
   font-size: 12px;
 }
 @media (max-width: 900px) {
+  .exam-config-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
   .exam-overview {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 20px;

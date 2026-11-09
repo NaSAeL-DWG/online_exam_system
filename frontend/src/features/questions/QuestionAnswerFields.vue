@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, useId } from 'vue'
 import { NButton } from 'naive-ui'
+import NSelect from '../../components/ui/AppSelect.vue'
 import type { QuestionInput } from '../../api/questions'
 import type { ContentFieldErrors } from '../contentValidation'
 const model = defineModel<QuestionInput>({ required: true })
@@ -91,11 +92,15 @@ function addOption(): void {
       <NButton :disabled="model.options.length >= 8" @click="addOption">增加选项</NButton>
     </div>
     <label v-else-if="model.type === 'TRUE_FALSE'" class="field"
-      >判断答案<select v-model="model.standard_answer" aria-label="判断答案">
-        <option :value="true">真</option>
-        <option :value="false">假</option>
-      </select></label
-    >
+      >判断答案<NSelect
+        :value="model.standard_answer === true ? 'true' : 'false'"
+        aria-label="判断答案"
+        :options="[
+          { value: 'true', label: '真' },
+          { value: 'false', label: '假' },
+        ]"
+        @update:value="model.standard_answer = $event === 'true'"
+    /></label>
     <label v-else class="field"
       >参考答案（可选）<textarea
         :value="typeof model.standard_answer === 'string' ? model.standard_answer : ''"
@@ -112,7 +117,7 @@ function addOption(): void {
   margin-bottom: 14px;
 }
 .field-error {
-  color: #b42318;
+  color: var(--red-600);
   font-size: 12px;
 }
 h3,

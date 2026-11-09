@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import { onBeforeUnmount, ref, watch } from 'vue'
 import { NAlert, NButton } from 'naive-ui'
+import NSelect from '../components/ui/AppSelect.vue'
 import PageHeader from '../components/ui/PageHeader.vue'
 import SurfacePanel from '../components/ui/SurfacePanel.vue'
+import LoadingSkeleton from '../components/ui/LoadingSkeleton.vue'
+import StatusBadge from '../components/ui/StatusBadge.vue'
 import { useLogViewer } from '../features/logs/useLogViewer'
 import { displayLogLine } from '../features/logs/logFormat'
 import LogSettings from '../features/logs/LogSettings.vue'
@@ -94,7 +97,10 @@ async function download() {
 
 <template>
   <div class="page-stack logs-page">
-    <PageHeader title="系统日志" description="检索系统运行记录与操作审计，追踪问题的来龙去脉。"
+    <PageHeader
+      eyebrow="ADMIN / LOGS"
+      title="系统日志"
+      description="按考试与业务模块定位问题，运行日志和操作审计分别记录。"
       ><template #actions
         ><NButton :disabled="accessDenied" @click="settingsVisible = true">采集设置</NButton
         ><NButton :disabled="accessDenied" :loading="exporting" @click="download"
@@ -103,83 +109,84 @@ async function download() {
       ></PageHeader
     >
     <NAlert v-if="exportFailure" type="error">{{ exportFailure }}</NAlert>
-    <SurfacePanel>
-      <div class="logs-tabs" role="tablist" aria-label="日志视图">
-        <button role="tab" :aria-selected="view === 'runtime'" @click="changeView('runtime')">
-          运行日志
-        </button>
-        <button role="tab" :aria-selected="view === 'audit'" @click="changeView('audit')">
-          操作审计
-        </button>
+    <div class="logs-tabs" role="tablist" aria-label="日志视图">
+      <button role="tab" :aria-selected="view === 'runtime'" @click="changeView('runtime')">
+        运行日志
+      </button>
+      <button role="tab" :aria-selected="view === 'audit'" @click="changeView('audit')">
+        操作审计
+      </button>
+    </div>
+    <form class="logs-query" @submit.prevent="applyFilters">
+      <div class="logs-searchbar">
+        <label class="field logs-search"
+          >关键词<input v-model="draft.q" placeholder="搜索考试编号、任务或日志内容" /></label
+        ><label v-if="view === 'runtime'" class="field logs-module"
+          >模块<input v-model="draft.module" placeholder="全部模块" /></label
+        ><NButton attr-type="submit" :disabled="accessDenied" :loading="loading">应用筛选</NButton
+        ><NButton :disabled="accessDenied" @click="resetFilters">重置筛选</NButton>
       </div>
-      <form class="logs-filter" @submit.prevent="applyFilters">
-        <label class="field">开始时间<input v-model="draft.start" type="datetime-local" /></label>
-        <label class="field">结束时间<input v-model="draft.end" type="datetime-local" /></label>
-        <label v-if="view === 'runtime'" class="field"
-          >日志等级<select v-model="draft.level">
-            <option value="INFO">INFO · 仅信息</option>
-            <option value="WARNING">WARNING · 信息和警告</option>
-            <option value="ERROR">ERROR · 信息、警告和错误</option>
-            <option value="DEBUG">DEBUG · 全部已采集</option>
-          </select></label
-        >
-        <label class="field">关键词<input v-model="draft.q" placeholder="搜索日志内容" /></label>
-        <template v-if="view === 'runtime'">
-          <label class="field"
-            >模块<input v-model="draft.module" placeholder="例如 identity"
+      <details class="logs-advanced" :open="view === 'audit'">
+        <summary>高级筛选</summary>
+        <div class="logs-filter">
+          <label class="field">开始时间<input v-model="draft.start" type="datetime-local" /></label>
+          <label class="field">结束时间<input v-model="draft.end" type="datetime-local" /></label>
+          <label v-if="view === 'runtime'" class="field"
+            >日志等级<NSelect
+              v-model:value="draft.level"
+              aria-label="日志等级"
+              :options="[
+                { value: 'INFO', label: 'INFO · 仅信息' },
+                { value: 'WARNING', label: 'WARNING · 信息和警告' },
+                { value: 'ERROR', label: 'ERROR · 信息、警告和错误' },
+                { value: 'DEBUG', label: 'DEBUG · 全部已采集' },
+              ]"
           /></label>
-          <label class="field">任务<input v-model="draft.task" placeholder="任务名称" /></label>
-          <label class="field logs-filter-wide"
-            >关联 ID<input v-model="draft.correlation_id" placeholder="关联一次请求或任务"
-          /></label>
-        </template>
-        <template v-else>
-          <label class="field"
-            >操作者 ID<input
-              v-model="draft.actor_id"
-              placeholder="操作者 UUID"
-              pattern="[0-9a-fA-F-]{36}"
-          /></label>
-          <label class="field"
-            >操作类型<input v-model="draft.action" placeholder="例如 TEACHER_CREATED"
-          /></label>
-          <label class="field"
-            >对象类型<input v-model="draft.entity_type" placeholder="例如 user"
-          /></label>
-          <label class="field"
-            >对象 ID<input
-              v-model="draft.entity_id"
-              placeholder="对象 UUID"
-              pattern="[0-9a-fA-F-]{36}"
-          /></label>
-        </template>
-        <div class="logs-filter-actions">
-          <NButton attr-type="submit" type="primary" :disabled="accessDenied" :loading="loading"
-            >应用筛选</NButton
-          ><NButton :disabled="accessDenied" @click="resetFilters">重置筛选</NButton>
+          <template v-if="view === 'runtime'">
+            <label class="field">任务<input v-model="draft.task" placeholder="任务名称" /></label>
+            <label class="field logs-filter-wide"
+              >关联 ID<input v-model="draft.correlation_id" placeholder="关联一次请求或任务"
+            /></label>
+          </template>
+          <template v-else>
+            <label class="field"
+              >操作者 ID<input
+                v-model="draft.actor_id"
+                placeholder="操作者 UUID"
+                pattern="[0-9a-fA-F-]{36}"
+            /></label>
+            <label class="field"
+              >操作类型<input v-model="draft.action" placeholder="例如 TEACHER_CREATED"
+            /></label>
+            <label class="field"
+              >对象类型<input v-model="draft.entity_type" placeholder="例如 user"
+            /></label>
+            <label class="field"
+              >对象 ID<input
+                v-model="draft.entity_id"
+                placeholder="对象 UUID"
+                pattern="[0-9a-fA-F-]{36}"
+            /></label>
+          </template>
         </div>
-      </form>
-      <NAlert v-if="filterFailure" type="warning" class="logs-alert">{{ filterFailure }}</NAlert>
-      <div class="logs-level-note" v-if="view === 'runtime'">
-        等级按累计范围显示：INFO 仅信息；WARNING 包含信息；ERROR 包含信息与警告；DEBUG
-        显示全部已采集记录。
-      </div>
-      <div v-else class="logs-level-note">
-        审计独立保留，只显示安全操作摘要。时间按本地时区筛选。
-      </div>
-    </SurfacePanel>
-    <SurfacePanel :title="view === 'runtime' ? '运行记录' : '审计记录'">
-      <template #actions
-        ><NButton size="small" :disabled="loading || accessDenied" @click="refresh"
-          >立即刷新</NButton
-        ></template
-      >
+      </details>
+    </form>
+    <NAlert v-if="filterFailure" type="warning" class="logs-alert">{{ filterFailure }}</NAlert>
+    <div class="logs-level-note" v-if="view === 'runtime'">
+      等级按累计范围显示：INFO 仅信息；WARNING 包含信息；ERROR 包含信息与警告；DEBUG
+      显示全部已采集记录。
+    </div>
+    <div v-else class="logs-level-note">审计独立保留，只显示安全操作摘要。时间按本地时区筛选。</div>
+    <SurfacePanel class="logs-record-panel">
       <div class="logs-live-tools">
         <div class="logs-toggles">
           <label
             ><input v-model="autoRefresh" type="checkbox" :disabled="accessDenied" />自动刷新</label
           ><label
             ><input v-model="autoScroll" type="checkbox" :disabled="accessDenied" />自动滚动</label
+          >
+          <NButton size="small" :disabled="loading || accessDenied" @click="refresh"
+            >立即刷新</NButton
           >
         </div>
         <span class="logs-live-status"
@@ -208,7 +215,12 @@ async function download() {
         :aria-busy="loading"
         @scroll="onScroll"
       >
-        <p v-if="loading" class="logs-empty" role="status">正在加载日志…</p>
+        <div class="log-table-head" aria-hidden="true">
+          <span>时间</span><span>{{ view === 'runtime' ? '级别' : '操作类型' }}</span
+          ><span>{{ view === 'runtime' ? '模块' : '操作者' }}</span
+          ><span>记录</span>
+        </div>
+        <LoadingSkeleton v-if="loading && !entries.length" :rows="5" label="正在加载日志" />
         <p v-else-if="entries.length === 0" class="logs-empty">
           {{ failure ? '日志暂未加载，请重试' : '当前筛选下暂无日志' }}
         </p>
@@ -220,8 +232,28 @@ async function download() {
           :data-level="entry.level ?? 'INFO'"
         >
           <summary>
-            <span class="log-entry-mark" aria-hidden="true">›</span
-            ><span class="log-entry-line">{{ displayLogLine(entry) }}</span>
+            <time :datetime="entry.timestamp" class="log-time">{{
+              new Date(entry.timestamp).toLocaleTimeString('zh-CN', { hour12: false })
+            }}</time>
+            <StatusBadge
+              v-if="view === 'runtime'"
+              :label="entry.level || 'INFO'"
+              :tone="
+                entry.level === 'ERROR'
+                  ? 'danger'
+                  : entry.level === 'WARNING'
+                    ? 'warning'
+                    : 'neutral'
+              "
+            />
+            <span v-else>{{ entry.action }}</span>
+            <span class="log-module">{{
+              view === 'runtime' ? entry.module : entry.actor_name || '系统'
+            }}</span>
+            <span class="log-entry-line"
+              >{{ view === 'runtime' ? entry.message : entry.summary
+              }}<span class="log-entry-mark" aria-hidden="true"> ›</span></span
+            >
           </summary>
           <dl class="log-entry-detail">
             <dt>原始时间</dt>
@@ -250,6 +282,8 @@ async function download() {
             >
             <dt>记录 ID</dt>
             <dd>{{ entry.id }}</dd>
+            <dt>完整记录</dt>
+            <dd>{{ displayLogLine(entry) }}</dd>
           </dl>
         </details>
       </div>
