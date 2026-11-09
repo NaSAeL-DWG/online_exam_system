@@ -1,5 +1,7 @@
 # 快速启动指南
 
+**中文** | [English](quick-start.en.md)
+
 本文档带你从零把 **在线限时考试系统** 在本地跑起来。
 
 整个系统 **不需要 Docker**，本地运行包含 5 个部分：**PostgreSQL 数据库**、**Redis 缓存/队列**、**FastAPI 后端接口**、**ARQ 后台 Worker** 和 **Vite 前端页面**。

@@ -1,5 +1,7 @@
 # 前端工程与开发指南 (`frontend/`)
 
+**中文** | [English](README.en.md)
+
 本目录包含 **在线限时考试系统** 的 Vue 3 前端工程，基于 **Vue 3.5 + Vite 8 + TypeScript 5.9 + Naive UI + Vue Router 5 + Pinia 4 + ECharts 6 + KaTeX + Playwright** 构建，依赖版本严格锁定在 `package-lock.json` 中。
 
 > **全局文档索引**：首次启动步骤请看 **[快速启动指南 (`../docs/quick-start.md`)](../docs/quick-start.md)**；视觉层级与配色规范请看 **[UI 视觉设计规范 (`../docs/ui-design.md`)](../docs/ui-design.md)**。

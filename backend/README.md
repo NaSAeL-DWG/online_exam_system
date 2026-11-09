@@ -1,5 +1,7 @@
 # 后端工程与维护指南 (`backend/`)
 
+**中文** | [English](README.en.md)
+
 本目录包含 **在线限时考试系统** 的 FastAPI 后端服务、ARQ 异步 Worker、CLI 运维工具、Alembic 数据库迁移及 HTTP 集成测试。
 
 > **全局文档索引**：首次配置环境变量与启动步骤请看 **[快速启动指南 (`../docs/quick-start.md`)](../docs/quick-start.md)**；全局架构规范请看 **[架构设计与开发规范 (`../docs/development.md`)](../docs/development.md)**。

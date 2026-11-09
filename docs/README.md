@@ -1,5 +1,7 @@
 # 文档中心（Documentation Hub）
 
+**中文** | [English](README.en.md)
+
 欢迎来到 **在线限时考试系统** （[GitHub 仓库](https://github.com/NaSAeL-DWG/online_exam_system)）的文档中心。
 
 为了让你用最短的时间找到需要的内容，我们将全部正式文档按 **“你是谁、你要做什么”** 梳理为三大核心板块与快速阅读路线。

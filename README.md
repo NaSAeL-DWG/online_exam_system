@@ -2,6 +2,8 @@
 
 # Online Exam System · 在线限时考试系统
 
+**中文** | [English](README.en.md)
+
 **面向教学机构的轻量、严谨、全流程在线限时考试平台**
 
 [![GitHub Repo](https://img.shields.io/badge/GitHub-NaSAeL--DWG%2Fonline__exam__system-181717?logo=github)](https://github.com/NaSAeL-DWG/online_exam_system)
