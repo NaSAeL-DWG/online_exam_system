@@ -74,6 +74,7 @@ The C3 theme defines **4 ten-shade primary color families (Bright Blue, Pine Gre
 All 30 page scenarios across the application (11 Student pages, 6 Teacher/Admin Exam & Grading pages, 8 Content & System Admin pages, and 5 Public/Account pages) adhere to these rules:
 
 1. **Shared Component Reuse**: Pages consistently use `PageHeader.vue` (English eyebrow label + `30 px` title + primary action slot), `SurfacePanel.vue`, `AppSelect.vue`, and `LoadingSkeleton.vue`.
+   - The grading-task empty state keeps the surrounding panel border and centers its message with `48 px` vertical and `24 px` horizontal padding, independently of the table container's zero padding.
 2. **Honest Real-API Boundaries (Zero Fabricated Data)**:
    - Pre-exam detail endpoints do not expose question breakdowns early, so the "Paper Structure" card displays the real total points and states that question counts and types are shown after starting the attempt.
    - Result views follow the "last valid submission" rule; unpublished or pending-grading states render `—` with neutral explanations rather than `0`.

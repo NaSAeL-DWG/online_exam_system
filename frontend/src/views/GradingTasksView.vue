@@ -169,7 +169,7 @@ onMounted(loadMetrics)
           </tbody>
         </table>
       </div>
-      <p v-else-if="!failure" class="muted">当前范围暂无阅卷任务。</p>
+      <p v-else-if="!failure" class="grading-empty-state muted">当前范围暂无阅卷任务。</p>
       <ListPager
         label="阅卷任务"
         :page="page"
@@ -223,6 +223,11 @@ onMounted(loadMetrics)
 }
 .grading-task-panel :deep(.list-pager) {
   padding: 16px 24px;
+}
+.grading-empty-state {
+  margin: 0;
+  padding: 48px 24px;
+  text-align: center;
 }
 .grading-table {
   min-width: 800px;
