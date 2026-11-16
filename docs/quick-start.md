@@ -34,6 +34,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\start-local.ps1
   ```
 - **日志去哪看**：基础设施与前端开发服务器的启动输出保存在 `.local/services/`，进程状态记录在 `.local/service-state.json`（均已被 Git 忽略）。后端 API 与 Worker 的运行日志直接由管理员后台的[系统日志](logging.md)页面统一管理；如果服务一启动就秒退，请按下文手动启动命令在前台运行，直接看终端报错。
 - **自动化终端保活**：如果在会自动回收子进程树的自动化宿主里调用该脚本，请追加 `-KeepAlive` 参数保持宿主存活；平时在普通 PowerShell 窗口里运行不需要加。
+- **停止本次启动脚本管理的服务**：在仓库根目录运行 `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\stop-local.ps1`。脚本按前端、Worker、API、Redis、PostgreSQL 的顺序停止由 `start-local.ps1` 启动的服务；启动时复用的服务不会停止。先加 `-WhatIf` 可以只查看将停止哪些服务。如果停止 PostgreSQL 时无法自动识别 `pg_ctl.exe`，可通过 `-PgCtl 'C:\你的路径\pg_ctl.exe'` 指定。Redis 需要 `backend/.env` 与 `.local/redis.conf` 仍指向启动时的本地实例；包含 `include` 的 Redis 配置需手动停止。
 
 ---
 
