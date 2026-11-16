@@ -25,7 +25,7 @@
 
 **在线限时考试系统** （[NaSAeL-DWG/online_exam_system](https://github.com/NaSAeL-DWG/online_exam_system)）是一套专为单个教学机构打造的 Web 在线考试解决方案。系统围绕 **学生、教师、管理员** 三类角色构建，覆盖从日常备题、组卷、发布考试、限时作答、自动判分、人工批阅，到成绩公布、错题复盘与学习分析的完整教学闭环。
 
-项目坚持 **“数据事实严谨、考试边界清晰、无 Docker 原生轻量运行”** 的工程理念：考试创建即生成独立快照，作答计时以服务端单调时钟为准，后台判分与超时收卷具备数据库级持久化兜底，确保考试过程公平、可靠、可追溯。
+项目坚持 **“数据事实严谨、考试边界清晰、部署轻量灵活”** 的工程理念：既支持 **Docker Compose 一键容器化部署**，也支持 **无 Docker 本地原生运行**。考试创建即生成独立快照，作答计时以服务端单调时钟为准，后台判分与超时收卷具备数据库级持久化兜底，确保考试过程公平、可靠、可追溯。
 
 ---
 
@@ -59,6 +59,7 @@
 | **后端框架** | Python 3.13 + FastAPI + Uvicorn | 异步 HTTP API、自动 OpenAPI 契约、统一中文表单校验 |
 | **数据与 ORM** | PostgreSQL 18 + SQLModel + Alembic | 严格事务边界、行级锁并发控制、18 个版本可追溯数据库迁移 |
 | **会话与任务队列** | Redis 8 + ARQ + Argon2 + PyJWT | HttpOnly Cookie + CSRF 双重校验、Refresh Token 单次轮换、异步判分 Worker |
+| **部署与运维** | Docker Compose + Nginx + PowerShell | 一键编排 PG/Redis/API/Worker/Nginx，支持本地原生运行与一键打包发布 |
 | **测试与质量** | Pytest + Playwright + Ruff + Prettier | 真实 PostgreSQL/Redis 集成测试、Chromium 端到端测试、100 人并发实测脚本 |
 
 ---
@@ -84,27 +85,35 @@ online_exam_system/
 │   │   ├── features/         # 按领域划分的复杂业务组件与组合式逻辑（作答租约、阅卷工作台、图表等）
 │   │   └── views/            # 学生、教师、管理员及公共页面视图
 │   └── tests/e2e/            # Playwright 真实浏览器端到端测试套件
+├── docker/                   # Docker Compose 编排、前后端 Dockerfile、Nginx 反代与 .env.example
 ├── docs/                     # 面向使用者、开发者与运维人员的正式文档中心（纳入 Git）
 ├── CONTEXT.md                # 核心业务领域术语词典（区分试卷、考试、快照、作答与最终成绩）
-└── start-local.ps1           # Windows 本地一键启动脚本（自动拉起 PG/Redis/API/Worker/Vite 并做健康检查）
+├── start-local.ps1           # Windows 本地原生一键启动脚本（自动拉起 PG/Redis/API/Worker/Vite 并做健康检查）
+└── build-package.ps1         # Windows 一键编译打包脚本（生成独立部署压缩包至 .local/releases/）
 ```
 
 ---
 
 ## 快速开始
 
-本项目本地运行 **无需 Docker**，直接运行原生 PostgreSQL、Redis、后端 API、ARQ Worker 与前端开发服务器。
+本项目支持两种运行方式：**Docker Compose 一键容器化部署**（无需本机配置 Python/Node/PG/Redis）和 **本地原生运行**（适合前后端开发调试）。
 
-### 环境要求
+### 方式一：Docker Compose 一键部署（推荐）
 
-- **Python**: `3.13.x`（包管理器使用 `uv`）
-- **Node.js**: `24.x`（包管理器使用 `npm`）
-- **PostgreSQL**: `18.x`（需创建独立业务数据库）
-- **Redis**: `8.x`（Windows 下推荐直接使用 WSL 内的 Redis）
+确保已安装 **Docker Engine** 与 **Docker Compose 插件**，在仓库根目录执行：
 
-### 方式一：Windows 一键启动（已完成首次配置后推荐）
+```bash
+cp docker/.env.example docker/.env
+# 编辑 docker/.env，替换 POSTGRES_PASSWORD、REDIS_PASSWORD、JWT_SECRET 与管理员账号密码
+docker compose --env-file docker/.env -f docker/compose.yaml up -d --build
+docker compose --env-file docker/.env -f docker/compose.yaml exec api python -m app.cli init-admin
+```
 
-完成首次依赖安装、环境变量配置（`backend/.env`）与数据库迁移后，在仓库根目录执行：
+Compose 会按顺序拉起 PostgreSQL、Redis、自动迁移数据库并启动 API、Worker 与 Nginx 前端，随后在浏览器访问 `http://localhost:8080`（端口可通过 `HTTP_PORT` 修改）即可登录。
+
+### 方式二：Windows 本地原生一键启动（已完成首次配置后推荐）
+
+本地原生环境要求：**Python 3.13** (`uv`)、**Node.js 24** (`npm`)、**PostgreSQL 18**、**Redis 8**（Windows 下推荐 WSL）。完成首次依赖安装、环境变量配置（`backend/.env`）与数据库迁移后，在仓库根目录执行：
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\start-local.ps1
@@ -112,7 +121,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\start-local.ps1
 
 脚本会按顺序检查并启动 PostgreSQL、WSL Redis、后端 API、ARQ Worker 和前端 Vite，自动验证端口与接口连通性。启动成功后在浏览器打开 `http://127.0.0.1:5173` 即可使用。
 
-### 方式二：分步手动启动（首次安装必读）
+### 方式三：分步手动原生启动（本地开发调试）
 
 1. **克隆仓库**
    ```bash
@@ -158,7 +167,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\start-local.ps1
 
 | 阅读场景 | 推荐文档 | 核心内容 |
 | :--- | :--- | :--- |
-| **我是第一次跑项目** | [快速启动 (`docs/quick-start.md`)](docs/quick-start.md) | 环境准备、`.env` 必填项、三个进程启动顺序、Windows 一键脚本 |
+| **我是第一次跑项目** | [快速启动 (`docs/quick-start.md`)](docs/quick-start.md) | Docker Compose 一键部署、原生环境准备、三进程启动、Windows 打包脚本 |
 | **我想快速体验完整功能** | [演示数据生成 (`docs/demo.md`)](docs/demo.md) | 一条命令生成 3 教师 + 6 学生 + 多状态考试的真实可交互演示环境 |
 | **我想了解各角色怎么用** | [角色操作指南 (`docs/user-guide.md`)](docs/user-guide.md) | 学生参考与复盘、教师出题组卷与阅卷公布、管理员账号与异常处理 |
 | **我想理清核心业务概念** | [领域术语词典 (`CONTEXT.md`)](CONTEXT.md) | 5 分钟分清“题库题目、试卷、考试、考试快照、答卷、最终成绩” |

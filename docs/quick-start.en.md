@@ -2,11 +2,12 @@
 
 [中文](quick-start.md) | **English**
 
-This guide walks you through running the **Online Exam System** locally from scratch.
+This guide walks you through running the **Online Exam System**. Two deployment modes are supported:
 
-The system runs **natively without Docker** and consists of 5 local components: **PostgreSQL**, **Redis**, **FastAPI Backend API**, **ARQ Background Worker**, and **Vite Frontend**.
+1. **[Docker Compose Deployment](#docker-compose-deployment)** (Recommended): Launches PostgreSQL 18, Redis 8, Alembic migration, FastAPI API, ARQ Worker, and Nginx web frontend in containers without installing Python/Node/PG/Redis on your host.
+2. **[Windows Quick Start](#windows-quick-start) / [Manual Native Startup](#first-time-setup-step-by-step-manual-startup)**: Runs all 5 processes natively without Docker—ideal for active local development and debugging.
 
-> **Shell Note**: Manual setup commands below use Bash syntax (Git Bash is recommended on Windows). After completing your first-time configuration and database migration, you can launch the entire stack with a single PowerShell command.
+> **Shell Note**: Manual setup commands below use Bash syntax (Git Bash is recommended on Windows). After completing your first-time native configuration and database migration, you can launch the entire stack with a single PowerShell command.
 
 ---
 
@@ -33,6 +34,51 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\start-local.ps1
   ```
 - **Where to Find Logs**: Diagnostic outputs for infrastructure and Vite are written to `.local/services/`, and process metadata is recorded in `.local/service-state.json` (both ignored by Git). Application logs for the API and worker are managed directly through the administrator **[System Logs](logging.en.md)** page (file logging is off by default). If the API or worker exits immediately on startup, run the manual commands below in the foreground to inspect startup errors.
 - **Automated Terminal Keep-Alive**: Append `-KeepAlive` when invoking the script from an automation harness that reaps child process trees on exit; interactive PowerShell sessions do not need this flag.
+
+---
+
+## Docker Compose Deployment
+
+If you want a zero-hassle evaluation or containerized deployment without installing Python, Node.js, PostgreSQL, or Redis locally, ensure **Docker Engine** and the **Docker Compose plugin** are installed, then run the following 3 steps from the repository root (first build requires internet access to pull base images and dependencies).
+
+### Step 1: Create `docker/.env`
+```bash
+cp docker/.env.example docker/.env
+```
+Edit `docker/.env` and replace all placeholder secrets and administrator info:
+- **`POSTGRES_PASSWORD` / `REDIS_PASSWORD`**: Use random **alphanumeric** characters so they work directly in container connection URLs without URL-encoding issues.
+- **`JWT_SECRET`**: A random secret string of at least 32 characters.
+- **`ADMIN_LOGIN_NAME` / `ADMIN_PASSWORD`**: Initial administrator login name and strong password (`>= 10` characters), plus real name, email, and phone number.
+- **`HTTP_PORT`**: Host port exposed by Nginx (defaults to `8080`).
+- **`ENVIRONMENT` / `COOKIE_SECURE`**: Keep `development` and `false` for local HTTP testing; set to `production` and `true` behind HTTPS in production.
+
+> **Security Note**: `docker/.env` is ignored by `.gitignore`—keep it safe and never commit it to Git.
+
+### Step 2: Build, Start & Initialize Admin
+From the repository root:
+```bash
+docker compose --env-file docker/.env -f docker/compose.yaml up -d --build
+docker compose --env-file docker/.env -f docker/compose.yaml exec api python -m app.cli init-admin
+```
+
+**Startup Sequence**: Compose starts `postgres` (18) and `redis` (8-alpine), waits for both healthchecks to pass, runs the one-off `migrate` container (`alembic upgrade head`), and then launches `api`, `worker`, and `web` (Nginx serving static assets and proxying `/api/` to `api:18000`). The `init-admin` command is idempotent and will not overwrite an existing admin password.
+
+### Step 3: Access & Common Compose Commands
+Open `http://localhost:8080` (or your configured `HTTP_PORT`) in your browser and sign in with your administrator credentials. Useful management commands:
+
+```bash
+# Check container status and stream logs
+docker compose --env-file docker/.env -f docker/compose.yaml ps
+docker compose --env-file docker/.env -f docker/compose.yaml logs -f
+
+# Stop and remove containers (named data volumes remain intact)
+docker compose --env-file docker/.env -f docker/compose.yaml down
+```
+
+### Container Persistence & Production Notes
+- **Named Volumes**: PostgreSQL data, Redis persistence, uploaded question images (`/data/uploads`), and server log files (`/data/logs`) are stored in named volumes `postgres_data`, `redis_data`, and `app_data`.
+- **Upgrades & Password Changes**: Always back up the database and uploaded assets per **[Operations & Recovery](operations.en.md)** before upgrading an existing deployment (`up -d --build` runs pending migrations automatically). Note that **changing `POSTGRES_PASSWORD` in `docker/.env` after `postgres_data` is first created does not automatically alter the existing PostgreSQL user's password**.
+- **Production TLS Boundary**: `docker/compose.yaml` and `docker/nginx.conf` do not terminate TLS directly. In production, place an HTTPS reverse proxy (e.g., host Nginx, Caddy, or cloud load balancer) in front of the `web` service, set `ENVIRONMENT=production` and `COOKIE_SECURE=true`, and restrict direct external access to PostgreSQL and Redis.
 
 ---
 
@@ -141,7 +187,12 @@ By default, Vite proxies `/api` requests to `http://127.0.0.1:18000`.
 
 ---
 
-## Stopping Services & Production Build
+## Stopping Services & Release Packaging
 
 - **Graceful Shutdown Order**: Stop Vite, the API server, and the ARQ worker (`Ctrl + C`) first, then shut down your project-dedicated Redis and PostgreSQL instances while keeping their data directories intact.
-- **Production Frontend Build**: Run `cd frontend && npm run build`. Serve the generated `dist/` directory behind a static server (such as Nginx) configured with SPA history fallback to `index.html` and a same-origin `/api` reverse proxy—never use `npm run dev` in production.
+- **Windows One-Command Release Packaging**: With Python 3.13, `uv`, and Node.js 24/npm installed, run from the repository root:
+  ```powershell
+  powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build-package.ps1
+  ```
+  The script syntax-checks backend Python code using locked dependencies, runs `npm ci` if `frontend/node_modules` is missing, builds the production frontend bundle, and packages a clean release archive at `.local/releases/online-exam-system-*.zip` (moving any previous `frontend/dist` to `.deletedfiles/`). If `node_modules` already exists, update dependencies manually whenever `package-lock.json` changes. The script exits non-zero on failure.
+- **Deploying the Release Zip**: The zip contains `frontend/dist`, `backend/app`, `backend/migrations`, `alembic.ini`, `pyproject.toml`, `uv.lock`, `.python-version`, `backend/.env.example`, and `LICENSE`—it intentionally excludes `.env` secrets, databases, uploaded assets, logs, and Python runtimes. After extracting on a target server, configure `backend/.env`, sync dependencies, run migrations, start both API and worker, and serve `frontend/dist` behind Nginx (or similar) with SPA fallback to `index.html` and a same-origin `/api` proxy—never run `npm run dev` in production.

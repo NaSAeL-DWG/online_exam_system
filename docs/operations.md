@@ -20,6 +20,28 @@
 - **配置一致性**：API 与 Worker 进程的 `DATABASE_URL`、`ARQ_REDIS_URL`（未单独配置时默认使用 `REDIS_URL`）和 `ARQ_QUEUE_NAME` 必须完全一致。
 - **健康检查说明**：`/api/health` 返回 `ok` 只代表 API 进程还活着，不代表数据库和 Redis 一定正常。验收环境是否就绪，请实际测试一次登录、业务列表读取并观察 Worker 日志。
 
+### Docker Compose 部署的对应操作速查
+如果你是通过 `docker/compose.yaml` 部署的，所有运维命令与原生方式本质相同，只需在命令前加上 `docker compose --env-file docker/.env -f docker/compose.yaml exec <服务名>` 即可：
+
+```bash
+# 查看迁移版本 / 升级 / 模型一致性检查
+docker compose --env-file docker/.env -f docker/compose.yaml exec api alembic current
+docker compose --env-file docker/.env -f docker/compose.yaml exec api alembic upgrade head
+
+# 管理员初始化 / 重置密码 / 会话清理补偿
+docker compose --env-file docker/.env -f docker/compose.yaml exec api python -m app.cli init-admin
+docker compose --env-file docker/.env -f docker/compose.yaml exec api python -m app.cli reset-admin
+docker compose --env-file docker/.env -f docker/compose.yaml exec api python -m app.cli retry-session-cleanups --limit 100
+
+# Redis 队列故障时的手动补交 / 补判
+docker compose --env-file docker/.env -f docker/compose.yaml exec api python -m app.workers recover-attempts --limit 100
+docker compose --env-file docker/.env -f docker/compose.yaml exec api python -m app.workers recover-grading --limit 100
+
+# 备份 PostgreSQL（从 postgres 容器导出 custom 格式）与上传图片/日志数据卷（app_data）
+docker compose --env-file docker/.env -f docker/compose.yaml exec -T postgres pg_dump -U exam_user -d online_exam --format=custom > exam-backup.dump
+docker compose --env-file docker/.env -f docker/compose.yaml exec -T api tar czf - -C /data uploads > app-uploads-backup.tar.gz
+```
+
 ---
 
 ## 二、数据库升级与回滚
