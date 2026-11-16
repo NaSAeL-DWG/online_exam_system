@@ -1,6 +1,7 @@
 import { expect, test, type Page, type TestInfo } from '@playwright/test'
 import type { Question } from '../../src/api/questions'
 import type { Paper } from '../../src/api/papers'
+import { selectNaiveOption } from './naive-select'
 
 test.setTimeout(60_000)
 
@@ -91,6 +92,38 @@ async function capture(page: Page, info: TestInfo, name: string): Promise<void> 
   }
   await page.setViewportSize({ width: 1440, height: 1000 })
 }
+
+test('缺少原生 randomUUID 时仍能创建选择题并追加合法 UUID 选项', async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(crypto, 'randomUUID', { value: undefined })
+  })
+  await identity(page)
+  await page.route('**/api/staff/questions?**', (route) =>
+    route.fulfill({ json: { items: [], total: 0, page: 1, page_size: 10 } }),
+  )
+  let optionIds: string[] = []
+  await page.route('**/api/staff/questions', (route) => {
+    const input = route.request().postDataJSON()
+    optionIds = input.options.map((option: { id: string }) => option.id)
+    return route.fulfill({ json: { ...questions[0], ...input } })
+  })
+  await page.goto('/staff/questions')
+  await page.getByRole('button', { name: '新建题目', exact: true }).click()
+  await selectNaiveOption(page, page.getByRole('combobox', { name: '题型', exact: true }), '单选题')
+  await page.getByLabel('科目', { exact: true }).fill('兼容性测试')
+  await page.getByLabel('题干', { exact: true }).fill('HTTP 下选项可以正常生成。')
+  await page.getByRole('button', { name: '增加选项', exact: true }).click()
+  for (let index = 1; index <= 3; index += 1) {
+    await page.getByLabel(`选项 ${index}`, { exact: true }).fill(`选项 ${index}`)
+  }
+  await page.getByLabel('正确选项 1', { exact: true }).check()
+  await page.getByRole('button', { name: '保存题目', exact: true }).click()
+  await expect(page.getByRole('dialog')).toBeHidden()
+  expect(new Set(optionIds).size).toBe(3)
+  for (const id of optionIds) {
+    expect(id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
+  }
+})
 
 test('题库与题编辑落实六列表格、属性侧栏，筛选保存与放弃修改保留', async ({ page }, info) => {
   await identity(page)

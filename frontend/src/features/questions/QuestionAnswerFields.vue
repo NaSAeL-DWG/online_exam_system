@@ -4,6 +4,7 @@ import { NButton } from 'naive-ui'
 import NSelect from '../../components/ui/AppSelect.vue'
 import type { QuestionInput } from '../../api/questions'
 import type { ContentFieldErrors } from '../contentValidation'
+import { createClientId } from '../../utils/uuid'
 const model = defineModel<QuestionInput>({ required: true })
 defineProps<{ errors?: ContentFieldErrors }>()
 const errorPrefix = useId()
@@ -22,7 +23,7 @@ function removeOption(id: string): void {
     model.value.standard_answer = model.value.standard_answer.filter((item) => item !== id)
 }
 function addOption(): void {
-  model.value.options.push({ id: crypto.randomUUID(), content: '' })
+  model.value.options.push({ id: createClientId(), content: '' })
 }
 </script>
 

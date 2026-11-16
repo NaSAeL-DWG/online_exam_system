@@ -187,7 +187,8 @@ export function useAttemptWorkspace(attemptId: string, userId: string) {
     if (!attempt.value || attempt.value.status !== 'IN_PROGRESS' || activationBusy) return
     activationBusy = true
     loading.value = true
-    const originalToken = takeover ? undefined : readToken()
+    // 无浏览器独占锁时不能复用可复制的令牌，刷新或复制页面必须明确接管。
+    const originalToken = !takeover && lease.canReusePageToken ? readToken() : undefined
     // Web Lock 只约束当前浏览器；新设备看到已有代次时必须由用户明确接管。
     if (!takeover && !originalToken && attempt.value.token_generation > 0) {
       readonlyReason.value = '本答卷已在另一页面开始。本页只读；主动接管后才能保存。'

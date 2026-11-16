@@ -1,3 +1,5 @@
+import { createClientId } from '../../utils/uuid'
+
 /** 页面级写锁不能从 sessionStorage 复制；服务端代次负责最终拒绝旧页面写入。 */
 export function createPageLease(
   userId: string,
@@ -5,7 +7,8 @@ export function createPageLease(
   onRevoked: (suspended?: boolean) => void,
 ) {
   const name = `online-exam-attempt:${userId}:${attemptId}`
-  const owner = crypto.randomUUID()
+  const owner = createClientId()
+  const locks = navigator.locks
   const channel = new BroadcastChannel(name)
   let releaseLock: (() => void) | null = null
   let held = false
@@ -24,12 +27,17 @@ export function createPageLease(
     }
   }
   async function acquire(takeover = false): Promise<boolean> {
-    if (closed || !('locks' in navigator)) return false
+    if (closed) return false
     if (held) return true
+    // HTTP 环境没有 Web Locks，首次激活与主动接管改由服务端代次仲裁。
+    if (!locks) {
+      held = true
+      return true
+    }
     const currentClaim = ++claim
     if (takeover) channel.postMessage({ type: 'takeover', owner })
     return new Promise<boolean>((resolve) => {
-      void navigator.locks
+      void locks
         .request(name, takeover ? { steal: true } : { ifAvailable: true }, async (lock) => {
           if (!lock || closed) {
             resolve(false)
@@ -62,6 +70,7 @@ export function createPageLease(
     window.removeEventListener('pagehide', pageHide)
   }
   return {
+    canReusePageToken: Boolean(locks),
     acquire,
     release,
     close,

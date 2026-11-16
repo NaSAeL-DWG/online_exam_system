@@ -1,4 +1,5 @@
 import type { QuestionInput } from '../../api/questions'
+import { createClientId } from '../../utils/uuid'
 
 export function blankQuestion(): QuestionInput {
   return {
@@ -18,8 +19,8 @@ export function changeQuestionType(question: QuestionInput): void {
   if (['SINGLE_CHOICE', 'MULTIPLE_CHOICE'].includes(question.type)) {
     if (question.options.length < 2) {
       question.options = [
-        { id: crypto.randomUUID(), content: '' },
-        { id: crypto.randomUUID(), content: '' },
+        { id: createClientId(), content: '' },
+        { id: createClientId(), content: '' },
       ]
     }
     question.standard_answer = []

@@ -94,6 +94,85 @@ async function captureStudent(page: Page, testInfo: TestInfo, name: string): Pro
   await page.setViewportSize({ width: 1440, height: 1000 })
 }
 
+test('缺少原生 randomUUID 时仍能进入作答并保存答案', async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(crypto, 'randomUUID', { value: undefined })
+  })
+  await mockIdentity(page)
+  const value = attempt()
+  await page.route('**/api/student/attempts/c3-attempt', (route) => route.fulfill({ json: value }))
+  await page.route('**/api/student/attempts/c3-attempt/activate', (route) =>
+    route.fulfill({ json: { ...value, page_token: 'page-token', token_generation: 1 } }),
+  )
+  await page.route('**/api/student/attempts/c3-attempt/answers/answer-one', (route) =>
+    route.fulfill({
+      json: { ...value.questions[0]!.answer, answer_data: ['option-a'], version: 2 },
+    }),
+  )
+  await page.goto('/student/attempts/c3-attempt')
+  await expect(page.getByRole('heading', { name: value.exam_title, exact: true })).toBeVisible()
+  await page.getByRole('radio', { name: 'A. 选项甲' }).check()
+  await expect(page.getByRole('status', { name: '本题保存状态' })).toHaveText('已保存')
+})
+
+test('HTTP 缺少 Web Locks 时通过服务端代次保存，复制页面须主动接管', async ({ page, context }) => {
+  await context.addInitScript(() => {
+    Object.defineProperty(navigator, 'locks', { value: undefined })
+  })
+  const value = attempt()
+  const activations: Record<string, unknown>[] = []
+  await context.route('**/api/auth/me', (route) => route.fulfill({ json: { user: student } }))
+  await context.route('**/api/auth/csrf', (route) =>
+    route.fulfill({ json: { csrf_token: 'c3-token' } }),
+  )
+  await context.route('**/api/student/attempts/c3-attempt', (route) =>
+    route.fulfill({ json: value }),
+  )
+  await context.route('**/api/student/attempts/c3-attempt/activate', (route) => {
+    activations.push(route.request().postDataJSON())
+    value.token_generation += 1
+    return route.fulfill({
+      json: { ...value, page_token: `page-token-${value.token_generation}` },
+    })
+  })
+  await context.route('**/api/student/attempts/c3-attempt/answers/answer-one', (route) => {
+    const input = route.request().postDataJSON()
+    expect(input.token_generation).toBe(value.token_generation)
+    expect(input.page_token).toBe(`page-token-${value.token_generation}`)
+    value.questions[0]!.answer = {
+      ...value.questions[0]!.answer,
+      answer_data: input.answer_data,
+      version: input.version + 1,
+    }
+    return route.fulfill({ json: value.questions[0]!.answer })
+  })
+  await page.goto('/student/attempts/c3-attempt')
+  await page.getByRole('radio', { name: 'A. 选项甲' }).check()
+  await expect(page.getByRole('status', { name: '本题保存状态' })).toHaveText('已保存')
+  expect(activations).toEqual([{ expected_generation: 0 }])
+
+  const copied = await context.newPage()
+  await copied.addInitScript(() => {
+    sessionStorage.setItem('online-exam-page:c3-student:c3-attempt', 'page-token-1')
+  })
+  await copied.goto('/student/attempts/c3-attempt')
+  await expect(copied.getByRole('radio', { name: 'A. 选项甲' })).toBeDisabled()
+  expect(activations).toHaveLength(1)
+  await copied.getByRole('button', { name: '主动接管此答卷', exact: true }).click()
+  await expect(copied.getByRole('radio', { name: 'A. 选项甲' })).toBeEnabled()
+  await expect(page.getByRole('radio', { name: 'A. 选项甲' })).toBeDisabled()
+  expect(activations).toEqual([{ expected_generation: 0 }, {}])
+  await copied.getByRole('radio', { name: 'B. 选项乙' }).check()
+  await expect(copied.getByRole('status', { name: '本题保存状态' })).toHaveText('已保存')
+
+  await copied.reload()
+  await expect(copied.getByRole('radio', { name: 'B. 选项乙' })).toBeDisabled()
+  await copied.getByRole('button', { name: '主动接管此答卷', exact: true }).click()
+  await expect(copied.getByRole('radio', { name: 'B. 选项乙' })).toBeChecked()
+  await expect(copied.getByRole('radio', { name: 'B. 选项乙' })).toBeEnabled()
+  expect(activations).toEqual([{ expected_generation: 0 }, {}, {}])
+})
+
 test('考试详情显示服务端整场时间与三卡，结束后以灰态阻止作答', async ({ page }, testInfo) => {
   await mockIdentity(page)
   let state: Partial<StudentExam> = {}
