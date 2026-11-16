@@ -1,0 +1,95 @@
+name: online-exam-system
+
+x-backend-environment: &backend-environment
+  ENVIRONMENT: ${ENVIRONMENT:-development}
+  DATABASE_URL: postgresql+asyncpg://exam_user:${POSTGRES_PASSWORD:?请设置 POSTGRES_PASSWORD}@postgres:5432/online_exam
+  REDIS_URL: redis://:${REDIS_PASSWORD:?请设置 REDIS_PASSWORD}@redis:6379/0
+  JWT_SECRET: ${JWT_SECRET:?请设置 JWT_SECRET}
+  COOKIE_SECURE: ${COOKIE_SECURE:-false}
+  ASSET_STORAGE_DIR: /data/uploads
+  LOG_STORAGE_DIR: /data/logs
+  ADMIN_LOGIN_NAME: ${ADMIN_LOGIN_NAME:-admin}
+  ADMIN_PASSWORD: ${ADMIN_PASSWORD:?请设置 ADMIN_PASSWORD}
+  ADMIN_REAL_NAME: ${ADMIN_REAL_NAME:-系统管理员}
+  ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@example.com}
+  ADMIN_PHONE_NUMBER: ${ADMIN_PHONE_NUMBER:-13800000000}
+
+x-backend: &backend
+  image: online-exam-backend:local
+  build:
+    context: ..
+    dockerfile: docker/backend.Dockerfile
+  environment: *backend-environment
+  volumes:
+    - app_data:/data
+
+services:
+  postgres:
+    image: postgres:18
+    environment:
+      POSTGRES_DB: online_exam
+      POSTGRES_USER: exam_user
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?请设置 POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U exam_user -d online_exam"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  redis:
+    image: redis:8-alpine
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?请设置 REDIS_PASSWORD}
+      REDISCLI_AUTH: ${REDIS_PASSWORD:?请设置 REDIS_PASSWORD}
+    command: ["sh", "-c", "exec redis-server --appendonly yes --requirepass \"$$REDIS_PASSWORD\""]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  migrate:
+    <<: *backend
+    command: ["alembic", "upgrade", "head"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    <<: *backend
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  worker:
+    <<: *backend
+    command: ["arq", "app.workers.attempts.WorkerSettings"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ..
+      dockerfile: docker/frontend.Dockerfile
+    ports:
+      - "${HTTP_PORT:-8080}:80"
+    depends_on:
+      - api
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+  app_data:

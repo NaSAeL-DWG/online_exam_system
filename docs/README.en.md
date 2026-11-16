@@ -31,7 +31,7 @@ For first-time evaluators, presenters, and daily users (students, teachers, and 
 
 | Document | Summary | Key Topics Covered |
 | :--- | :--- | :--- |
-| **[Quick Start Guide (`quick-start.en.md`)](quick-start.en.md)** | Run the project locally from scratch | Runtime versions, required `backend/.env` variables, 3-process startup order, Windows `start-local.ps1` one-command launcher |
+| **[Quick Start Guide (`quick-start.en.md`)](quick-start.en.md)** | Run or package the project from scratch | Docker Compose one-command deployment, native runtime & `backend/.env` setup, Windows `start-local.ps1` & `build-package.ps1` |
 | **[Three-Role User Guide (`user-guide.en.md`)](user-guide.en.md)** | Complete manual for Students, Teachers, and Admins | Student registration & timed attempt rules, multi-tab takeover, teacher question bank/paper/snapshot workflow, whole-attempt grading, publishing/withdrawing results, admin task reassignment |
 | **[Repeatable Demo Data (`demo.en.md`)](demo.en.md)** | Populate realistic end-to-end sample data | Run `python -m app.demo` via public HTTP APIs to create 3 teachers, 6 students, 2 classes, and exams across 9 business states |
 | **[Domain Terminology (`../CONTEXT.en.md`)](../CONTEXT.en.md)** | Shared ubiquitous language across the project | Clear definitions of 14 core terms: Question, Paper, Exam, Exam Snapshot, Exam Participant, Attempt, Grading Task, Attempt Score, Final Result, Void Attempt, etc. |
@@ -61,7 +61,7 @@ For administrators and operators managing database upgrades, backups, fault reco
 
 | Document | Summary | Key Topics Covered |
 | :--- | :--- | :--- |
-| **[Operations & Recovery (`operations.en.md`)](operations.en.md)** | Upgrades, backups, and fault recovery handbook | Service startup/shutdown order, Alembic migration & rollback safety, `pg_dump` backup/restore, pure-PostgreSQL recovery when Redis is down, admin password reset, FAQ table |
+| **[Operations & Recovery (`operations.en.md`)](operations.en.md)** | Upgrades, backups, Docker ops, and recovery | Service startup order, Docker Compose ops & volume backups, Alembic migrations/rollbacks, `pg_dump` restore, pure-PG recovery, admin password reset |
 | **[System Logs & Security Audit (`logging.en.md`)](logging.en.md)** | Admin log viewer and retention guide | Runtime logs vs. security audits, **cumulative log level filtering rules**, 15-minute temporary DEBUG toggle, online retention & file rotation limits, redaction boundaries |
 
 ---

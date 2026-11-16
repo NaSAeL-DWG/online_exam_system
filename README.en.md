@@ -25,7 +25,7 @@
 
 **Online Exam System** ([NaSAeL-DWG/online_exam_system](https://github.com/NaSAeL-DWG/online_exam_system)) is a web-based online examination platform built for a single educational institution. Designed around three core roles—**Students, Teachers, and Administrators**—it covers the complete teaching and assessment lifecycle: shared question banks, paper assembly, exam publishing, timed attempts, automated objective grading, manual subjective grading, result publication, mistake review, and learning analytics.
 
-The project follows three core engineering principles: **rigorous data integrity, clear exam boundaries, and lightweight native execution without Docker**. Creating an exam immediately deep-copies a standalone snapshot, countdown timers are anchored to the server's authoritative clock, and background auto-submission and grading are backed by PostgreSQL persistence—ensuring every exam is fair, reliable, and auditable.
+The project follows three core engineering principles: **rigorous data integrity, clear exam boundaries, and flexible deployment**—supporting both **one-command Docker Compose deployment** and **lightweight native execution without Docker**. Creating an exam immediately deep-copies a standalone snapshot, countdown timers are anchored to the server's authoritative clock, and background auto-submission and grading are backed by PostgreSQL persistence—ensuring every exam is fair, reliable, and auditable.
 
 ---
 
@@ -59,6 +59,7 @@ The project follows three core engineering principles: **rigorous data integrity
 | **Backend Framework** | Python 3.13 + FastAPI + Uvicorn | Async HTTP API, OpenAPI schema generation, localized validation diagnostics |
 | **Database & ORM** | PostgreSQL 18 + SQLModel + Alembic | Strict transaction boundaries, row-level locking (`FOR UPDATE`), 18 versioned migrations |
 | **Session & Queue** | Redis 8 + ARQ + Argon2 + PyJWT | HttpOnly Cookie + double-submit CSRF, single-use Refresh Token CAS rotation, async grading worker |
+| **Deployment & Ops** | Docker Compose + Nginx + PowerShell | One-command container orchestration (PG/Redis/API/Worker/Nginx), native startup, and release zip packaging |
 | **Testing & Quality** | Pytest + Playwright + Ruff + Prettier | Real PostgreSQL/Redis HTTP integration tests, Chromium E2E suite, 100-student concurrency benchmark |
 
 ---
@@ -84,27 +85,35 @@ online_exam_system/
 │   │   ├── features/         # Domain-scoped state & complex UI workflows (attempt lease, grading workspace, charts)
 │   │   └── views/            # 30 route-level views across student, teacher, admin, and public flows
 │   └── tests/e2e/            # Playwright real-browser end-to-end test suite
+├── docker/                   # Docker Compose orchestration, backend/frontend Dockerfiles, Nginx config & .env.example
 ├── docs/                     # Official user, developer, and operations documentation (tracked in Git)
 ├── CONTEXT.md / CONTEXT.en.md# Domain terminology dictionary (Paper vs. Exam vs. Snapshot vs. Attempt vs. Final Result)
-└── start-local.ps1           # Windows one-command startup script (launches PG/Redis/API/Worker/Vite with health checks)
+├── start-local.ps1           # Windows one-command native startup script (launches PG/Redis/API/Worker/Vite with health checks)
+└── build-package.ps1         # Windows release packaging script (builds frontend & outputs deployable zip to .local/releases/)
 ```
 
 ---
 
 ## Quick Start
 
-This project runs **natively without Docker**, using local PostgreSQL, Redis, FastAPI, ARQ Worker, and Vite processes.
+You can run the system either via **Docker Compose** (zero local Python/Node/PG/Redis setup required) or **natively** on your host machine for active development.
 
-### Prerequisites
+### Option 1: Docker Compose Deployment (Recommended)
 
-- **Python**: `3.13.x` (managed via `uv`)
-- **Node.js**: `24.x` (managed via `npm`)
-- **PostgreSQL**: `18.x` (dedicated application database)
-- **Redis**: `8.x` (WSL Redis is recommended on Windows)
+With **Docker Engine** and the **Compose plugin** installed, run from the repository root:
 
-### Option 1: Windows One-Command Startup (Recommended After Initial Setup)
+```bash
+cp docker/.env.example docker/.env
+# Edit docker/.env to set POSTGRES_PASSWORD, REDIS_PASSWORD, JWT_SECRET, and ADMIN_* credentials
+docker compose --env-file docker/.env -f docker/compose.yaml up -d --build
+docker compose --env-file docker/.env -f docker/compose.yaml exec api python -m app.cli init-admin
+```
 
-Once dependencies are installed, `backend/.env` is configured, and database migrations have run, start the entire stack from the repository root:
+Compose starts PostgreSQL and Redis, runs database migrations automatically, and brings up the API, Worker, and Nginx web frontend. Visit `http://localhost:8080` (configurable via `HTTP_PORT`) to sign in.
+
+### Option 2: Windows One-Command Native Startup (Recommended After Initial Setup)
+
+Native prerequisites: **Python 3.13** (`uv`), **Node.js 24** (`npm`), **PostgreSQL 18**, and **Redis 8** (WSL recommended on Windows). Once dependencies are installed, `backend/.env` is configured, and database migrations have run, start the entire stack from the repository root:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\start-local.ps1
@@ -112,7 +121,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\start-local.ps1
 
 The script sequentially starts or reuses PostgreSQL, WSL Redis, the FastAPI backend (`18000`), the ARQ worker, and the Vite frontend (`5173`), then verifies database, Redis, API, and proxy readiness. Open `http://127.0.0.1:5173` when ready.
 
-### Option 2: Step-by-Step Manual Startup (First-Time Setup)
+### Option 3: Step-by-Step Manual Native Startup (Local Development)
 
 1. **Clone the repository**
    ```bash
@@ -158,7 +167,7 @@ Start from the **[Documentation Hub (`docs/README.en.md`)](docs/README.en.md)** 
 
 | Scenario | Recommended Guide | What You Will Learn |
 | :--- | :--- | :--- |
-| **First-time local setup** | [Quick Start (`docs/quick-start.en.md`)](docs/quick-start.en.md) | Environment setup, `.env` variables, 3-process startup order, Windows `start-local.ps1` script |
+| **First-time local setup** | [Quick Start (`docs/quick-start.en.md`)](docs/quick-start.en.md) | Docker Compose deployment, native environment setup, 3-process startup, Windows packaging script |
 | **Explore with rich sample data** | [Demo Data (`docs/demo.en.md`)](docs/demo.en.md) | Populate 3 teachers, 6 students, 2 classes, and 9 exam states via real HTTP APIs |
 | **Learn role workflows** | [User Guide (`docs/user-guide.en.md`)](docs/user-guide.en.md) | Student timed attempts & review, teacher paper assembly & grading, admin account & task management |
 | **Understand domain concepts** | [Domain Context (`CONTEXT.en.md`)](CONTEXT.en.md) | Clear definitions of Question, Paper, Exam, Exam Snapshot, Attempt, and Final Result |

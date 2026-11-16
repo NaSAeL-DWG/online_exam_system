@@ -2,11 +2,12 @@
 
 **中文** | [English](quick-start.en.md)
 
-本文档带你从零把 **在线限时考试系统** 在本地跑起来。
+本文档带你从零把 **在线限时考试系统** 跑起来。系统支持两种部署与运行方式：
 
-整个系统 **不需要 Docker**，本地运行包含 5 个部分：**PostgreSQL 数据库**、**Redis 缓存/队列**、**FastAPI 后端接口**、**ARQ 后台 Worker** 和 **Vite 前端页面**。
+1. **[Docker Compose 一键容器化部署](#使用-docker-compose-启动)**：不用在本机折腾 Python、Node、PostgreSQL 和 Redis 环境，一条命令拉起全套容器（PostgreSQL 18 + Redis 8 + Migrate + API + Worker + Nginx 前端）。
+2. **[Windows 快速启动](#windows-快速启动) / [分步手动启动](#首次安装分步手动启动)**：无 Docker 原生运行，直接启动 5 个本地进程，适合前后端日常开发调试。
 
-> **终端提示**：下方的手动配置命令默认使用 Bash 语法（Windows 用户推荐使用 Git Bash）。当你完成第一次环境配置和数据库迁移后，日常开发可以直接用我们提供的 PowerShell 脚本一键拉起所有服务。
+> **终端提示**：下方的手动配置命令默认使用 Bash 语法（Windows 用户推荐使用 Git Bash）。当你完成第一次原生环境配置和数据库迁移后，日常开发可以直接用我们提供的 PowerShell 脚本一键拉起所有服务。
 
 ---
 
@@ -33,6 +34,51 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\start-local.ps1
   ```
 - **日志去哪看**：基础设施与前端开发服务器的启动输出保存在 `.local/services/`，进程状态记录在 `.local/service-state.json`（均已被 Git 忽略）。后端 API 与 Worker 的运行日志直接由管理员后台的[系统日志](logging.md)页面统一管理；如果服务一启动就秒退，请按下文手动启动命令在前台运行，直接看终端报错。
 - **自动化终端保活**：如果在会自动回收子进程树的自动化宿主里调用该脚本，请追加 `-KeepAlive` 参数保持宿主存活；平时在普通 PowerShell 窗口里运行不需要加。
+
+---
+
+## 使用 Docker Compose 启动
+
+如果你只想快速评估、演示或一键容器化部署，不需要在本机装 Python、Node、PostgreSQL 或 Redis——只要装好 **Docker Engine** 和 **Docker Compose 插件**，在仓库根目录按下面 3 步操作即可（首次构建镜像需要联网下载基础镜像与依赖）。
+
+### 第 1 步：准备环境变量 `docker/.env`
+```bash
+cp docker/.env.example docker/.env
+```
+打开 `docker/.env`，把占位密码和配置改成你自己的值：
+- **`POSTGRES_PASSWORD` / `REDIS_PASSWORD`**：建议用**纯字母和数字**的随机密码（避免在容器内部连接 URL 里出现特殊字符需要 URL 转义的问题）。
+- **`JWT_SECRET`**：至少 32 位的独立随机字符串。
+- **`ADMIN_LOGIN_NAME` / `ADMIN_PASSWORD`**：管理员账号与强密码（至少 10 位），以及管理员姓名、邮箱和手机号。
+- **`HTTP_PORT`**：Nginx 对外暴露端口，默认 `8080`。
+- **`ENVIRONMENT` / `COOKIE_SECURE`**：本地 HTTP 体验保持 `development` 和 `false`；生产环境需配合 HTTPS 改为 `production` 和 `true`。
+
+> **安全提醒**：`docker/.env` 已被 `.gitignore` 忽略，请妥善保存，千万不要提交到 Git 仓库。
+
+### 第 2 步：构建启动并初始化管理员
+在仓库根目录执行：
+```bash
+docker compose --env-file docker/.env -f docker/compose.yaml up -d --build
+docker compose --env-file docker/.env -f docker/compose.yaml exec api python -m app.cli init-admin
+```
+
+**编排启动顺序说明**：Compose 会先启动 `postgres`（18）和 `redis`（8-alpine）并等待健康检查通过，然后自动运行一次 `migrate` 容器执行 `alembic upgrade head`，迁移完成后再拉起 `api`、`worker` 和 `web`（Nginx 静态资源 + `/api/` 反向代理）。`init-admin` 命令支持重复执行，不会覆盖已经存在的管理员密码。
+
+### 第 3 步：访问与常用容器命令
+打开浏览器访问 `http://localhost:8080`（若修改了 `HTTP_PORT` 请用对应端口），用配置的管理员账号登录即可。常用管理命令：
+
+```bash
+# 查看各容器运行状态与实时日志
+docker compose --env-file docker/.env -f docker/compose.yaml ps
+docker compose --env-file docker/.env -f docker/compose.yaml logs -f
+
+# 停止并移除容器（保留持久化数据卷）
+docker compose --env-file docker/.env -f docker/compose.yaml down
+```
+
+### 容器持久化与生产注意
+- **数据卷位置**：数据库数据、Redis 持久化、题目上传图片（`/data/uploads`）和服务器日志文件（`/data/logs`）分别保存在命名卷 `postgres_data`、`redis_data`、`app_data` 中。
+- **升级与改密**：更新已有部署前，请先按 **[日常运维与故障恢复](operations.md)** 备份数据库与上传目录（`up -d --build` 会自动执行新的数据库迁移）。注意：**首次创建 `postgres_data` 卷后，再改 `docker/.env` 里的 `POSTGRES_PASSWORD` 不会自动修改库内已有账号的密码**。
+- **生产 HTTPS 边界**：`docker/compose.yaml` 与 `docker/nginx.conf` 本身不包含 TLS 证书配置。正式上线时，请在前端入口前挂载 HTTPS 反向代理（如宿主 Nginx / Caddy / 云负载均衡），并将 `ENVIRONMENT=production`、`COOKIE_SECURE=true` 同步打开，同时限制外部直接访问数据库与 Redis。
 
 ---
 
@@ -145,4 +191,9 @@ Vite 默认会把所有 `/api` 开头的请求代理到 `http://127.0.0.1:18000`
 ## 停止服务与生产构建说明
 
 - **日常停机顺序**：先在终端按 `Ctrl + C` 停掉前端 Vite、后端 API 和 Worker，再正常关闭本项目专用的 Redis 和 PostgreSQL，保留数据目录以便下次继续使用（注意不要误关你电脑上其他项目共用的数据库服务）。
-- **生产环境打包**：前端生产构建执行 `cd frontend && npm run build`，生成的 `dist/` 静态文件需要配合 Nginx 等支持 SPA 路由回退（Fallback 到 `index.html`）的静态服务器使用，并将同源 `/api` 反向代理到后端服务——**切勿在生产环境直接拿 `npm run dev` 对外提供服务**。
+- **Windows 一键编译打包**：安装 Python 3.13、`uv` 和 Node.js 24/npm 后，在项目根目录运行：
+  ```powershell
+  powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build-package.ps1
+  ```
+  脚本使用锁定的后端依赖检查 Python 源码语法，缺少 `frontend/node_modules` 时执行 `npm ci`，再编译前端并生成 `.local/releases/online-exam-system-*.zip`。若前端依赖已存在，脚本会直接使用现有依赖；依赖锁文件更新后请先自行更新依赖。已有 `frontend/dist` 会移入 `.deletedfiles/`。构建失败时脚本返回非零状态。
+- **部署压缩包**：压缩包包含前端 `dist`、后端源码、迁移、依赖锁文件和 `.env.example`，不包含实际 `.env`、数据库、上传文件或运行日志，也不包含 Python 运行环境。解压后需按本指南配置后端环境、安装依赖并执行迁移，同时运行 API 和 Worker。前端静态文件需要配合 Nginx 等支持 SPA 路由回退（Fallback 到 `index.html`）的静态服务器使用，并将同源 `/api` 反向代理到后端服务——**切勿在生产环境直接拿 `npm run dev` 对外提供服务**。

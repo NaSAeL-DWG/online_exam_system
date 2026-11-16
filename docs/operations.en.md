@@ -20,6 +20,28 @@ All authoritative business facts are persisted in **PostgreSQL**, while **Redis*
 - **Configuration Consistency**: The API and worker must share the exact same `DATABASE_URL`, `ARQ_REDIS_URL` (defaults to `REDIS_URL`), and `ARQ_QUEUE_NAME`.
 - **Health Check Scope**: `/api/health` returning `ok` only indicates the API process is alive. Confirm full readiness by testing login, business reads, and worker logs.
 
+### Docker Compose Operations Cheat Sheet
+When running via `docker/compose.yaml`, all maintenance commands follow the same logic—simply execute them inside the running containers via `docker compose --env-file docker/.env -f docker/compose.yaml exec`:
+
+```bash
+# Check Alembic revision / run migrations
+docker compose --env-file docker/.env -f docker/compose.yaml exec api alembic current
+docker compose --env-file docker/.env -f docker/compose.yaml exec api alembic upgrade head
+
+# Admin init / password reset / session cleanup retry
+docker compose --env-file docker/.env -f docker/compose.yaml exec api python -m app.cli init-admin
+docker compose --env-file docker/.env -f docker/compose.yaml exec api python -m app.cli reset-admin
+docker compose --env-file docker/.env -f docker/compose.yaml exec api python -m app.cli retry-session-cleanups --limit 100
+
+# Pure-PostgreSQL recovery when Redis queue is unavailable
+docker compose --env-file docker/.env -f docker/compose.yaml exec api python -m app.workers recover-attempts --limit 100
+docker compose --env-file docker/.env -f docker/compose.yaml exec api python -m app.workers recover-grading --limit 100
+
+# Back up PostgreSQL (custom dump) and uploaded assets in the app_data volume
+docker compose --env-file docker/.env -f docker/compose.yaml exec -T postgres pg_dump -U exam_user -d online_exam --format=custom > exam-backup.dump
+docker compose --env-file docker/.env -f docker/compose.yaml exec -T api tar czf - -C /data uploads > app-uploads-backup.tar.gz
+```
+
 ---
 
 ## 2. Database Upgrades & Rollbacks
